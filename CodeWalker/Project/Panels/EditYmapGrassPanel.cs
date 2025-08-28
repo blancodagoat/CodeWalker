@@ -249,15 +249,17 @@ namespace CodeWalker.Project.Panels
                 CurrentBatch.CreateInstancesAtMouse(
                     CurrentBatch,
                     mouseRay,
-                    (float) RadiusNumericUpDown.Value,
-                    (int) DensityNumericUpDown.Value,
-                    SpawnRayFunc,
-                    new Color(GrassColorLabel.BackColor.R, GrassColorLabel.BackColor.G, GrassColorLabel.BackColor.B),
-                    (int) AoNumericUpDown.Value,
-                    (int) ScaleNumericUpDown.Value,
+                    (float)RadiusNumericUpDown.Value,
+                    (int)DensityNumericUpDown.Value,
+                    SpawnRayFunc, new Color(GrassColorLabel.BackColor.R, GrassColorLabel.BackColor.G, GrassColorLabel.BackColor.B),
+                    (int)AoNumericUpDown.Value,
+                    (int)ScaleNumericUpDown.Value,
                     FloatUtil.ParseVector3String(PadTextBox.Text),
-                    RandomizeScaleCheckBox.Checked
-                );
+                    RandomizeScaleCheckBox.Checked,
+                    (int)colorRandomMinUpDown.Value,
+                    (int)colorRandomMaxUpDown.Value
+                    );
+
                 wf.UpdateGrassBatchGraphics(CurrentBatch);
             }
 

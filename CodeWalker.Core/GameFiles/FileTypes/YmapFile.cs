@@ -2470,6 +2470,9 @@ namespace CodeWalker.GameFiles
             return true;
         }
 
+        private static readonly System.Threading.ThreadLocal<Random> _rng = new System.Threading.ThreadLocal<Random>(() => new Random(unchecked(Environment.TickCount * 397) ^ Guid.NewGuid().GetHashCode()));
+        private static int ClampInt(int v, int min, int max) { return v < min ? min : (v > max ? max : v); }
+        private static byte ClampByte(int v) { return (byte)ClampInt(v, 0, 255); }
         public void CreateInstancesAtMouse(
             YmapGrassInstanceBatch batch,
             SpaceRayIntersectResult mouseRay,
@@ -2480,7 +2483,9 @@ namespace CodeWalker.GameFiles
             int ao,
             int scale,
             Vector3 pad,
-            bool randomScale)
+            bool randomScale,
+            int colorRandMin,
+            int colorRandMax)
         {
 
             ReInitializeBoundingCache();
@@ -2488,46 +2493,28 @@ namespace CodeWalker.GameFiles
             var positions = new List<Vector3>();
             var normals = new List<Vector3>();
 
-            // Get rand positions.
+
             GetSpawns(spawnPosition, spawnRayFunc, positions, normals, radius, amount);
             if (positions.Count <= 0) return;
 
-            // get the instance list
-            var instances =
-                batch.Instances?.ToList() ?? new List<rage__fwGrassInstanceListDef__InstanceData>();
+            var instances = batch.Instances?.ToList() ?? new List<rage__fwGrassInstanceListDef__InstanceData>();
             var batchAABB = batch.Batch.BatchAABB;
 
-            // make sure to store the old instance bounds for the original
-            // grass instances
             var oldInstanceBounds = new BoundingBox(batchAABB.min.XYZ(), batchAABB.max.XYZ());
 
             if (positions.Count <= 0)
                 return;
 
-            // Begin the spawn bounds.
             var grassBound = new BoundingBox(positions[0] - GrassMinMax, positions[0] + GrassMinMax);
             grassBound = EncapsulatePositions(positions, grassBound);
 
-            // Calculate the new spawn bounds.
             var newInstanceBounds = new BoundingBox(oldInstanceBounds.Minimum, oldInstanceBounds.Maximum);
-            newInstanceBounds = instances.Count > 0
-                ? newInstanceBounds.Encapsulate(grassBound)
-                : new BoundingBox(grassBound.Minimum, grassBound.Maximum);
+            newInstanceBounds = instances.Count > 0 ? newInstanceBounds.Encapsulate(grassBound) : new BoundingBox(grassBound.Minimum, grassBound.Maximum);
 
-            // now we need to recalculate the position of each instance
             instances = RecalculateInstances(instances, oldInstanceBounds, newInstanceBounds);
-
-            // Add new instances at each spawn position with
-            // the parameters in the brush.
-            SpawnInstances(positions, normals, instances, newInstanceBounds, color, ao, scale, pad, randomScale);
-
-            // then recalc the bounds of the grass batch
+            SpawnInstances(positions, normals, instances, newInstanceBounds, color, ao, scale, pad, randomScale, colorRandMin, colorRandMax);
             var b = RecalcBatch(newInstanceBounds, batch);
-
-            // plug our values back in and refresh the ymap.
             batch.Batch = b;
-
-            // Give back the new intsances
             batch.Instances = instances.ToArray();
             grassBounds.Clear();
         }
@@ -2701,16 +2688,36 @@ namespace CodeWalker.GameFiles
             int ao,
             int scale,
             Vector3 pad,
-            bool randomScale)
+            bool randomScale,
+            int colorRandMin,
+            int colorRandMax)
         {
-            for (var i = 0; i < positions.Count; i++)
+            var rnd = _rng.Value;
+
+            for (int i = 0; i < positions.Count; i++)
             {
                 var pos = positions[i];
-                // create the new instance.
-                var newInstance = CreateNewInstance(normals[i], color, ao, scale, pad, randomScale);
 
-                // get the grass position of the new instance and add it to the 
-                // instance list
+                var useScale = scale;
+                var useColor = color;
+
+                if (randomScale)
+                {
+                    double factor = 0.5 + (rnd.NextDouble() * 0.95);
+                    useScale = Math.Max(1, (int)Math.Round(scale * factor));
+
+                    int dR = rnd.Next(colorRandMin, colorRandMax + 1);
+                    int dG = rnd.Next(colorRandMin, colorRandMax + 1);
+                    int dB = rnd.Next(colorRandMin, colorRandMax + 1);
+
+                    useColor = new Color(
+                        ClampByte(color.R + dR),
+                        ClampByte(color.G + dG),
+                        ClampByte(color.B + dB),
+                        color.A
+                    );
+                }
+                var newInstance = CreateNewInstance(normals[i], useColor, ao, useScale, pad, randomScale);
                 var grassPosition = GetGrassPos(pos, instanceBounds);
                 newInstance.Position = grassPosition;
                 instanceList.Add(newInstance);
