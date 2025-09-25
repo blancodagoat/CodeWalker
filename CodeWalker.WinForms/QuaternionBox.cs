@@ -20,6 +20,9 @@ namespace CodeWalker.WinForms
         }
 
 
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public Quaternion Value
         {
             get

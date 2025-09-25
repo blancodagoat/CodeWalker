@@ -124,9 +124,8 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private float _Curvature = 0.3F;
-        /// <summary>
-        /// Gets or sets the curvature of the connection between Option
-        /// </summary>
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Browsable(false)]
         public float Curvature {
             get { return _Curvature; }
@@ -311,9 +310,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _MarkBackColor = Color.FromArgb(180, Color.Black);
-        /// <summary>
-        /// Gets or sets the background color used by the canvas to draw the Node tag details
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color used for drawing Node tag details on canvas")]
         public Color MarkBackColor {
             get { return _MarkBackColor; }
@@ -367,9 +366,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _LocationBackColor = Color.FromArgb(120, Color.Black);
-        /// <summary>
-        /// Get or set the background color of the edge position hint area in the canvas
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color of the edge position hint area in the canvas")]
         public Color LocationBackColor {
             get { return _LocationBackColor; }

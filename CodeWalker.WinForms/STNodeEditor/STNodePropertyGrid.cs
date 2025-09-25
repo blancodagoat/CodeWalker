@@ -57,9 +57,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _ItemHoverColor = Color.FromArgb(50, 125, 125, 125);
-        /// <summary>
-        /// Gets or sets the background color when the property option is hovered by the mouse
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color when the property option is hovered by the mouse")]
         public Color ItemHoverColor {
             get { return _ItemHoverColor; }
@@ -67,9 +67,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _ItemSelectedColor = Color.DodgerBlue;
-        /// <summary>
-        /// Gets or sets the background color when the property option is selected. This property cannot be set when AutoColor is set
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Background color when get or set property option is selected and this property cannot be set when AutoColor is set"), DefaultValue(typeof(Color), "DodgerBlue")]
         public Color ItemSelectedColor {
             get { return _ItemSelectedColor; }
@@ -82,9 +82,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _ItemValueBackColor = Color.FromArgb(255, 80, 80, 80);
-        /// <summary>
-        /// Gets or sets the background color of the attribute option value
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set attribute option value background color")]
         public Color ItemValueBackColor {
             get { return _ItemValueBackColor; }
@@ -95,9 +95,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _TitleColor = Color.FromArgb(127, 0, 0, 0);
-        /// <summary>
-        /// Gets or sets the default title background color
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the default title background color")]
         public Color TitleColor {
             get { return _TitleColor; }
@@ -109,9 +109,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _ErrorColor = Color.FromArgb(200, Color.Brown);
-        /// <summary>
-        /// Get or set the background color of the prompt message when the property is set incorrectly
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color of the message when the property is set incorrectly")]
         public Color ErrorColor {
             get { return _ErrorColor; }
@@ -119,9 +119,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _DescriptionColor = Color.FromArgb(200, Color.DarkGoldenrod);
-        /// <summary>
-        /// Gets or sets the background color of the attribute description information
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color of attribute description information")]
         public Color DescriptionColor {
             get { return _DescriptionColor; }
@@ -129,9 +129,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private bool _ShowTitle = true;
-        /// <summary>
-        /// Gets or sets whether to display the node title
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set whether to display the node title")]
         public bool ShowTitle {
             get { return _ShowTitle; }
@@ -143,9 +143,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private bool _AutoColor = true;
-        /// <summary>
-        /// Get or set whether to automatically set the control highlight color according to STNode
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set whether to automatically set the control highlight color according to STNode"), DefaultValue(true)]
         public bool AutoColor {
             get { return _AutoColor; }
@@ -153,9 +153,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private bool _InfoFirstOnDraw;
-        /// <summary>
-        /// Gets or whether the information panel is drawn first when the node is set
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set whether to draw the information panel first when the node is set"), DefaultValue(false)]
         public bool InfoFirstOnDraw {
             get { return _InfoFirstOnDraw; }
@@ -163,9 +163,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private bool _ReadOnlyModel;
-        /// <summary>
-        /// Gets or sets whether the current property editor is in read-only mode
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set whether the current property editor is in read-only mode"), DefaultValue(false)]
         public bool ReadOnlyModel {
             get { return _ReadOnlyModel; }

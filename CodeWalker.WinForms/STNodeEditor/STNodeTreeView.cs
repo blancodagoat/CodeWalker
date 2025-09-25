@@ -44,10 +44,10 @@ namespace ST.Library.UI.NodeEditor
     public class STNodeTreeView : Control
     {
         private Color _ItemBackColor = Color.FromArgb(255, 45, 45, 45);
-        /// <summary>
-        /// Get or set the background color of each row attribute option
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
         [Description("Get or set the background color of each row attribute option")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public Color ItemBackColor {
             get { return _ItemBackColor; }
             set {
@@ -56,20 +56,20 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _ItemHoverColor = Color.FromArgb(50, 125, 125, 125);
-        /// <summary>
-        /// Gets or sets the background color when the property option is hovered by the mouse
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
         [Description("Get or set the background color when the property option is hovered by the mouse")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public Color ItemHoverColor {
             get { return _ItemHoverColor; }
             set { _ItemHoverColor = value; }
         }
 
         private Color _TitleColor = Color.FromArgb(255, 60, 60, 60);
-        /// <summary>
-        /// Get or set the background color of the top retrieval area
-        /// </summary>
-        [Description("Get or set the background color of the top retrieval area")]
+        [Browsable(true)]
+        [Category("Appearance")]
+        [Description("Get or set the background color of each row attribute option")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public Color TitleColor {
             get { return _TitleColor; }
             set {
@@ -78,9 +78,9 @@ namespace ST.Library.UI.NodeEditor
             }
         }
 
-        /// <summary>
-        /// Gets or sets the background color of the search text box
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the background color of the search text box")]
         public Color TextBoxColor {
             get { return m_tbx.BackColor; }
@@ -111,9 +111,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private Color _FolderCountColor = Color.FromArgb(40, 255, 255, 255);
-        /// <summary>
-        /// Get or set the text color of the count
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the text color of statistics")]
         public Color FolderCountColor {
             get { return _FolderCountColor; }

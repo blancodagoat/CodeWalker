@@ -12,7 +12,14 @@ namespace ST.Library.UI.NodeEditor
 {
     internal class FrmNodePreviewPanel : Form
     {
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public Color BorderColor { get; set; }
+
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public bool AutoBorderColor { get; set; }
 
         private bool m_bRight;

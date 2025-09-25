@@ -84,9 +84,9 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private int _Y;
-        /// <summary>
-        /// Gets or sets the vertical height of the dividing line
-        /// </summary>
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         [Description("Get or set the vertical height of the dividing line")]
         public int Y {
             get { return _Y; }

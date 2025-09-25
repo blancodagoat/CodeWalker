@@ -25,6 +25,10 @@ namespace CodeWalker.WinForms
 
 
         private bool _readOnly = true;
+
+        [Browsable(true)]
+        [Category("Appearance")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public bool ReadOnly
         {
             get { return _readOnly; }
