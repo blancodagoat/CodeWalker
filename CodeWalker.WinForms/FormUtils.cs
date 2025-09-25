@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 using Point = System.Drawing.Point;
@@ -228,90 +229,173 @@ namespace CodeWalker
         }
     }
 
+    [SupportedOSPlatform("windows")]
+    internal static class FolderPickerInterop
+    {
+        public static DialogResult ShowFolderPicker(FolderBrowserDialog fbd, IntPtr ownerHwnd)
+        {
+            if (System.Threading.Thread.CurrentThread.GetApartmentState() != System.Threading.ApartmentState.STA)
+                throw new InvalidOperationException("Folder picker must be called from an STA thread.");
+
+            IFileDialog? dialog = null;
+            try
+            {
+                dialog = (IFileDialog)new FileOpenDialogRCW();
+
+                // Options
+                dialog.GetOptions(out var options);
+                options |= FOS.FOS_PICKFOLDERS | FOS.FOS_FORCEFILESYSTEM | FOS.FOS_NOVALIDATE | FOS.FOS_PATHMUSTEXIST;
+                dialog.SetOptions(options);
+
+                if (!string.IsNullOrEmpty(fbd.Description))
+                    dialog.SetTitle(fbd.Description);
+
+                // Initial folder
+                if (!string.IsNullOrEmpty(fbd.SelectedPath))
+                {
+                    if (SHCreateItemFromParsingName(fbd.SelectedPath, IntPtr.Zero, typeof(IShellItem).GUID, out var folderItem) == 0 && folderItem is not null)
+                    {
+                        dialog.SetFolder(folderItem);
+                        dialog.SetDefaultFolder(folderItem);
+                        Marshal.ReleaseComObject(folderItem);
+                    }
+                }
+
+                // Show
+                int hr = dialog.Show(ownerHwnd);
+                if (hr == HRESULT.ERROR_CANCELLED) return DialogResult.Cancel;
+                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+
+                // Get result
+                hr = dialog.GetResult(out var resultItem);
+                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+
+                string? path = GetDisplayName(resultItem, SIGDN.SIGDN_FILESYSPATH);
+                Marshal.ReleaseComObject(resultItem);
+
+                if (!string.IsNullOrEmpty(path))
+                {
+                    fbd.SelectedPath = path!;
+                    return DialogResult.OK;
+                }
+                return DialogResult.Cancel;
+            }
+            finally
+            {
+                if (dialog is not null) Marshal.ReleaseComObject(dialog);
+            }
+        }
+
+        private static string? GetDisplayName(IShellItem item, SIGDN sigdn)
+        {
+            int hr = item.GetDisplayName(sigdn, out var pszName);
+            if (hr != 0 || pszName == IntPtr.Zero) return null;
+            try { return Marshal.PtrToStringUni(pszName); }
+            finally { Marshal.FreeCoTaskMem(pszName); }
+        }
+
+        [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+        private class FileOpenDialogRCW { }
+
+        [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+         Guid("42f85136-db7e-439c-85f1-e4075d135fc8")]
+        private interface IFileDialog
+        {
+            // IModalWindow
+            [PreserveSig] int Show(IntPtr parent);
+
+            // IFileDialog
+            [PreserveSig] int SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+            [PreserveSig] int SetFileTypeIndex(uint iFileType);
+            [PreserveSig] int GetFileTypeIndex(out uint piFileType);
+            [PreserveSig] int Advise(IntPtr pfde, out uint pdwCookie);
+            [PreserveSig] int Unadvise(uint dwCookie);
+            [PreserveSig] int SetOptions(FOS fos);
+            [PreserveSig] int GetOptions(out FOS pfos);
+            [PreserveSig] int SetDefaultFolder(IShellItem psi);
+            [PreserveSig] int SetFolder(IShellItem psi);
+            [PreserveSig] int GetFolder(out IShellItem ppsi);
+            [PreserveSig] int GetCurrentSelection(out IShellItem ppsi);
+            [PreserveSig] int SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+            [PreserveSig] int GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+            [PreserveSig] int SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+            [PreserveSig] int SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+            [PreserveSig] int SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+            [PreserveSig] int GetResult(out IShellItem ppsi);
+            [PreserveSig] int AddPlace(IShellItem psi, FDAP fdap);
+            [PreserveSig] int SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+            [PreserveSig] int Close(int hr);
+            [PreserveSig] int SetClientGuid(ref Guid guid);
+            [PreserveSig] int ClearClientData();
+            [PreserveSig] int SetFilter(IntPtr pFilter);
+        }
+
+        [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+         Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
+        private interface IShellItem
+        {
+            [PreserveSig] int BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+            [PreserveSig] int GetParent(out IShellItem ppsi);
+            [PreserveSig] int GetDisplayName(SIGDN sigdnName, out IntPtr ppszName);
+            [PreserveSig] int GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+            [PreserveSig] int Compare(IShellItem psi, uint hint, out int piOrder);
+        }
+
+        private enum FDAP { FDAP_BOTTOM = 0, FDAP_TOP = 1 }
+
+        [Flags]
+        private enum FOS : uint
+        {
+            FOS_OVERWRITEPROMPT = 0x00000002,
+            FOS_STRICTFILETYPES = 0x00000004,
+            FOS_NOCHANGEDIR = 0x00000008,
+            FOS_PICKFOLDERS = 0x00000020,
+            FOS_FORCEFILESYSTEM = 0x00000040,
+            FOS_NOVALIDATE = 0x00000100,
+            FOS_ALLOWMULTISELECT = 0x00000200,
+            FOS_PATHMUSTEXIST = 0x00000800,
+            FOS_FILEMUSTEXIST = 0x00001000,
+            FOS_CREATEPROMPT = 0x00002000,
+            FOS_SHAREAWARE = 0x00004000,
+            FOS_NOREADONLYRETURN = 0x00008000,
+            FOS_NOTESTFILECREATE = 0x00010000,
+            FOS_DONTADDTORECENT = 0x02000000,
+        }
+
+        private enum SIGDN : uint
+        {
+            SIGDN_FILESYSPATH = 0x80058000,
+        }
+
+        private static class HRESULT
+        {
+            public const int ERROR_CANCELLED = unchecked((int)0x800704C7);
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+        private static extern int SHCreateItemFromParsingName(
+            [MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr pbc,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem? ppv);
+    }
+
 
     public static class FolderBrowserExtension
     {
-
-        public static DialogResult ShowDialogNew(this FolderBrowserDialog fbd)
-        {
-            return ShowDialogNew(fbd, (IntPtr)0);
-        }
+        public static DialogResult ShowDialogNew(this FolderBrowserDialog fbd) => ShowDialogNew(fbd, IntPtr.Zero);
         public static DialogResult ShowDialogNew(this FolderBrowserDialog fbd, IntPtr hWndOwner)
         {
-            if (Environment.OSVersion.Version.Major >= 6)
+            try
             {
-                var ofd = new OpenFileDialog();
-                ofd.Filter = "Folders|\n";
-                ofd.AddExtension = false;
-                ofd.CheckFileExists = false;
-                ofd.DereferenceLinks = true;
-                ofd.Multiselect = false;
-                ofd.InitialDirectory = fbd.SelectedPath;
-
-                int result = 0;
-                var ns = "System.Windows.Forms";
-                var asmb = Assembly.GetAssembly(typeof(OpenFileDialog));
-                var dialogint = GetType(asmb, ns, "FileDialogNative.IFileDialog");
-                var dialog = Call(typeof(OpenFileDialog), ofd, "CreateVistaDialog");
-                Call(typeof(OpenFileDialog), ofd, "OnBeforeVistaDialog", dialog);
-                var options = Convert.ToUInt32(Call(typeof(FileDialog), ofd, "GetOptions"));
-                options |= Convert.ToUInt32(GetEnumValue(asmb, ns, "FileDialogNative.FOS", "FOS_PICKFOLDERS"));
-                Call(dialogint, dialog, "SetOptions", options);
-                var pfde = New(asmb, ns, "FileDialog.VistaDialogEvents", ofd);
-                var parameters = new object[] { pfde, (uint)0 };
-                Call(dialogint, dialog, "Advise", parameters);
-                var adviseres = Convert.ToUInt32(parameters[1]);
-                try { result = Convert.ToInt32(Call(dialogint, dialog, "Show", hWndOwner)); }
-                finally { Call(dialogint, dialog, "Unadvise", adviseres); }
-                GC.KeepAlive(pfde);
-
-                fbd.SelectedPath = ofd.FileName;
-
-                return (result == 0) ? DialogResult.OK : DialogResult.Cancel;
+                return FolderPickerInterop.ShowFolderPicker(fbd, hWndOwner);
             }
-            else
+            catch (COMException)
             {
                 return fbd.ShowDialog();
             }
-        }
-
-
-        private static Type GetType(Assembly asmb, string ns, string name)
-        {
-            Type type = null;
-            string[] names = name.Split('.');
-            if (names.Length > 0)
+            catch (PlatformNotSupportedException)
             {
-                type = asmb.GetType(ns + "." + names[0]);
+                return fbd.ShowDialog();
             }
-            for (int i = 1; i < names.Length; i++)
-            {
-                type = type.GetNestedType(names[i], BindingFlags.NonPublic);
-            }
-            return type;
-        }
-        private static object Call(Type type, object obj, string func, params object[] parameters)
-        {
-            var mi = type.GetMethod(func, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (mi == null) return null;
-            return mi.Invoke(obj, parameters);
-        }
-        private static object GetEnumValue(Assembly asmb, string ns, string typeName, string name)
-        {
-            var type = GetType(asmb, ns, typeName);
-            var fieldInfo = type.GetField(name);
-            return fieldInfo.GetValue(null);
-        }
-        private static object New(Assembly asmb, string ns, string name, params object[] parameters)
-        {
-            var type = GetType(asmb, ns, name);
-            var ctorInfos = type.GetConstructors();
-            foreach (ConstructorInfo ci in ctorInfos)
-            {
-                try { return ci.Invoke(parameters); }
-                catch { }
-            }
-            return null;
         }
     }
 
