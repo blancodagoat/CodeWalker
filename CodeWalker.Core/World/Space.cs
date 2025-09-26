@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace CodeWalker.World
 {
@@ -16,13 +18,8 @@ namespace CodeWalker.World
 
         private GameFileCache GameFileCache = null;
 
-
-
-
         public SpaceMapDataStore MapDataStore;
         public SpaceBoundsStore BoundsStore;
-
-
 
         private Dictionary<MetaHash, MetaHash> interiorLookup = new Dictionary<MetaHash, MetaHash>();
         private Dictionary<MetaHash, YmfInterior> interiorManifest = new Dictionary<MetaHash, YmfInterior>();
@@ -156,173 +153,170 @@ namespace CodeWalker.World
                     }
                 }
             }
-
-            //YmfMapDataGroups string
-            //StringBuilder sb = new StringBuilder();
-            //foreach (var dg in dataGroupDict.Values)
-            //{
-            //    sb.AppendLine(dg.ToString());
-            //    if (dg.Bounds != null)
-            //    {
-            //        foreach (var ybnh in dg.Bounds)
-            //        {
-            //            sb.AppendLine("   " + ybnh.ToString());
-            //        }
-            //    }
-            //}
-            //string str = sb.ToString();
-
         }
-
         private void InitCacheData()
         {
-            //build the grid from the cached data
             var caches = GameFileCache.AllCacheFiles;
-            nodedict = new Dictionary<MetaHash, MapDataStoreNode>();
-            MetaHash inthash;
-            List<BoundsStoreItem> intlist = new List<BoundsStoreItem>();
-            boundsdict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>();
-            usedboundsdict = new Dictionary<MetaHash, BoundsStoreItem>();
-            interiorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>();
 
-            Dictionary<MetaHash, CacheFileDate> filedates = new Dictionary<MetaHash, CacheFileDate>();
-            Dictionary<uint, CacheFileDate> filedates2 = new Dictionary<uint, CacheFileDate>();
-
-            foreach (var cache in caches)
+            int totalNodes = 0, totalInteriorProxies = 0, totalBoundsItems = 0, totalFileDates = 0;
+            for (int i = 0; i < caches.Count; i++)
             {
-                foreach (var filedate in cache.FileDates)
-                {
-                    CacheFileDate exdate;
-                    if (filedates.TryGetValue(filedate.FileName, out exdate))
-                    {
-                        if (filedate.TimeStamp >= exdate.TimeStamp)
-                        {
-                            filedates[filedate.FileName] = filedate;
-                        }
-                        else //if (filedate.TimeStamp < exdate.TimeStamp)
-                        { }
-                    }
-                    else
-                    {
-                        filedates[filedate.FileName] = filedate;
-                    }
+                var c = caches[i];
+                totalNodes += (c.AllMapNodes != null) ? c.AllMapNodes.Length : 0;
+                totalInteriorProxies += (c.AllCInteriorProxies != null) ? c.AllCInteriorProxies.Length : 0;
+                totalBoundsItems += (c.AllBoundsStoreItems != null) ? c.AllBoundsStoreItems.Length : 0;
+                totalFileDates += (c.FileDates != null) ? c.FileDates.Length : 0;
+            }
 
-                    if (filedates2.TryGetValue(filedate.FileID, out exdate))
+            int capNodes = Math.Max(16, totalNodes + (totalNodes >> 2));
+            int capBounds = Math.Max(16, totalBoundsItems + (totalBoundsItems >> 2));
+            int capUsed = capBounds;
+            int capInteriors = Math.Max(16, totalInteriorProxies + (totalInteriorProxies >> 2));
+            int capDates1 = Math.Max(16, totalFileDates + (totalFileDates >> 2));
+            int capDates2 = capDates1;
+
+            nodedict = new Dictionary<MetaHash, MapDataStoreNode>(capNodes);
+            boundsdict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>(capBounds);
+            usedboundsdict = new Dictionary<MetaHash, BoundsStoreItem>(capUsed);
+            interiorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>(capInteriors);
+
+            var intlist = new List<BoundsStoreItem>(Math.Max(16, totalBoundsItems >> 3)); // only interiors subset
+            var filedates = new Dictionary<MetaHash, CacheFileDate>(capDates1);
+            var filedates2 = new Dictionary<uint, CacheFileDate>(capDates2);
+
+            // merge caches
+            for (int i = 0; i < caches.Count; i++)
+            {
+                var cache = caches[i];
+                var dates = cache.FileDates;
+                if (dates != null)
+                {
+                    for (int j = 0; j < dates.Length; j++)
                     {
-                        if (filedate.FileName != exdate.FileName)
-                        { }
-                        if (filedate.TimeStamp >= exdate.TimeStamp)
+                        var fd = dates[j];
+
+                        CacheFileDate existing;
+                        if (filedates.TryGetValue(fd.FileName, out existing))
                         {
-                            filedates2[filedate.FileID] = filedate;
+                            if (fd.TimeStamp >= existing.TimeStamp)
+                                filedates[fd.FileName] = fd;
                         }
                         else
-                        { }
-                    }
-                    else
-                    {
-                        filedates2[filedate.FileID] = filedate;
-                    }
+                        {
+                            filedates[fd.FileName] = fd;
+                        }
 
+                        if (filedates2.TryGetValue(fd.FileID, out existing))
+                        {
+                            if (fd.TimeStamp >= existing.TimeStamp)
+                                filedates2[fd.FileID] = fd;
+                        }
+                        else
+                        {
+                            filedates2[fd.FileID] = fd;
+                        }
+                    }
                 }
 
-
-
-                foreach (var node in cache.AllMapNodes)
+                // Map nodes
+                var nodes = cache.AllMapNodes;
+                if (nodes != null)
                 {
-                    if (!GameFileCache.YmapDict.ContainsKey(node.Name))
-                    { continue; }
-                    nodedict[node.Name] = node;
+                    for (int j = 0; j < nodes.Length; j++)
+                    {
+                        var node = nodes[j];
+                        if (GameFileCache.YmapDict.ContainsKey(node.Name))
+                        {
+                            nodedict[node.Name] = node;
+                        }
+                    }
                 }
 
-                foreach (var intprx in cache.AllCInteriorProxies)
+                // Interior proxies
+                var proxies = cache.AllCInteriorProxies;
+                if (proxies != null)
                 {
-                    //these might need to go into the grid. which grid..?
-                    //but might need to map back to the bounds store... this has more info though!
-                    SpaceBoundsKey key = new SpaceBoundsKey(intprx.Name, intprx.Position);
-                    if (interiorProxies.ContainsKey(key))
-                    { }//updates/dlc hit here
-                    interiorProxies[key] = intprx;
+                    for (int j = 0; j < proxies.Length; j++)
+                    {
+                        var prx = proxies[j];
+                        var key = new SpaceBoundsKey(prx.Name, prx.Position);
+                        interiorProxies[key] = prx; // overwrite newer
+                    }
                 }
 
-                foreach (var item in cache.AllBoundsStoreItems)
+                // Bounds
+                var bounds = cache.AllBoundsStoreItems;
+                if (bounds != null)
                 {
-                    if (!GameFileCache.YbnDict.ContainsKey(item.Name))
-                    { continue; }
-
-                    if ((item.Layer < 0) || (item.Layer > 3))
-                    { } //won't hit here..
-                    if (interiorLookup.TryGetValue(item.Name, out inthash))
+                    for (int j = 0; j < bounds.Length; j++)
                     {
-                        //it's an interior... the vectors are in local space...
-                        intlist.Add(item);//handle it later? use the parent for a dict?
-                    }
-                    else //interiors filtered out
-                    {
-                        SpaceBoundsKey key = new SpaceBoundsKey(item.Name, item.Min);
-                        if (boundsdict.ContainsKey(key))
-                        { }//updates/dlc hit here
-                        boundsdict[key] = item;
+                        var item = bounds[j];
 
+                        if (!GameFileCache.YbnDict.ContainsKey(item.Name))
+                            continue;
+
+                        MetaHash inthash;
+                        if (interiorLookup.TryGetValue(item.Name, out inthash))
+                        {
+                            intlist.Add(item);
+                        }
+                        else
+                        {
+                            // exterior
+                            var key = new SpaceBoundsKey(item.Name, item.Min);
+                            boundsdict[key] = item;
+                        }
+
+                        usedboundsdict[item.Name] = item;
                     }
-                    usedboundsdict[item.Name] = item;
                 }
             }
 
-
-
-
-            //try and generate the cache data for uncached ymaps... mainly for mod maps!
+            //generate cache for uncached ymap/ybn (mostly mods)
             var maprpfs = GameFileCache.ActiveMapRpfFiles;
             foreach (var maprpf in maprpfs.Values)
             {
-                foreach (var entry in maprpf.AllEntries)
+                var entries = maprpf.AllEntries;
+                if (entries == null) continue;
+
+                for (int e = 0; e < entries.Count; e++)
                 {
-                    if (entry.NameLower.EndsWith(".ymap"))
+                    var entry = entries[e];
+                    var nameLower = entry.NameLower;
+
+                    // ymaps
+                    if (nameLower.EndsWith(".ymap"))
                     {
-                        if (!nodedict.ContainsKey(new MetaHash(entry.ShortNameHash)))
+                        var h = new MetaHash(entry.ShortNameHash);
+                        if (!nodedict.ContainsKey(h))
                         {
-                            //non-cached ymap. mostly only mods... but some interesting test things also
                             var ymap = GameFileCache.RpfMan.GetFile<YmapFile>(entry);
                             if (ymap != null)
                             {
-                                MapDataStoreNode dsn = new MapDataStoreNode(ymap);
+                                var dsn = new MapDataStoreNode(ymap);
                                 if (dsn.Name != 0)
-                                {
-                                    nodedict[dsn.Name] = dsn;//perhaps should add as entry.ShortNameHash?
-                                }
-                                else
-                                { }
+                                    nodedict[dsn.Name] = dsn;
                             }
-                            else
-                            { }
                         }
+                        continue;
                     }
-                    if (entry.NameLower.EndsWith(".ybn"))
+                    if (nameLower.EndsWith(".ybn"))
                     {
-                        MetaHash ehash = new MetaHash(entry.ShortNameHash);
-                        if (!usedboundsdict.ContainsKey(ehash))
+                        var ehash = new MetaHash(entry.ShortNameHash);
+                        if (!usedboundsdict.ContainsKey(ehash) && !interiorLookup.ContainsKey(ehash))
                         {
-                            if (interiorLookup.ContainsKey(ehash))
+                            var ybn = GameFileCache.RpfMan.GetFile<YbnFile>(entry);
+                            if (ybn != null)
                             {
-                            }
-                            else
-                            {
-                                //exterior ybn's that aren't already cached... only noncached modded bounds hit here...
-                                //load the ybn and cache its extents.
-                                var ybn = GameFileCache.RpfMan.GetFile<YbnFile>(entry);
-                                BoundsStoreItem item = new BoundsStoreItem(ybn.Bounds);
-                                item.Name = ehash;
-                                SpaceBoundsKey key = new SpaceBoundsKey(ehash, item.Min);
-                                if (boundsdict.ContainsKey(key))
-                                { }
+                                var item = new BoundsStoreItem(ybn.Bounds) { Name = ehash };
+                                var key = new SpaceBoundsKey(ehash, item.Min);
                                 boundsdict[key] = item;
+                                usedboundsdict[ehash] = item;
                             }
                         }
                     }
                 }
             }
-
-
         }
 
         private void InitMapDataStore()

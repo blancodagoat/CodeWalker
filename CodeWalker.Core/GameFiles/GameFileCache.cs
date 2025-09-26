@@ -174,321 +174,316 @@ namespace CodeWalker.GameFiles
             UpdateStatus = updateStatus;
             ErrorLog = errorLog;
 
-            Clear();
+            if (IsInited && RpfMan != null)
+            {
+                if (UpdateStatus != null) UpdateStatus("Already initialized.");
+                return;
+            }
 
+            Clear();
 
             if (RpfMan == null)
             {
-                //EnableDlc = !string.IsNullOrEmpty(SelectedDlc);
+                var exclude = GetExcludePaths();
+                RpfMan = new RpfManager
+                {
+                    ExcludePaths = exclude,
+                    EnableMods = EnableMods,
+                    BuildExtendedJenkIndex = BuildExtendedJenkIndex
+                };
 
+                RpfMan.Init(GTAFolder, GTAGen9, UpdateStatus, ErrorLog);
 
+                IProgress<string> statusProgress = null;
+                if (UpdateStatus != null)
+                {
+                    statusProgress = new Progress<string>(UpdateStatus);
+                }
 
-                RpfMan = new RpfManager();
-                RpfMan.ExcludePaths = GetExcludePaths();
-                RpfMan.EnableMods = EnableMods;
-                RpfMan.BuildExtendedJenkIndex = BuildExtendedJenkIndex;
-                RpfMan.Init(GTAFolder, GTAGen9, UpdateStatus, ErrorLog);//, true);
+                if (statusProgress != null)
+                {
+                    InitGlobalAsync(statusProgress, CancellationToken.None).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    InitGlobalAsync(null, CancellationToken.None).GetAwaiter().GetResult();
+                }
 
-
-                InitGlobal();
-
-                InitDlc();
-
-
-
-                //RE test area!
-                //TestAudioRels();
-                //TestAudioYmts();
-                //TestAudioAwcs();
-                //TestMetas();
-                //TestPsos();
-                //TestRbfs();
-                //TestCuts();
-                //TestYlds();
-                //TestYeds();
-                //TestYcds();
-                //TestYtds();
-                //TestYbns();
-                //TestYdrs();
-                //TestYdds();
-                //TestYfts();
-                //TestYpts();
-                //TestYnvs();
-                //TestYvrs();
-                //TestYwrs();
-                //TestYmaps();
-                //TestYpdbs();
-                //TestYfds();
-                //TestMrfs();
-                //TestFxcs();
-                //TestPlacements();
-                //TestDrawables();
-                //TestCacheFiles();
-                //TestHeightmaps();
-                //TestWatermaps();
-                //GetShadersXml();
-                //GetShadersLegacyConversionXml();
-                //GetShadersGen9ConversionXml();
-                //GetArchetypeTimesList();
-                //string typestr = PsoTypes.GetTypesString();
-            }
-            else
-            {
-                GC.Collect(); //try free up some of the previously used memory..
+                if (statusProgress != null)
+                {
+                    InitDlcAsync(statusProgress, CancellationToken.None).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    InitDlcAsync(null, CancellationToken.None).GetAwaiter().GetResult();
+                }
+                //RE_Testing();
             }
 
-            UpdateStatus("Scan complete");
+            if (UpdateStatus != null) UpdateStatus("Scan complete");
+            IsInited = true;
+        }
 
+        public void RE_Testing()
+        {
+            //RE test area!
+            TestAudioRels();
+            TestAudioYmts();
+            TestAudioAwcs();
+            TestMetas();
+            TestPsos();
+            TestRbfs();
+            TestCuts();
+            TestYlds();
+            TestYeds();
+            TestYcds();
+            TestYtds();
+            TestYbns();
+            TestYdrs();
+            TestYdds();
+            TestYfts();
+            TestYpts();
+            TestYnvs();
+            TestYvrs();
+            TestYwrs();
+            TestYmaps();
+            TestYpdbs();
+            TestYfds();
+            TestMrfs();
+            TestFxcs();
+            TestPlacements();
+            TestDrawables();
+            TestCacheFiles();
+            TestHeightmaps();
+            TestWatermaps();
+            GetShadersXml();
+            GetShadersLegacyConversionXml();
+            GetShadersGen9ConversionXml();
+            GetArchetypeTimesList();
+            string typestr = PsoTypes.GetTypesString();
+        }
+        public async Task InitAsync(IProgress<string> status, IProgress<string> errors, List<RpfFile> allRpfs, CancellationToken ct = default)
+        {
+            UpdateStatus = status != null ? new Action<string>(status.Report) : null;
+            ErrorLog = errors != null ? new Action<string>(errors.Report) : null;
+
+            Clear();
+
+            PreloadedMode = true;
+            EnableDlc = true;
+            EnableMods = false;
+
+            RpfMan = new RpfManager();
+            RpfMan.Init(allRpfs, GTAGen9);
+
+            AllRpfs = new List<RpfFile>(allRpfs);
+            BaseRpfs = AllRpfs;
+            DlcRpfs = new List<RpfFile>();
+
+            await PhaseAsync(status, ct, "Building global dictionaries...", InitGlobalDicts);
+            await PhaseAsync(status, ct, "Loading manifests...", InitManifestDicts);
+            await PhaseAsync(status, ct, "Loading global texture list...", InitGtxds);
+            await PhaseAsync(status, ct, "Loading archetypes...", InitArchetypeDicts);
+            await PhaseAsync(status, ct, "Loading strings...", InitStringDicts);
+            await PhaseAsync(status, ct, "Loading audio...", InitAudio);
 
             IsInited = true;
         }
         public void Init(Action<string> updateStatus, Action<string> errorLog, List<RpfFile> allRpfs)
         {
-            UpdateStatus = updateStatus;
-            ErrorLog = errorLog;
+            var status = updateStatus is null ? null : new Progress<string>(updateStatus);
+            var errors = errorLog is null ? null : new Progress<string>(errorLog);
 
-            Clear();
-
-            PreloadedMode = true;
-            EnableDlc = true;//just so everything (mainly archetypes) will load..
-            EnableMods = false;
-            RpfMan = new RpfManager(); //try not to use this in this mode...
-            RpfMan.Init(allRpfs, GTAGen9);
-
-            AllRpfs = allRpfs;
-            BaseRpfs = allRpfs;
-            DlcRpfs = new List<RpfFile>();
-
-            UpdateStatus("Building global dictionaries...");
-            InitGlobalDicts();
-
-            UpdateStatus("Loading manifests...");
-            InitManifestDicts();
-
-            UpdateStatus("Loading global texture list...");
-            InitGtxds();
-
-            UpdateStatus("Loading archetypes...");
-            InitArchetypeDicts();
-
-            UpdateStatus("Loading strings...");
-            InitStringDicts();
-
-            UpdateStatus("Loading audio...");
-            InitAudio();
-
-            IsInited = true;
+            InitAsync(status, errors, allRpfs, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        private void InitGlobal()
+        private async Task InitGlobalAsync(IProgress<string> status, CancellationToken ct)
         {
             BaseRpfs = GetModdedRpfList(RpfMan.BaseRpfs);
             AllRpfs = GetModdedRpfList(RpfMan.AllRpfs);
             DlcRpfs = GetModdedRpfList(RpfMan.DlcRpfs);
 
-            UpdateStatus("Building global dictionaries...");
-            InitGlobalDicts();
+            await PhaseAsync(status, ct, "Building global dictionaries...", InitGlobalDicts);
         }
 
-        private void InitDlc()
+        private async Task InitDlcAsync(IProgress<string> status, CancellationToken ct)
         {
-
-            UpdateStatus("Building DLC List...");
-            InitDlcList();
-
-            UpdateStatus("Building active RPF dictionary...");
-            InitActiveMapRpfFiles();
-
-            UpdateStatus("Building map dictionaries...");
-            InitMapDicts();
-
-            UpdateStatus("Loading manifests...");
-            InitManifestDicts();
-
-            UpdateStatus("Loading global texture list...");
-            InitGtxds();
-
-            UpdateStatus("Loading cache...");
-            InitMapCaches();
-
-            UpdateStatus("Loading archetypes...");
-            InitArchetypeDicts();
-
-            UpdateStatus("Loading strings...");
-            InitStringDicts();
-
-            UpdateStatus("Loading vehicles...");
-            InitVehicles();
-
-            UpdateStatus("Loading peds...");
-            InitPeds();
-
-            UpdateStatus("Loading audio...");
-            InitAudio();
-
+            await PhaseAsync(status, ct, "Building DLC List...", InitDlcList);
+            await PhaseAsync(status, ct, "Building active RPF dictionary...", InitActiveMapRpfFiles);
+            await PhaseAsync(status, ct, "Building map dictionaries...", InitMapDicts);
+            await PhaseAsync(status, ct, "Loading manifests...", InitManifestDicts);
+            await PhaseAsync(status, ct, "Loading global texture list...", InitGtxds);
+            await PhaseAsync(status, ct, "Loading cache...", InitMapCaches);
+            await PhaseAsync(status, ct, "Loading archetypes...", InitArchetypeDicts);
+            await PhaseAsync(status, ct, "Loading strings...", InitStringDicts);
+            await PhaseAsync(status, ct, "Loading vehicles...", InitVehicles);
+            await PhaseAsync(status, ct, "Loading peds...", InitPeds);
+            await PhaseAsync(status, ct, "Loading audio...", InitAudio);
+        }
+        private static async Task PhaseAsync(IProgress<string> status, CancellationToken ct, string message, Action phase)
+        {
+            status?.Report(message);
+            await Task.Yield();
+            ct.ThrowIfCancellationRequested();
+            phase();
         }
 
         private void InitDlcList()
         {
-            //if (!EnableDlc) return;
-
-            string dlclistpath = "update\\update.rpf\\common\\data\\dlclist.xml";
-            //if (!EnableDlc)
-            //{
-            //    dlclistpath = "common.rpf\\data\\dlclist.xml";
-            //}
-            var dlclistxml = RpfMan.GetFileXml(dlclistpath);
-
             DlcPaths.Clear();
-            if ((dlclistxml == null) || (dlclistxml.DocumentElement == null))
+
+            const string dlcListPath = @"update\update.rpf\common\data\dlclist.xml";
+            var dlcListXml = RpfMan.GetFileXml(dlcListPath);
+
+            if ((dlcListXml == null) || (dlcListXml.DocumentElement == null))
             {
-                ErrorLog("InitDlcList: Couldn't load " + dlclistpath + ".");
+                ErrorLog($"InitDlcList: Couldn't load {dlcListPath}.");
+                return;
             }
-            else
+
+            foreach (XmlNode pathsNode in dlcListXml.DocumentElement)
             {
-                foreach (XmlNode pathsnode in dlclistxml.DocumentElement)
+                foreach (XmlNode itemNode in pathsNode.ChildNodes)
                 {
-                    foreach (XmlNode itemnode in pathsnode.ChildNodes)
-                    {
-                        if (itemnode.NodeType != XmlNodeType.Element) continue;
-                        DlcPaths.Add(itemnode.InnerText.ToLowerInvariant().Replace('\\', '/').Replace("platform:", "x64"));
-                    }
+                    if (itemNode.NodeType != XmlNodeType.Element) continue;
+                    var normalized = itemNode.InnerText.ToLowerInvariant().Replace('\\', '/').Replace("platform:", "x64");
+                    DlcPaths.Add(normalized);
                 }
             }
 
+            // build DLC lookup dictionaries
+            var dlcByVirtualPath = new Dictionary<string, RpfFile>(StringComparer.OrdinalIgnoreCase);
+            var dlcByName = new Dictionary<string, RpfFile>(StringComparer.OrdinalIgnoreCase);
 
-            //get dlc path names in the appropriate format for reference by the dlclist paths
-            Dictionary<string, RpfFile> dlcDict = new Dictionary<string, RpfFile>();
-            Dictionary<string, RpfFile> dlcDict2 = new Dictionary<string, RpfFile>();
-            foreach (RpfFile dlcrpf in DlcRpfs)
+            foreach (var dlcRpf in DlcRpfs)
             {
-                if (dlcrpf == null) continue;
-                if (dlcrpf.NameLower == "dlc.rpf")
+                if (dlcRpf == null) continue;
+                if (dlcRpf.NameLower == "dlc.rpf")
                 {
-                    string path = GetDlcRpfVirtualPath(dlcrpf.Path);
-                    string name = GetDlcNameFromPath(dlcrpf.Path);
-                    dlcDict[path] = dlcrpf;
-                    dlcDict2[name] = dlcrpf;
+                    var vpath = GetDlcRpfVirtualPath(dlcRpf.Path);
+                    var name = GetDlcNameFromPath(dlcRpf.Path);
+
+                    dlcByVirtualPath[vpath] = dlcRpf;
+                    dlcByName[name] = dlcRpf;
                 }
             }
 
-
-
-
-            //find all the paths for patched files in update.rpf and build the dict
+            // build map from update.rpf
             DlcPatchedPaths.Clear();
-            string updrpfpath = "update\\update.rpf";
-            var updrpffile = RpfMan.FindRpfFile(updrpfpath);
 
-            if (updrpffile != null)
-            {
-                XmlDocument updsetupdoc = RpfMan.GetFileXml(updrpfpath + "\\setup2.xml");
-                DlcSetupFile updsetupfile = new DlcSetupFile();
-                updsetupfile.Load(updsetupdoc);
+            const string updateRpfPath = @"update\update.rpf";
+            var updateRpf = RpfMan.FindRpfFile(updateRpfPath);
 
-                XmlDocument updcontentdoc = RpfMan.GetFileXml(updrpfpath + "\\" + updsetupfile.datFile);
-                DlcContentFile updcontentfile = new DlcContentFile();
-                updcontentfile.Load(updcontentdoc);
-
-                updsetupfile.DlcFile = updrpffile;
-                updsetupfile.ContentFile = updcontentfile;
-                updcontentfile.DlcFile = updrpffile;
-
-                updsetupfile.deviceName = "update";
-                updcontentfile.LoadDicts(updsetupfile, RpfMan, this);
-
-                if (updcontentfile.ExtraTitleUpdates != null)
-                {
-                    foreach (var tumount in updcontentfile.ExtraTitleUpdates.Mounts)
-                    {
-                        var lpath = tumount.path.ToLowerInvariant();
-                        var relpath = lpath.Replace('/', '\\').Replace("update:\\", "");
-                        var dlcname = GetDlcNameFromPath(relpath);
-                        RpfFile dlcfile;
-                        dlcDict2.TryGetValue(dlcname, out dlcfile);
-                        if (dlcfile == null)
-                        { continue; }
-                        var dlcpath = dlcfile.Path + "\\";
-                        var files = updrpffile.GetFiles(relpath, true);
-                        foreach (var file in files)
-                        {
-                            if (file == null) continue;
-                            var fpath = file.Path;
-                            var frelpath = fpath.Replace(updrpfpath, "update:").Replace('\\', '/').Replace(lpath, dlcpath).Replace('/', '\\');
-                            if (frelpath.StartsWith("mods\\"))
-                            {
-                                frelpath = frelpath.Substring(5);
-                            }
-                            DlcPatchedPaths[frelpath] = fpath;
-                        }
-                    }
-                }
-            }
-            else
+            if (updateRpf == null)
             {
                 ErrorLog("InitDlcList: update.rpf not found!");
             }
+            else
+            {
+                try
+                {
+                    var updSetupDoc = RpfMan.GetFileXml(updateRpfPath + @"\setup2.xml");
+                    var updSetupFile = new DlcSetupFile();
+                    updSetupFile.Load(updSetupDoc);
 
+                    var updContentDoc = RpfMan.GetFileXml(updateRpfPath + @"\" + updSetupFile.datFile);
+                    var updContentFile = new DlcContentFile();
+                    updContentFile.Load(updContentDoc);
 
+                    updSetupFile.DlcFile = updateRpf;
+                    updSetupFile.ContentFile = updContentFile;
+                    updContentFile.DlcFile = updateRpf;
 
+                    updSetupFile.deviceName = "update";
+                    updContentFile.LoadDicts(updSetupFile, RpfMan, this);
 
+                    var extraTU = updContentFile.ExtraTitleUpdates;
+                    if (extraTU != null)
+                    {
+                        foreach (var tuMount in extraTU.Mounts)
+                        {
+                            var lpath = tuMount.path.ToLowerInvariant();
+                            var relPath = lpath.Replace('/', '\\').Replace(@"update:\", "");
+
+                            var dlcName = GetDlcNameFromPath(relPath);
+                            RpfFile dlcFile;
+                            if (!dlcByName.TryGetValue(dlcName, out dlcFile) || dlcFile == null) continue;
+
+                            var dlcPathPrefix = dlcFile.Path + "\\";
+                            var files = updateRpf.GetFiles(relPath, true);
+                            foreach (var file in files)
+                            {
+                                if (file == null) continue;
+                                var srcFull = file.Path;
+
+                                var mapped = srcFull.Replace(updateRpfPath, "update:").Replace('\\', '/').Replace(lpath, dlcPathPrefix).Replace('/', '\\');
+                                if (mapped.StartsWith(@"mods\", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    mapped = mapped.Substring(5);
+                                }
+                                DlcPatchedPaths[mapped] = srcFull;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ErrorLog($"InitDlcList: Error processing {updateRpfPath}: {ex}");
+                }
+            }
+
+            // load each DLCs setup/content (with patched lookups) and gather extra mounts
             DlcSetupFiles.Clear();
             DlcExtraFolderMounts.Clear();
 
-            foreach (string path in DlcPaths)
+            foreach (var vpath in DlcPaths)
             {
-                RpfFile dlcfile;
-                if (dlcDict.TryGetValue(path, out dlcfile))
+                RpfFile dlcFile;
+                if (!dlcByVirtualPath.TryGetValue(vpath, out dlcFile) || dlcFile == null) continue;
+
+                try
                 {
-                    try
+                    var setupPath = GetDlcPatchedPath(dlcFile.Path + @"\setup2.xml");
+                    var setupDoc = RpfMan.GetFileXml(setupPath);
+                    var setupFile = new DlcSetupFile();
+                    setupFile.Load(setupDoc);
+
+                    var contentPath = GetDlcPatchedPath(dlcFile.Path + @"\" + setupFile.datFile);
+                    var contentDoc = RpfMan.GetFileXml(contentPath);
+                    var contentFile = new DlcContentFile();
+                    contentFile.Load(contentDoc);
+
+                    setupFile.DlcFile = dlcFile;
+                    setupFile.ContentFile = contentFile;
+                    contentFile.DlcFile = dlcFile;
+
+                    contentFile.LoadDicts(setupFile, RpfMan, this);
+
+                    foreach (var extra in contentFile.ExtraMounts.Values)
                     {
-                        string setuppath = GetDlcPatchedPath(dlcfile.Path + "\\setup2.xml");
-                        XmlDocument setupdoc = RpfMan.GetFileXml(setuppath);
-                        DlcSetupFile setupfile = new DlcSetupFile();
-                        setupfile.Load(setupdoc);
-
-                        string contentpath = GetDlcPatchedPath(dlcfile.Path + "\\" + setupfile.datFile);
-                        XmlDocument contentdoc = RpfMan.GetFileXml(contentpath);
-                        DlcContentFile contentfile = new DlcContentFile();
-                        contentfile.Load(contentdoc);
-
-                        setupfile.DlcFile = dlcfile;
-                        setupfile.ContentFile = contentfile;
-                        contentfile.DlcFile = dlcfile;
-
-                        contentfile.LoadDicts(setupfile, RpfMan, this);
-                        foreach (var extramount in contentfile.ExtraMounts.Values)
-                        {
-                            DlcExtraFolderMounts.Add(extramount);
-                        }
-
-                        DlcSetupFiles.Add(setupfile);
-
+                        DlcExtraFolderMounts.Add(extra);
                     }
-                    catch (Exception ex)
-                    {
-                        ErrorLog("InitDlcList: Error processing DLC " + path + "\n" + ex.ToString());
-                    }
+
+                    DlcSetupFiles.Add(setupFile);
+                }
+                catch (Exception ex)
+                {
+                    ErrorLog($"InitDlcList: Error processing DLC '{vpath}': {ex}");
                 }
             }
 
-            //load the DLC in the correct order.... 
-            DlcSetupFiles = DlcSetupFiles.OrderBy(o => o.order).ToList();
-
-
+            DlcSetupFiles = DlcSetupFiles.OrderBy(s => s.order).ToList();
             DlcNameList.Clear();
+
             foreach (var sfile in DlcSetupFiles)
             {
-                if ((sfile == null) || (sfile.DlcFile == null)) continue;
+                if (sfile == null || sfile.DlcFile == null) continue;
                 DlcNameList.Add(GetDlcNameFromPath(sfile.DlcFile.Path));
             }
 
-            if (DlcNameList.Count > 0)
+            if (DlcNameList.Count > 0 && string.IsNullOrEmpty(SelectedDlc))
             {
-                if (string.IsNullOrEmpty(SelectedDlc))
-                {
-                    SelectedDlc = DlcNameList[DlcNameList.Count - 1];
-                }
+                SelectedDlc = DlcNameList[DlcNameList.Count - 1];
             }
         }
 
@@ -529,220 +524,202 @@ namespace CodeWalker.GameFiles
         {
             ActiveMapRpfFiles.Clear();
 
-            foreach (RpfFile baserpf in BaseRpfs) //start with all the base rpf's (eg x64a.rpf)
+            string NormalizeSlash(string s) { return s == null ? null : s.Replace('\\', '/'); }
+
+            // base RPFs
+            foreach (var baseRpf in BaseRpfs)
             {
-                string path = baserpf.Path.Replace('\\', '/');
-                if (path == "common.rpf")
+                if (baseRpf == null) continue;
+
+                var normPath = NormalizeSlash(baseRpf.Path);
+                if (normPath == "common.rpf")
                 {
-                    ActiveMapRpfFiles["common"] = baserpf;
+                    ActiveMapRpfFiles["common"] = baseRpf;
+                    continue;
+                }
+
+                var slashIdx = normPath.IndexOf('/');
+                if (slashIdx > 0 && slashIdx < normPath.Length)
+                {
+                    var key = "x64" + normPath.Substring(slashIdx);
+                    ActiveMapRpfFiles[key] = baseRpf;
                 }
                 else
                 {
-                    int bsind = path.IndexOf('/');
-                    if ((bsind > 0) && (bsind < path.Length))
-                    {
-                        path = "x64" + path.Substring(bsind);
-
-                        //if (ActiveMapRpfFiles.ContainsKey(path))
-                        //{ } //x64d.rpf\levels\gta5\generic\cutsobjects.rpf // x64g.rpf\levels\gta5\generic\cutsobjects.rpf - identical?
-
-                        ActiveMapRpfFiles[path] = baserpf;
-                    }
-                    else
-                    {
-                        //do we need to include root rpf files? generally don't seem to contain map data?
-                        ActiveMapRpfFiles[path] = baserpf;
-                    }
+                    ActiveMapRpfFiles[normPath] = baseRpf;
                 }
             }
 
-            if (!EnableDlc) return; //don't continue for base title only
-
+            if (!EnableDlc) return;
+            // include update.rpf so files not present in child RPFs can be used
             foreach (var rpf in DlcRpfs)
             {
-                if (rpf.NameLower == "update.rpf")//include this so that files not in child rpf's can be used..
+                if (rpf != null && rpf.NameLower == "update.rpf")
                 {
-                    string path = rpf.Path.Replace('\\', '/');
-                    ActiveMapRpfFiles[path] = rpf;
+                    var upPath = NormalizeSlash(rpf.Path);
+                    ActiveMapRpfFiles[upPath] = rpf;
                     break;
                 }
             }
 
-
             DlcActiveRpfs.Clear();
             DlcCacheFileList.Clear();
 
-            //int maxdlcorder = 10000000;
+            var overlays = new Dictionary<string, List<string>>();
 
-            Dictionary<string, List<string>> overlays = new Dictionary<string, List<string>>();
-
-            foreach (var setupfile in DlcSetupFiles)
+            // DLCs in order
+            foreach (var setupFile in DlcSetupFiles)
             {
-                if (setupfile.DlcFile != null)
+                if (setupFile == null || setupFile.DlcFile == null) continue;
+
+                var contentFile = setupFile.ContentFile;
+                var dlcFile = setupFile.DlcFile;
+
+                // dlc.rpf
+                DlcActiveRpfs.Add(dlcFile);
+
+                // subpack dlcs, dlc1.rpf, dlc2.rpf etc.
+                if (setupFile.subPackCount > 0)
                 {
-                    //if (setupfile.order > maxdlcorder)
-                    //    break;
-
-                    var contentfile = setupfile.ContentFile;
-                    var dlcfile = setupfile.DlcFile;
-
-                    DlcActiveRpfs.Add(dlcfile);
-
-                    for (int i = 1; i <= setupfile.subPackCount; i++)
+                    for (var i = 1; i <= setupFile.subPackCount; i++)
                     {
-                        var subpackPath = dlcfile.Path.Replace("\\dlc.rpf", "\\dlc" + i.ToString() + ".rpf");
+                        var subpackPath = dlcFile.Path.Replace("\\dlc.rpf", "\\dlc" + i.ToString() + ".rpf");
                         var subpack = RpfMan.FindRpfFile(subpackPath);
-                        if (subpack != null)
-                        {
-                            DlcActiveRpfs.Add(subpack);
+                        if (subpack == null) continue;
 
-                            if (setupfile.DlcSubpacks == null) setupfile.DlcSubpacks = new List<RpfFile>();
-                            setupfile.DlcSubpacks.Add(subpack);
-                        }
+                        DlcActiveRpfs.Add(subpack);
+
+                        if (setupFile.DlcSubpacks == null) setupFile.DlcSubpacks = new List<RpfFile>();
+                        setupFile.DlcSubpacks.Add(subpack);
                     }
+                }
 
+                // temporary hack to stop this dlc breaking everything
+                var dlcName = GetDlcNameFromPath(dlcFile.Path);
+                if (dlcName == "patchday27ng" && SelectedDlc != dlcName)
+                {
+                    continue;
+                }
 
-
-                    string dlcname = GetDlcNameFromPath(dlcfile.Path);
-                    if ((dlcname == "patchday27ng") && (SelectedDlc != dlcname))
+                // base RPF data files listed in content.xml
+                if (contentFile != null && contentFile.RpfDataFiles != null)
+                {
+                    foreach (var kvp in contentFile.RpfDataFiles)
                     {
-                        continue; //hack to fix map getting completely broken by this DLC.. but why? need to investigate further!
+                        var logicalKey = kvp.Key;
+                        var unmounted = GetDlcUnmountedPath(kvp.Value.filename);
+                        var physical = GetDlcRpfPhysicalPath(unmounted, setupFile);
+
+                        AddDlcOverlayRpf(logicalKey, unmounted, setupFile, overlays);
+                        AddDlcActiveMapRpfFile(logicalKey, physical, setupFile);
                     }
+                }
 
-
-
-                    foreach (var rpfkvp in contentfile.RpfDataFiles)
+                // content changesets, cache loader & file enables / disables
+                if (contentFile != null && contentFile.contentChangeSets != null)
+                {
+                    foreach (var changeSet in contentFile.contentChangeSets)
                     {
-                        string umpath = GetDlcUnmountedPath(rpfkvp.Value.filename);
-                        string phpath = GetDlcRpfPhysicalPath(umpath, setupfile);
+                        if (changeSet == null) continue;
 
-                        //if (rpfkvp.Value.overlay)
-                        AddDlcOverlayRpf(rpfkvp.Key, umpath, setupfile, overlays);
-
-                        AddDlcActiveMapRpfFile(rpfkvp.Key, phpath, setupfile);
-                    }
-
-
-
-
-                    DlcExtraFolderMountFile extramount;
-                    DlcContentDataFile rpfdatafile;
-
-
-                    foreach (var changeset in contentfile.contentChangeSets)
-                    {
-                        if (changeset.useCacheLoader)
+                        // cache loader
+                        if (changeSet.useCacheLoader)
                         {
-                            uint cachehash = JenkHash.GenHash(changeset.changeSetName.ToLowerInvariant());
-                            string cachefilename = dlcname + "_" + cachehash.ToString() + "_cache_y.dat";
-                            string cachefilepath = dlcfile.Path + "\\x64\\data\\cacheloaderdata_dlc\\" + cachefilename;
-                            string cachefilepathpatched = GetDlcPatchedPath(cachefilepath);
-                            DlcCacheFileList.Add(cachefilepathpatched);
-
-                            //if ((changeset.mapChangeSetData != null) && (changeset.mapChangeSetData.Count > 0))
-                            //{ }
-                            //else
-                            //{ }
+                            var cacheHash = JenkHash.GenHash(changeSet.changeSetName.ToLowerInvariant());
+                            var cacheFileName = dlcName + "_" + cacheHash.ToString() + "_cache_y.dat";
+                            var cachePath = dlcFile.Path + "\\x64\\data\\cacheloaderdata_dlc\\" + cacheFileName;
+                            var patchedPath = GetDlcPatchedPath(cachePath);
+                            DlcCacheFileList.Add(patchedPath);
                         }
-                        else
+
+                        // filesToEnable
+                        if (changeSet.filesToEnable != null)
                         {
-                            //if ((changeset.mapChangeSetData != null) && (changeset.mapChangeSetData.Count > 0))
-                            //{ }
-                            //if (changeset.executionConditions != null)
-                            //{ }
-                        }
-                        //if (changeset.filesToInvalidate != null)
-                        //{ }//not used
-                        //if (changeset.filesToDisable != null)
-                        //{ }//not used
-                        if (changeset.filesToEnable != null)
-                        {
-                            foreach (string file in changeset.filesToEnable)
+                            foreach (var file in changeSet.filesToEnable)
                             {
-                                string dfn = GetDlcPlatformPath(file).ToLowerInvariant();
-                                if (contentfile.ExtraMounts.TryGetValue(dfn, out extramount))
-                                {
-                                    //foreach (var rpfkvp in contentfile.RpfDataFiles)
-                                    //{
-                                    //    string umpath = GetDlcUnmountedPath(rpfkvp.Value.filename);
-                                    //    string phpath = GetDlcRpfPhysicalPath(umpath, setupfile);
-                                    //    //if (rpfkvp.Value.overlay)
-                                    //    AddDlcOverlayRpf(rpfkvp.Key, umpath, setupfile, overlays);
-                                    //    AddDlcActiveMapRpfFile(rpfkvp.Key, phpath);
-                                    //}
-                                }
-                                else if (contentfile.RpfDataFiles.TryGetValue(dfn, out rpfdatafile))
-                                {
-                                    string phpath = GetDlcRpfPhysicalPath(rpfdatafile.filename, setupfile);
+                                if (string.IsNullOrEmpty(file)) continue;
 
-                                    //if (rpfdatafile.overlay)
-                                    AddDlcOverlayRpf(dfn, rpfdatafile.filename, setupfile, overlays);
+                                var dfn = GetDlcPlatformPath(file).ToLowerInvariant();
 
-                                    AddDlcActiveMapRpfFile(dfn, phpath, setupfile);
-                                }
+                                DlcExtraFolderMountFile extraMount;
+                                if (contentFile.ExtraMounts != null && contentFile.ExtraMounts.TryGetValue(dfn, out extraMount))
+                                { }
                                 else
                                 {
-                                    if (dfn.EndsWith(".rpf"))
-                                    { }
+                                    DlcContentDataFile rpfDataFile;
+                                    if (contentFile.RpfDataFiles != null &&
+                                        contentFile.RpfDataFiles.TryGetValue(dfn, out rpfDataFile))
+                                    {
+                                        var physical = GetDlcRpfPhysicalPath(rpfDataFile.filename, setupFile);
+
+                                        AddDlcOverlayRpf(dfn, rpfDataFile.filename, setupFile, overlays);
+                                        AddDlcActiveMapRpfFile(dfn, physical, setupFile);
+                                    }
+                                    else
+                                    {
+                                        if (dfn.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
+                                        { }
+                                    }
                                 }
                             }
                         }
-                        if (changeset.executionConditions != null)
-                        { }
 
-                        if (changeset.mapChangeSetData != null)
+                        // mapChangeSetData
+                        if (changeSet.mapChangeSetData != null)
                         {
-                            foreach (var mapcs in changeset.mapChangeSetData)
+                            foreach (var mapCs in changeSet.mapChangeSetData)
                             {
-                                //if (mapcs.mapChangeSetData != null)
-                                //{ }//not used
-                                if (mapcs.filesToInvalidate != null)
+                                if (mapCs == null) continue;
+
+                                // filesToInvalidate
+                                if (mapCs.filesToInvalidate != null)
                                 {
-                                    foreach (string file in mapcs.filesToInvalidate)
+                                    foreach (var file in mapCs.filesToInvalidate)
                                     {
-                                        string upath = GetDlcMountedPath(file);
-                                        string fpath = GetDlcPlatformPath(upath);
-                                        if (fpath.EndsWith(".rpf"))
+                                        if (string.IsNullOrEmpty(file)) continue;
+
+                                        var mounted = GetDlcMountedPath(file);
+                                        var platform = GetDlcPlatformPath(mounted);
+
+                                        if (platform.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
                                         {
-                                            RemoveDlcActiveMapRpfFile(fpath, overlays);
+                                            RemoveDlcActiveMapRpfFile(platform, overlays);
                                         }
                                         else
-                                        { } //how to deal with individual files? milo_.interior
+                                        { }
                                     }
                                 }
-                                if (mapcs.filesToDisable != null)
-                                { }
-                                if (mapcs.filesToEnable != null)
-                                {
-                                    foreach (string file in mapcs.filesToEnable)
-                                    {
-                                        string fpath = GetDlcPlatformPath(file);
-                                        string umpath = GetDlcUnmountedPath(fpath);
-                                        string phpath = GetDlcRpfPhysicalPath(umpath, setupfile);
 
-                                        if (fpath != umpath)
+                                // filesToEnable
+                                if (mapCs.filesToEnable != null)
+                                {
+                                    foreach (var file in mapCs.filesToEnable)
+                                    {
+                                        if (string.IsNullOrEmpty(file)) continue;
+
+                                        var platform = GetDlcPlatformPath(file);
+                                        var unmounted = GetDlcUnmountedPath(platform);
+                                        var physical = GetDlcRpfPhysicalPath(unmounted, setupFile);
+
+                                        if (!string.Equals(platform, unmounted, StringComparison.Ordinal))
                                         { }
 
-                                        AddDlcOverlayRpf(fpath, umpath, setupfile, overlays);
-
-                                        AddDlcActiveMapRpfFile(fpath, phpath, setupfile);
+                                        AddDlcOverlayRpf(platform, unmounted, setupFile, overlays);
+                                        AddDlcActiveMapRpfFile(platform, physical, setupFile);
                                     }
                                 }
                             }
                         }
                     }
-
-
-
-
-                    if (dlcname == SelectedDlc)
-                    {
-                        break; //everything's loaded up to the selected DLC.
-                    }
-
+                }
+                // stop after selected DLC
+                if (dlcName == SelectedDlc)
+                {
+                    break;
                 }
             }
         }
+
 
         private void AddDlcActiveMapRpfFile(string vpath, string phpath, DlcSetupFile setupfile)
         {
@@ -919,45 +896,62 @@ namespace CodeWalker.GameFiles
 
         private List<RpfFile> GetModdedRpfList(List<RpfFile> list)
         {
-            //if (!EnableMods) return new List<RpfFile>(list);
-            List<RpfFile> rlist = new List<RpfFile>();
-            RpfFile f;
+            if (list == null || list.Count == 0) return new List<RpfFile>(0);
+            var result = new List<RpfFile>(list.Count);
+            var modDict = RpfMan.ModRpfDict;
+            var baseDict = RpfMan.RpfDict;
+            const string ModsPrefix = "mods";
+            const int ModsPrefixLen = 5;
+
             if (!EnableMods)
             {
+                // exclude anything under mods
                 foreach (var file in list)
                 {
-                    if (!file.Path.StartsWith("mods"))
-                    {
-                        rlist.Add(file);
-                    }
+                    if (file == null || string.IsNullOrEmpty(file.Path)) continue;
+
+                    if (!file.Path.StartsWith(ModsPrefix, StringComparison.OrdinalIgnoreCase))
+                        result.Add(file);
                 }
+                return result;
             }
-            else
+            // EnableMods
+            foreach (var file in list)
             {
-                foreach (var file in list)
+                if (file == null || string.IsNullOrEmpty(file.Path)) continue;
+                var path = file.Path;
+
+                RpfFile modOverride;
+                if (modDict != null && modDict.TryGetValue(path, out modOverride) && modOverride != null)
                 {
-                    if (RpfMan.ModRpfDict.TryGetValue(file.Path, out f))
+                    result.Add(modOverride);
+                    continue;
+                }
+
+                // if entry is from mods, only keep it if it doesnt override a base path
+                if (path.StartsWith(ModsPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (path.Length >= ModsPrefixLen)
                     {
-                        rlist.Add(f);
+                        var basePath = path.Substring(ModsPrefixLen);
+                        var overridesBase = baseDict != null && baseDict.ContainsKey(basePath);
+
+                        if (!overridesBase)
+                        {
+                            result.Add(file);
+                        }
                     }
                     else
                     {
-                        if (file.Path.StartsWith("mods"))
-                        {
-                            var basepath = file.Path.Substring(5);
-                            if (!RpfMan.RpfDict.ContainsKey(basepath)) //this file isn't overriding anything
-                            {
-                                rlist.Add(file);
-                            }
-                        }
-                        else
-                        {
-                            rlist.Add(file);
-                        }
+                        result.Add(file);
                     }
                 }
+                else
+                {
+                    result.Add(file);
+                }
             }
-            return rlist;
+            return result;
         }
 
 
@@ -969,42 +963,48 @@ namespace CodeWalker.GameFiles
             YftDict = new Dictionary<uint, RpfFileEntry>();
             YcdDict = new Dictionary<uint, RpfFileEntry>();
             YedDict = new Dictionary<uint, RpfFileEntry>();
-            foreach (var rpffile in AllRpfs)
+
+            if (AllRpfs == null || AllRpfs.Count == 0) return;
+
+            foreach (var rpf in AllRpfs)
             {
-                if (rpffile.AllEntries == null) continue;
-                foreach (var entry in rpffile.AllEntries)
+                if (rpf == null || rpf.AllEntries == null) continue;
+
+                foreach (var entry in rpf.AllEntries)
                 {
-                    if (entry is RpfFileEntry)
+                    if (!(entry is RpfFileEntry fentry)) continue;
+
+                    var nameLower = entry.NameLower;
+                    if (string.IsNullOrEmpty(nameLower)) continue;
+
+                    var ext = Path.GetExtension(nameLower);
+                    if (string.IsNullOrEmpty(ext)) continue;
+
+                    switch (ext)
                     {
-                        RpfFileEntry fentry = entry as RpfFileEntry;
-                        if (entry.NameLower.EndsWith(".ydr"))
-                        {
+                        case ".ydr":
                             YdrDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".ydd"))
-                        {
+                            break;
+                        case ".ydd":
                             YddDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".ytd"))
-                        {
+                            break;
+                        case ".ytd":
                             YtdDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".yft"))
-                        {
+                            break;
+                        case ".yft":
                             YftDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".ycd"))
-                        {
+                            break;
+                        case ".ycd":
                             YcdDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".yed"))
-                        {
+                            break;
+                        case ".yed":
                             YedDict[entry.ShortNameHash] = fentry;
-                        }
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
-
         }
 
         private void InitMapDicts()
@@ -1012,49 +1012,61 @@ namespace CodeWalker.GameFiles
             YmapDict = new Dictionary<uint, RpfFileEntry>();
             YbnDict = new Dictionary<uint, RpfFileEntry>();
             YnvDict = new Dictionary<uint, RpfFileEntry>();
-            foreach (var rpffile in ActiveMapRpfFiles.Values) //RpfMan.BaseRpfs)
+
+            if (ActiveMapRpfFiles != null && ActiveMapRpfFiles.Count > 0)
             {
-                if (rpffile.AllEntries == null) continue;
-                foreach (var entry in rpffile.AllEntries)
+                foreach (var rpf in ActiveMapRpfFiles.Values)
                 {
-                    if (entry is RpfFileEntry)
+                    if (rpf == null || rpf.AllEntries == null) continue;
+
+                    foreach (var entry in rpf.AllEntries)
                     {
-                        RpfFileEntry fentry = entry as RpfFileEntry;
-                        if (entry.NameLower.EndsWith(".ymap"))
+                        if (!(entry is RpfFileEntry fentry)) continue;
+
+                        var nameLower = entry.NameLower;
+                        if (string.IsNullOrEmpty(nameLower)) continue;
+
+                        var ext = Path.GetExtension(nameLower);
+                        if (string.IsNullOrEmpty(ext)) continue;
+
+                        switch (ext)
                         {
-                            //YmapDict[entry.NameHash] = fentry;
-                            YmapDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".ybn"))
-                        {
-                            //YbnDict[entry.NameHash] = fentry;
-                            YbnDict[entry.ShortNameHash] = fentry;
-                        }
-                        else if (entry.NameLower.EndsWith(".ynv"))
-                        {
-                            YnvDict[entry.ShortNameHash] = fentry;
+                            case ".ymap":
+                                YmapDict[entry.ShortNameHash] = fentry;
+                                break;
+                            case ".ybn":
+                                YbnDict[entry.ShortNameHash] = fentry;
+                                break;
+                            case ".ynv":
+                                YnvDict[entry.ShortNameHash] = fentry;
+                                break;
+                            default:
+                                break;
                         }
                     }
                 }
             }
 
             AllYmapsDict = new Dictionary<uint, RpfFileEntry>();
-            foreach (var rpffile in AllRpfs)
+            if (AllRpfs != null && AllRpfs.Count > 0)
             {
-                if (rpffile.AllEntries == null) continue;
-                foreach (var entry in rpffile.AllEntries)
+                foreach (var rpf in AllRpfs)
                 {
-                    if (entry is RpfFileEntry)
+                    if (rpf == null || rpf.AllEntries == null) continue;
+
+                    foreach (var entry in rpf.AllEntries)
                     {
-                        RpfFileEntry fentry = entry as RpfFileEntry;
-                        if (entry.NameLower.EndsWith(".ymap"))
+                        if (!(entry is RpfFileEntry fentry)) continue;
+
+                        var nameLower = entry.NameLower;
+                        if (string.IsNullOrEmpty(nameLower)) continue;
+                        if (Path.GetExtension(nameLower) == ".ymap")
                         {
                             AllYmapsDict[entry.ShortNameHash] = fentry;
                         }
                     }
                 }
             }
-
         }
 
         private void InitManifestDicts()
@@ -1065,15 +1077,9 @@ namespace CodeWalker.GameFiles
             foreach (RpfFile file in rpfs)
             {
                 if (file.AllEntries == null) continue;
-                //manifest and meta parsing..
                 foreach (RpfEntry entry in file.AllEntries)
                 {
-                    //sp_manifest.ymt
-                    //if (entry.NameLower.EndsWith("zonebind.ymt")/* || entry.Name.EndsWith("vinewood.ymt")*/)
-                    //{
-                    //    YmtFile ymt = GetFile<YmtFile>(entry);
-                    //}
-                    if (entry.Name.EndsWith(".ymf"))// || entry.Name.EndsWith(".ymt"))
+                    if (entry.Name.EndsWith(".ymf"))
                     {
                         try
                         {
@@ -1082,17 +1088,6 @@ namespace CodeWalker.GameFiles
                             if (ymffile != null)
                             {
                                 AllManifests.Add(ymffile);
-
-                                if (ymffile.Pso != null)
-                                { }
-                                else if (ymffile.Rbf != null)
-                                { }
-                                else if (ymffile.Meta != null)
-                                { }
-                                else
-                                { }
-
-
                                 if (ymffile.HDTxdAssetBindings != null)
                                 {
                                     for (int i = 0; i < ymffile.HDTxdAssetBindings.Length; i++)
@@ -1134,9 +1129,6 @@ namespace CodeWalker.GameFiles
                     if (!parentTxds.ContainsKey(chash))
                     {
                         parentTxds.Add(chash, phash);
-                    }
-                    else
-                    {
                     }
                 }
             });
@@ -1225,16 +1217,12 @@ namespace CodeWalker.GameFiles
                             {
                                 YmapHierarchyDict[node.Name] = node;
                             }
-                            else
-                            { } //ymap not found...
                         }
                     }
                     else if (finalAttempt)
                     {
                         ErrorLog(path + ": main cachefile not loaded! Possibly an unsupported GTAV installation version.");
                     }
-                    else //update\x64\dlcpacks\mpspecialraces\dlc.rpf\x64\data\cacheloaderdata_dlc\mpspecialraces_3336915258_cache_y.dat (hash of: mpspecialraces_interior_additions)
-                    { }
                     return cache;
                 }
                 catch (Exception ex)
@@ -1243,7 +1231,6 @@ namespace CodeWalker.GameFiles
                 }
                 return null;
             }
-
 
             CacheDatFile maincache = null;
             if (EnableDlc)
@@ -1259,10 +1246,6 @@ namespace CodeWalker.GameFiles
                 maincache = loadCacheFile("common.rpf\\data\\gta5_cache_y.dat", true);
             }
 
-
-
-
-
             if (EnableDlc)
             {
                 foreach (string dlccachefile in DlcCacheFileList)
@@ -1270,29 +1253,22 @@ namespace CodeWalker.GameFiles
                     loadCacheFile(dlccachefile, false);
                 }
             }
-
-
         }
 
         private void InitArchetypeDicts()
         {
-
             YtypDict = new Dictionary<uint, YtypFile>();
-
             archetypesLoaded = false;
             archetypeDict.Clear();
 
             if (!LoadArchetypes) return;
-
-
             var rpfs = EnableDlc ? AllRpfs : BaseRpfs;
 
-            foreach (RpfFile file in rpfs) //RpfMan.BaseRpfs)RpfMan.AllRpfs)//ActiveMapRpfFiles.Values) // 
+            foreach (RpfFile file in rpfs)
             {
                 if (file.AllEntries == null) continue;
                 if (!EnableDlc && file.Path.StartsWith("update")) continue;
 
-                //parse ytyps
                 foreach (RpfEntry entry in file.AllEntries)
                 {
                     try
@@ -1308,9 +1284,7 @@ namespace CodeWalker.GameFiles
                     }
                 }
             }
-
             archetypesLoaded = true;
-
         }
 
         private void AddYtypToDictionary(RpfEntry entry)
@@ -1327,16 +1301,12 @@ namespace CodeWalker.GameFiles
             }
             if (YtypDict.ContainsKey(ytypfile.NameHash))
             {
-                //throw new Exception("ytyp " + JenkIndex.GetString(ytypfile.NameHash) + " already loaded.");
-                //errorAction(entry.Path + ": ytyp " + JenkIndex.GetString(ytypfile.NameHash) + " already loaded.");
                 YtypDict[ytypfile.NameHash] = ytypfile; //override ytyp and continue anyway, could be unique archetypes in here still...
             }
             else
             {
                 YtypDict.Add(ytypfile.NameHash, ytypfile);
             }
-
-
 
             if ((ytypfile.AllArchetypes == null) || (ytypfile.AllArchetypes.Length == 0))
             {
@@ -1355,31 +1325,6 @@ namespace CodeWalker.GameFiles
                     archetypeDict[hash] = arch;
                 }
             }
-
-
-            ////if (ytypfile.AudioEmitters != null)
-            ////{
-            ////    foreach (CExtensionDefAudioEmitter emitter in ytypfile.AudioEmitters)
-            ////    {
-            ////        //audioind++;
-            ////        //uint hash = emitter.name;
-            ////        //if (hash == 0) hash = archetype.name;
-            ////        //if (hash == 0)
-            ////        //    continue;
-            ////        //if (AudioArchetypes.ContainsKey(hash))
-            ////        //{
-            ////        //    var oldval = AudioArchetypes[hash];
-            ////        //    //errorAction(entry.Path + ": " + emitter.ToString() + ": (CTimeArchetypeDef) Already in archetype dict. Was in: " + oldval.ToString());
-            ////        //    //overwrite with new definition? how to tell?
-            ////        //    AudioArchetypes[hash] = new Tuple<YtypFile, int>(ytypfile, audioind);
-            ////        //}
-            ////        //else
-            ////        //{
-            ////        //    AudioArchetypes.Add(hash, new Tuple<YtypFile, int>(ytypfile, audioind));
-            ////        //}
-            ////    }
-            ////}
-
         }
 
         public void InitStringDicts()
@@ -1433,14 +1378,8 @@ namespace CodeWalker.GameFiles
                 }
                 return;
             }
-
-
+            
             GlobalText.FullIndexBuilt = true;
-
-
-
-
-
             foreach (var rpf in AllRpfs)
             {
                 foreach (var entry in rpf.AllEntries)
@@ -1473,34 +1412,26 @@ namespace CodeWalker.GameFiles
                     }
                 }
             }
-
             StatsNames.FullIndexBuilt = true;
         }
 
+
+        //Neos7
+        //Involved files(at least for rendering purpose)
+        //Vehicles.meta
+        //Carcols.meta
+        //Carvariations.meta
+        //Vehiclelayouts.meta
+        //The other metas shouldn't be important for rendering
+        //Then the global carcols.ymt is required too
+        //As it contains the general shared tuning options
+        //Carcols for modkits and lights kits definitions
+        //Carvariations links such modkits and lights kits to each vehicle plus defines colours combinations of spawned vehicles
+        //Vehiclelayouts mostly to handle ped interactions with the vehicle
         public void InitVehicles()
         {
             if (!LoadVehicles) return;
-
-
-            //Neos7
-            //Involved files(at least for rendering purpose )
-            //Vehicles.meta
-            //Carcols.meta
-            //Carvariations.meta
-            //Vehiclelayouts.meta
-            //The other metas shouldn't be important for rendering
-            //Then the global carcols.ymt is required too
-            //As it contains the general shared tuning options
-            //Carcols for modkits and lights kits definitions
-            //Carvariations links such modkits and lights kits to each vehicle plus defines colours combinations of spawned vehicles
-            //Vehiclelayouts mostly to handle ped interactions with the vehicle
-
-
-
-
-
-            IEnumerable<RpfFile> rpfs = PreloadedMode ? AllRpfs : (IEnumerable<RpfFile>)ActiveMapRpfFiles.Values;
-
+            IEnumerable<RpfFile> rpfs = PreloadedMode? (IEnumerable<RpfFile>)AllRpfs : (IEnumerable<RpfFile>)ActiveMapRpfFiles.Values;
 
             var allVehicles = new Dictionary<MetaHash, VehicleInitData>();
             var allCarCols = new List<CarColsFile>();
@@ -1509,116 +1440,101 @@ namespace CodeWalker.GameFiles
             var allCarVariationsDict = new Dictionary<MetaHash, CVehicleModelInfoVariation_418053801>();
             var allVehicleLayouts = new List<VehicleLayoutsFile>();
 
-            var addVehicleFiles = new Action<IEnumerable<RpfFile>>((from) =>
+            void AddVehicleFiles(IEnumerable<RpfFile> from)
             {
-                foreach (RpfFile file in from)
+                if (from == null) return;
+                foreach (var file in from)
                 {
-                    if (file.AllEntries == null) continue;
-                    foreach (RpfEntry entry in file.AllEntries)
+                    if (file == null || file.AllEntries == null) continue;
+                    foreach (var entry in file.AllEntries)
                     {
-#if !DEBUG
-                        try
-#endif
+                        var nameLower = entry?.NameLower;
+                        if (string.IsNullOrEmpty(nameLower)) continue;
+                        // vehicles.meta
+                        if (nameLower == "vehicles.meta")
                         {
-                            if (entry.NameLower == "vehicles.meta")
+                            var vf = RpfMan.GetFile<VehiclesFile>(entry);
+                            if (vf?.InitDatas == null) continue;
+
+                            foreach (var initData in vf.InitDatas)
                             {
-                                VehiclesFile vf = RpfMan.GetFile<VehiclesFile>(entry);
-                                if (vf.InitDatas != null)
+                                if (initData == null || string.IsNullOrEmpty(initData.modelName)) continue;
+
+                                var hash = JenkHash.GenHash(initData.modelName.ToLowerInvariant());
+                                allVehicles[hash] = initData;
+                            }
+                            continue;
+                        }
+                        // carcols, ymt & meta
+                        if (nameLower == "carcols.ymt" || nameLower == "carcols.meta")
+                        {
+                            var cf = RpfMan.GetFile<CarColsFile>(entry);
+                            if (cf != null) allCarCols.Add(cf);
+                            continue;
+                        }
+                        // carmodcols, ymt
+                        if (nameLower == "carmodcols.ymt")
+                        {
+                            var cm = RpfMan.GetFile<CarModColsFile>(entry);
+                            if (cm != null) allCarModCols.Add(cm);
+                            continue;
+                        }
+                        // carvariations, ymt & meta
+                        if (nameLower == "carvariations.ymt" || nameLower == "carvariations.meta")
+                        {
+                            var cv = RpfMan.GetFile<CarVariationsFile>(entry);
+                            if (cv?.VehicleModelInfo?.variationData != null)
+                            {
+                                foreach (var variation in cv.VehicleModelInfo.variationData)
                                 {
-                                    foreach (var initData in vf.InitDatas)
-                                    {
-                                        var name = initData.modelName.ToLowerInvariant();
-                                        var hash = JenkHash.GenHash(name);
-                                        if (allVehicles.ContainsKey(hash))
-                                        { }
-                                        allVehicles[hash] = initData;
-                                    }
+                                    if (variation == null || string.IsNullOrEmpty(variation.modelName)) continue;
+
+                                    var hash = JenkHash.GenHash(variation.modelName.ToLowerInvariant());
+                                    allCarVariationsDict[hash] = variation;
                                 }
                             }
-                            if ((entry.NameLower == "carcols.ymt") || (entry.NameLower == "carcols.meta"))
-                            {
-                                var cf = RpfMan.GetFile<CarColsFile>(entry);
-                                if (cf.VehicleModelInfo != null)
-                                { }
-                                allCarCols.Add(cf);
-                            }
-                            if (entry.NameLower == "carmodcols.ymt")
-                            {
-                                var cf = RpfMan.GetFile<CarModColsFile>(entry);
-                                if (cf.VehicleModColours != null)
-                                { }
-                                allCarModCols.Add(cf);
-                            }
-                            if ((entry.NameLower == "carvariations.ymt") || (entry.NameLower == "carvariations.meta"))
-                            {
-                                var cf = RpfMan.GetFile<CarVariationsFile>(entry);
-                                if (cf.VehicleModelInfo?.variationData != null)
-                                {
-                                    foreach (var variation in cf.VehicleModelInfo.variationData)
-                                    {
-                                        var name = variation.modelName.ToLowerInvariant();
-                                        var hash = JenkHash.GenHash(name);
-                                        allCarVariationsDict[hash] = variation;
-                                    }
-                                }
-                                allCarVariations.Add(cf);
-                            }
-                            if (entry.NameLower.StartsWith("vehiclelayouts") && entry.NameLower.EndsWith(".meta"))
-                            {
-                                var lf = RpfMan.GetFile<VehicleLayoutsFile>(entry);
-                                if (lf.Xml != null)
-                                { }
-                                allVehicleLayouts.Add(lf);
-                            }
+                            if (cv != null) allCarVariations.Add(cv);
+                            continue;
                         }
-#if !DEBUG
-                        catch (Exception ex)
+                        // vehiclelayouts*.meta
+                        if (nameLower.StartsWith("vehiclelayouts", StringComparison.Ordinal) && nameLower.EndsWith(".meta", StringComparison.Ordinal))
                         {
-                            string errstr = entry.Path + "\n" + ex.ToString();
-                            ErrorLog(errstr);
+                            var lf = RpfMan.GetFile<VehicleLayoutsFile>(entry);
+                            if (lf != null) allVehicleLayouts.Add(lf);
+                            continue;
                         }
-#endif
                     }
                 }
-
-            });
-
-
-            addVehicleFiles(rpfs);
-
+            }
+            AddVehicleFiles(rpfs);
             if (EnableDlc)
             {
-                addVehicleFiles(DlcActiveRpfs);
+                AddVehicleFiles(DlcActiveRpfs);
             }
-
-
             VehiclesInitDict = allVehicles;
-
         }
+
 
         public void InitPeds()
         {
             if (!LoadPeds) return;
+            IEnumerable<RpfFile> rpfs = PreloadedMode ? (IEnumerable<RpfFile>)AllRpfs : (IEnumerable<RpfFile>)ActiveMapRpfFiles.Values;
 
-            IEnumerable<RpfFile> rpfs = PreloadedMode ? AllRpfs : (IEnumerable<RpfFile>)ActiveMapRpfFiles.Values;
-            List<RpfFile> dlcrpfs = new List<RpfFile>();
-            if (EnableDlc)
+            var dlcRpfs = new List<RpfFile>();
+            if (EnableDlc && DlcActiveRpfs != null)
             {
                 foreach (var rpf in DlcActiveRpfs)
                 {
-                    dlcrpfs.Add(rpf);
+                    if (rpf == null) continue;
+                    dlcRpfs.Add(rpf);
+
                     if (rpf.Children == null) continue;
-                    foreach (var crpf in rpf.Children)
+                    foreach (var child in rpf.Children)
                     {
-                        dlcrpfs.Add(crpf);
-                        if (crpf.Children?.Count > 0)
-                        { }
+                        if (child != null) dlcRpfs.Add(child);
                     }
                 }
             }
-
-
-
             var allPeds = new Dictionary<MetaHash, CPedModelInfo__InitData>();
             var allPedsFiles = new List<PedsFile>();
             var allPedYmts = new Dictionary<MetaHash, PedFile>();
@@ -1627,170 +1543,156 @@ namespace CodeWalker.GameFiles
             var allPedClothDicts = new Dictionary<MetaHash, Dictionary<MetaHash, RpfFileEntry>>();
 
 
-            Dictionary<MetaHash, RpfFileEntry> ensureDict(Dictionary<MetaHash, Dictionary<MetaHash, RpfFileEntry>> coll, MetaHash hash)
+            Dictionary<MetaHash, RpfFileEntry> EnsureDict(Dictionary<MetaHash, Dictionary<MetaHash, RpfFileEntry>> coll,MetaHash key)
             {
                 Dictionary<MetaHash, RpfFileEntry> dict;
-                if (!coll.TryGetValue(hash, out dict))
+                if (!coll.TryGetValue(key, out dict))
                 {
                     dict = new Dictionary<MetaHash, RpfFileEntry>();
-                    coll[hash] = dict;
+                    coll[key] = dict;
                 }
                 return dict;
             }
 
-            var addPedDicts = new Action<string, MetaHash, RpfDirectoryEntry>((namel, hash, dir) =>
+            // collect drawable/texture/cloth dicts for a ped
+            void AddPedDicts(string shortNameLower, MetaHash pedHash, RpfDirectoryEntry dir)
             {
-                Dictionary<MetaHash, RpfFileEntry> dict = null;
-                var files = dir?.Files;
+                if (dir == null) return;
+
+                // .yld
+                var files = dir.Files;
                 if (files != null)
                 {
-                    foreach (var file in files)
+                    foreach (var f in files)
                     {
-                        if (file.NameLower == namel + ".yld")
+                        if (f == null || f.NameLower == null) continue;
+                        if (f.NameLower == shortNameLower + ".yld")
                         {
-                            dict = ensureDict(allPedClothDicts, hash);
-                            dict[file.ShortNameHash] = file;
+                            var dict = EnsureDict(allPedClothDicts, pedHash);
+                            dict[f.ShortNameHash] = f;
                         }
                     }
                 }
-
-                if (dir?.Directories != null)
+                if (dir.Directories != null)
                 {
-                    foreach (var cdir in dir.Directories)
+                    RpfDirectoryEntry childDir = null;
+                    foreach (var c in dir.Directories)
                     {
-                        if (cdir.NameLower == namel)
+                        if (c != null && c.NameLower == shortNameLower)
                         {
-                            dir = cdir;
+                            childDir = c;
                             break;
                         }
                     }
-                    files = dir?.Files;
+
+                    files = childDir != null ? childDir.Files : null;
                     if (files != null)
                     {
-                        foreach (var file in files)
+                        foreach (var f in files)
                         {
-                            if (file?.NameLower == null) continue;
-                            if (file.NameLower.EndsWith(".ydd"))
+                            if (f == null || f.NameLower == null) continue;
+                            if (f.NameLower.EndsWith(".ydd", StringComparison.Ordinal))
                             {
-                                dict = ensureDict(allPedDrwDicts, hash);
-                                dict[file.ShortNameHash] = file;
+                                var dict = EnsureDict(allPedDrwDicts, pedHash);
+                                dict[f.ShortNameHash] = f;
                             }
-                            else if (file.NameLower.EndsWith(".ytd"))
+                            else if (f.NameLower.EndsWith(".ytd", StringComparison.Ordinal))
                             {
-                                dict = ensureDict(allPedTexDicts, hash);
-                                dict[file.ShortNameHash] = file;
+                                var dict = EnsureDict(allPedTexDicts, pedHash);
+                                dict[f.ShortNameHash] = f;
                             }
-                            else if (file.NameLower.EndsWith(".yld"))
+                            else if (f.NameLower.EndsWith(".yld", StringComparison.Ordinal))
                             {
-                                dict = ensureDict(allPedClothDicts, hash);
-                                dict[file.ShortNameHash] = file;
+                                var dict = EnsureDict(allPedClothDicts, pedHash);
+                                dict[f.ShortNameHash] = f;
                             }
                         }
                     }
                 }
-            });
+            }
 
-            var addPedsFiles = new Action<IEnumerable<RpfFile>>((from) =>
+            // peds.ymt / peds.meta
+            void AddPedsFiles(IEnumerable<RpfFile> from)
             {
-                foreach (RpfFile file in from)
+                if (from == null) return;
+
+                foreach (var file in from)
                 {
-                    if (file.AllEntries == null) continue;
-                    foreach (RpfEntry entry in file.AllEntries)
+                    if (file == null || file.AllEntries == null) continue;
+
+                    foreach (var entry in file.AllEntries)
                     {
-#if !DEBUG
-                        try
-#endif
+                        var nameLower = entry != null ? entry.NameLower : null;
+                        if (string.IsNullOrEmpty(nameLower)) continue;
+
+                        if (nameLower == "peds.ymt" || nameLower == "peds.meta")
                         {
-                            if ((entry.NameLower == "peds.ymt") || (entry.NameLower == "peds.meta"))
+                            var pf = RpfMan.GetFile<PedsFile>(entry);
+                            if (pf != null)
                             {
-                                var pf = RpfMan.GetFile<PedsFile>(entry);
-                                if (pf.InitDataList?.InitDatas != null)
+                                var list = pf.InitDataList != null ? pf.InitDataList.InitDatas : null;
+                                if (list != null)
                                 {
-                                    foreach (var initData in pf.InitDataList.InitDatas)
+                                    foreach (var init in list)
                                     {
-                                        var name = initData.Name.ToLowerInvariant();
-                                        var hash = JenkHash.GenHash(name);
-                                        if (allPeds.ContainsKey(hash))
-                                        { }
-                                        allPeds[hash] = initData;
+                                        if (init == null || string.IsNullOrEmpty(init.Name)) continue;
+                                        var hash = JenkHash.GenHash(init.Name.ToLowerInvariant());
+                                        allPeds[hash] = init;
                                     }
                                 }
                                 allPedsFiles.Add(pf);
                             }
                         }
-#if !DEBUG
-                        catch (Exception ex)
-                        {
-                            string errstr = entry.Path + "\n" + ex.ToString();
-                            ErrorLog(errstr);
-                        }
-#endif
                     }
                 }
-            });
-
-            var addPedFiles = new Action<IEnumerable<RpfFile>>((from) =>
+            }
+            // parse individual *.ymt ped files and index their drawables/textures/cloth
+            void AddPedFiles(IEnumerable<RpfFile> from)
             {
-                foreach (RpfFile file in from)
+                if (from == null) return;
+
+                foreach (var file in from)
                 {
-                    if (file.AllEntries == null) continue;
-                    foreach (RpfEntry entry in file.AllEntries)
+                    if (file == null || file.AllEntries == null) continue;
+
+                    foreach (var entry in file.AllEntries)
                     {
-#if !DEBUG
-                        try
-#endif
+                        var nameLower = entry != null ? entry.NameLower : null;
+                        if (string.IsNullOrEmpty(nameLower)) continue;
+
+                        if (nameLower.EndsWith(".ymt", StringComparison.Ordinal))
                         {
-                            if (entry.NameLower.EndsWith(".ymt"))
+                            var shortLower = entry.GetShortNameLower();
+                            if (string.IsNullOrEmpty(shortLower)) continue;
+
+                            var pedHash = JenkHash.GenHash(shortLower);
+                            if (!allPeds.ContainsKey(pedHash)) continue;
+
+                            var pf = RpfMan.GetFile<PedFile>(entry);
+                            if (pf != null)
                             {
-                                var testname = entry.GetShortNameLower();
-                                var testhash = JenkHash.GenHash(testname);
-                                if (allPeds.ContainsKey(testhash))
-                                {
-                                    var pf = RpfMan.GetFile<PedFile>(entry);
-                                    if (pf != null)
-                                    {
-                                        allPedYmts[testhash] = pf;
-                                        addPedDicts(testname, testhash, entry.Parent);
-                                    }
-                                }
+                                allPedYmts[pedHash] = pf;
+                                var parentDir = entry.Parent;
+                                AddPedDicts(shortLower, pedHash, parentDir);
                             }
                         }
-#if !DEBUG
-                        catch (Exception ex)
-                        {
-                            string errstr = entry.Path + "\n" + ex.ToString();
-                            ErrorLog(errstr);
-                        }
-#endif
                     }
                 }
-            });
+            }
 
+            AddPedsFiles(rpfs);
+            if (dlcRpfs.Count > 0) AddPedsFiles(dlcRpfs);
 
-
-            addPedsFiles(rpfs);
-            addPedsFiles(dlcrpfs);
-
-            addPedFiles(rpfs);
-            addPedFiles(dlcrpfs);
-
-
+            AddPedFiles(rpfs);
+            if (dlcRpfs.Count > 0) AddPedFiles(dlcRpfs);
 
             PedsInitDict = allPeds;
             PedVariationsDict = allPedYmts;
             PedDrawableDicts = allPedDrwDicts;
             PedTextureDicts = allPedTexDicts;
             PedClothDicts = allPedClothDicts;
-
-
-            foreach (var kvp in PedsInitDict)
-            {
-                if (!PedVariationsDict.ContainsKey(kvp.Key))
-                { }//checking we found them all!
-            }
-
-
         }
+
 
         public void InitAudio()
         {
@@ -1939,7 +1841,7 @@ namespace CodeWalker.GameFiles
                         //mainCache.Clear();
                         ClearCachedMaps();
 
-                        InitDlc();
+                        InitDlcAsync(UpdateStatus is null ? null : new Progress<string>(UpdateStatus), CancellationToken.None).GetAwaiter().GetResult();
                     }
                 }
             }
@@ -1962,8 +1864,8 @@ namespace CodeWalker.GameFiles
 
                         mainCache.Clear();
 
-                        InitGlobal();
-                        InitDlc();
+                        InitGlobalAsync(UpdateStatus is null ? null : new Progress<string>(UpdateStatus), CancellationToken.None).GetAwaiter().GetResult();
+                        InitDlcAsync(UpdateStatus is null ? null : new Progress<string>(UpdateStatus), CancellationToken.None).GetAwaiter().GetResult();
                     }
                 }
             }
