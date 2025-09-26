@@ -237,7 +237,7 @@ namespace CodeWalker
             if (System.Threading.Thread.CurrentThread.GetApartmentState() != System.Threading.ApartmentState.STA)
                 throw new InvalidOperationException("Folder picker must be called from an STA thread.");
 
-            IFileDialog? dialog = null;
+            IFileDialog dialog = null;
             try
             {
                 dialog = (IFileDialog)new FileOpenDialogRCW();
@@ -270,7 +270,7 @@ namespace CodeWalker
                 hr = dialog.GetResult(out var resultItem);
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
 
-                string? path = GetDisplayName(resultItem, SIGDN.SIGDN_FILESYSPATH);
+                string path = GetDisplayName(resultItem, SIGDN.SIGDN_FILESYSPATH);
                 Marshal.ReleaseComObject(resultItem);
 
                 if (!string.IsNullOrEmpty(path))
@@ -286,7 +286,7 @@ namespace CodeWalker
             }
         }
 
-        private static string? GetDisplayName(IShellItem item, SIGDN sigdn)
+        private static string GetDisplayName(IShellItem item, SIGDN sigdn)
         {
             int hr = item.GetDisplayName(sigdn, out var pszName);
             if (hr != 0 || pszName == IntPtr.Zero) return null;
@@ -375,7 +375,7 @@ namespace CodeWalker
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
         private static extern int SHCreateItemFromParsingName(
             [MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr pbc,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem? ppv);
+            [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem ppv);
     }
 
 

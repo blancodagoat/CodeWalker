@@ -313,8 +313,10 @@ namespace ST.Library.UI.NodeEditor
                 stt.STNodeTypeColor = node.TitleColor;
                 m_dic_all_type.Add(stNodeType, stt.Path);
                 this.Invalidate();
-            } catch (Exception ex) {
-                if (bShowException) throw ex;
+            } 
+            catch (Exception)
+            {
+                if (bShowException) throw;
                 return false;
             }
             return true;

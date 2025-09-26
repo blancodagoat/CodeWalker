@@ -1913,55 +1913,90 @@ namespace ST.Library.UI.NodeEditor
         /// Note: This method does not clear the data in the canvas but superimposes the data
         /// </summary>
         /// <param name="s">Data stream object</param>
-        public void LoadCanvas(Stream s) {
-            int nLen = 0;
-            byte[] byLen = new byte[4];
-            s.Read(byLen, 0, 4);
-            if (BitConverter.ToInt32(byLen, 0) != BitConverter.ToInt32(new byte[] { (byte)'S', (byte)'T', (byte)'N', (byte)'D' }, 0))
+        public void LoadCanvas(Stream s)
+        {
+            Span<byte> magic = stackalloc byte[4];
+            s.ReadExactly(magic);
+            if (!magic.SequenceEqual("STND"u8))
                 throw new InvalidDataException("Unrecognized file type");
-            if (s.ReadByte() != 1) throw new InvalidDataException("Unrecognized file version number");
-            using (GZipStream gs = new GZipStream(s, CompressionMode.Decompress)) {
-                gs.Read(byLen, 0, 4);
-                float x = BitConverter.ToSingle(byLen, 0);
-                gs.Read(byLen, 0, 4);
-                float y = BitConverter.ToSingle(byLen, 0);
-                gs.Read(byLen, 0, 4);
-                float scale = BitConverter.ToSingle(byLen, 0);
-                gs.Read(byLen, 0, 4);
-                int nCount = BitConverter.ToInt32(byLen, 0);
-                Dictionary<long, STNodeOption> dic = new Dictionary<long, STNodeOption>();
-                HashSet<STNodeOption> hs = new HashSet<STNodeOption>();
-                byte[] byData = null;
-                for (int i = 0; i < nCount; i++) {
-                    gs.Read(byLen, 0, byLen.Length);
-                    nLen = BitConverter.ToInt32(byLen, 0);
-                    byData = new byte[nLen];
-                    gs.Read(byData, 0, byData.Length);
-                    STNode node = null;
-                    try { node = this.GetNodeFromData(byData); } catch (Exception ex) {
-                        throw new Exception("An error occurred while loading the node, the data may be corrupted\r\n" + ex.Message, ex);
-                    }
-                    try { this._Nodes.Add(node); } catch (Exception ex) {
-                        throw new Exception("Error loading node-" + node.Title, ex);
-                    }
-                    foreach (STNodeOption op in node.InputOptions) if (hs.Add(op)) dic.Add(dic.Count, op);
-                    foreach (STNodeOption op in node.OutputOptions) if (hs.Add(op)) dic.Add(dic.Count, op);
+
+            int version = s.ReadByte();
+            if (version != 1)
+                throw new InvalidDataException("Unrecognized file version number");
+
+            using var gs = new GZipStream(s, CompressionMode.Decompress, leaveOpen: true);
+            using var br = new BinaryReader(gs, Encoding.UTF8, leaveOpen: false);
+
+            float x = br.ReadSingle();   // exact read (throws on EOF)
+            float y = br.ReadSingle();
+            float scale = br.ReadSingle();
+
+            // Nodes
+            int nCount = br.ReadInt32();
+            if (nCount < 0) throw new InvalidDataException("Negative node count.");
+
+            var dic = new Dictionary<long, STNodeOption>(capacity: Math.Max(4, nCount * 4));
+            var hs = new HashSet<STNodeOption>();
+            var allNodes = new List<STNode>(nCount);
+
+            for (int i = 0; i < nCount; i++)
+            {
+                int nLen = br.ReadInt32();
+                if (nLen < 0) throw new InvalidDataException("Negative node payload length.");
+
+                byte[] byData = br.ReadBytes(nLen);
+                if (byData.Length != nLen)
+                    throw new EndOfStreamException("Unexpected end of stream while reading node payload.");
+
+                STNode node;
+                try
+                {
+                    node = GetNodeFromData(byData);
                 }
-                gs.Read(byLen, 0, 4);
-                nCount = BitConverter.ToInt32(byLen, 0);
-                byData = new byte[8];
-                for (int i = 0; i < nCount; i++) {
-                    gs.Read(byData, 0, byData.Length);
-                    long id = BitConverter.ToInt64(byData, 0);
-                    long op_out = id >> 32;
-                    long op_in = (int)id;
-                    dic[op_out].ConnectOption(dic[op_in]);
+                catch (Exception ex)
+                {
+                    throw new Exception("An error occurred while loading the node; data may be corrupted.\r\n" + ex.Message, ex);
                 }
-                this.ScaleCanvas(scale, 0, 0);
-                this.MoveCanvas(x, y, false, CanvasMoveArgs.All);
+
+                try
+                {
+                    _Nodes.Add(node);
+                    allNodes.Add(node);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception("Error loading node - " + node.Title, ex);
+                }
+
+                foreach (var op in node.InputOptions)
+                    if (hs.Add((STNodeOption)op)) dic.Add(dic.Count, (STNodeOption)op);
+
+                foreach (var op in node.OutputOptions)
+                    if (hs.Add((STNodeOption)op)) dic.Add(dic.Count, (STNodeOption)op);
             }
-            this.BuildBounds();
-            foreach (STNode node in this._Nodes) node.OnEditorLoadCompleted();
+
+            // Links
+            int linkCount = br.ReadInt32();
+            if (linkCount < 0) throw new InvalidDataException("Negative link count.");
+
+            for (int i = 0; i < linkCount; i++)
+            {
+                long id = br.ReadInt64(); // [op_out:32 | op_in:32] packed
+                long op_out = (long)((ulong)id >> 32);
+                long op_in = (int)id;
+
+                if (!dic.TryGetValue(op_out, out var outOpt) ||
+                    !dic.TryGetValue(op_in, out var inOpt))
+                {
+                    throw new InvalidDataException($"Invalid link: out={op_out}, in={op_in}.");
+                }
+
+                outOpt.ConnectOption(inOpt);
+            }
+            ScaleCanvas(scale, 0, 0);
+            MoveCanvas(x, y, false, CanvasMoveArgs.All);
+            BuildBounds();
+            foreach (var node in allNodes) node.OnEditorLoadCompleted();
         }
 
         private STNode GetNodeFromData(byte[] byData) {
