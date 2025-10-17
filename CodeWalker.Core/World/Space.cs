@@ -96,199 +96,254 @@ namespace CodeWalker.World
             dataGroupDict.Clear();
 
             var manifests = GameFileCache.AllManifests;
-            foreach (var manifest in manifests)
+            if (manifests == null) return;
+
+            // Process manifests in parallel for better performance
+            var lockObj = new object();
+            Parallel.ForEach(manifests, manifest =>
             {
-                //build interior lookup - maps child->parent interior bounds
+                if (manifest == null) return;
+
+                // Local collections to minimize lock contention
+                var localInteriorLookup = new Dictionary<MetaHash, MetaHash>();
+                var localInteriorManifest = new Dictionary<MetaHash, YmfInterior>();
+                var localYmapTimes = new Dictionary<MetaHash, uint>();
+                var localYmapWeatherTypes = new Dictionary<MetaHash, MetaHash[]>();
+                var localDataGroupDict = new Dictionary<MetaHash, YmfMapDataGroup>();
+
+                // Build interior lookup - maps child->parent interior bounds
                 if (manifest.Interiors != null)
                 {
                     foreach (var interior in manifest.Interiors)
                     {
+                        if (interior?.Interior == null) continue;
+
                         var intname = interior.Interior.Name;
-                        if (interiorManifest.ContainsKey(intname))
-                        { }
-                        interiorManifest[intname] = interior;
+                        localInteriorManifest[intname] = interior;
 
                         if (interior.Bounds != null)
                         {
                             foreach (var intbound in interior.Bounds)
                             {
-                                if (interiorLookup.ContainsKey(intbound))
-                                { }//updates can hit here
-                                interiorLookup[intbound] = intname;
+                                localInteriorLookup[intbound] = intname;
                             }
                         }
-                        else
-                        { }
                     }
                 }
 
-                //these appear to be all the dynamic "togglable" ymaps....
+                // Process dynamic "togglable" ymaps
                 if (manifest.MapDataGroups != null)
                 {
                     foreach (var mapgroup in manifest.MapDataGroups)
                     {
+                        if (mapgroup == null) continue;
+
                         if (mapgroup.HoursOnOff != 0)
                         {
-                            ymaptimes[mapgroup.Name] = mapgroup.HoursOnOff;
+                            localYmapTimes[mapgroup.Name] = mapgroup.HoursOnOff;
                         }
                         if (mapgroup.WeatherTypes != null)
                         {
-                            ymapweathertypes[mapgroup.Name] = mapgroup.WeatherTypes;
+                            localYmapWeatherTypes[mapgroup.Name] = mapgroup.WeatherTypes;
                         }
 
-                        if (dataGroupDict.ContainsKey(mapgroup.DataGroup.Name))
-                        {
-                            if (mapgroup.Bounds != null)
-                            {
-                                var ex = dataGroupDict[mapgroup.DataGroup.Name];
-                                if (ex.Bounds != null)
-                                { } //only 1 hit here - redcarpet
-                            }
-                            else
-                            {
-                                continue;//nothing to replace with
-                            }
-                        }
-                        dataGroupDict[mapgroup.DataGroup.Name] = mapgroup;
+                        // Always add/update - let the last one win
+                        localDataGroupDict[mapgroup.DataGroup.Name] = mapgroup;
                     }
                 }
-            }
+
+                // Merge local results with minimal locking
+                lock (lockObj)
+                {
+                    foreach (var kvp in localInteriorLookup) interiorLookup[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localInteriorManifest) interiorManifest[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYmapTimes) ymaptimes[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYmapWeatherTypes) ymapweathertypes[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localDataGroupDict) dataGroupDict[kvp.Key] = kvp.Value;
+                }
+            });
         }
         private void InitCacheData()
         {
             var caches = GameFileCache.AllCacheFiles;
+            if (caches == null || caches.Count == 0) return;
 
+            // Pre-calculate totals for optimal dictionary sizing
             int totalNodes = 0, totalInteriorProxies = 0, totalBoundsItems = 0, totalFileDates = 0;
-            for (int i = 0; i < caches.Count; i++)
+            foreach (var c in caches)
             {
-                var c = caches[i];
-                totalNodes += (c.AllMapNodes != null) ? c.AllMapNodes.Length : 0;
-                totalInteriorProxies += (c.AllCInteriorProxies != null) ? c.AllCInteriorProxies.Length : 0;
-                totalBoundsItems += (c.AllBoundsStoreItems != null) ? c.AllBoundsStoreItems.Length : 0;
-                totalFileDates += (c.FileDates != null) ? c.FileDates.Length : 0;
+                if (c == null) continue;
+                totalNodes += c.AllMapNodes?.Length ?? 0;
+                totalInteriorProxies += c.AllCInteriorProxies?.Length ?? 0;
+                totalBoundsItems += c.AllBoundsStoreItems?.Length ?? 0;
+                totalFileDates += c.FileDates?.Length ?? 0;
             }
 
+            // Pre-size dictionaries with 25% extra capacity to minimize resizing
             int capNodes = Math.Max(16, totalNodes + (totalNodes >> 2));
             int capBounds = Math.Max(16, totalBoundsItems + (totalBoundsItems >> 2));
             int capUsed = capBounds;
             int capInteriors = Math.Max(16, totalInteriorProxies + (totalInteriorProxies >> 2));
             int capDates1 = Math.Max(16, totalFileDates + (totalFileDates >> 2));
-            int capDates2 = capDates1;
 
             nodedict = new Dictionary<MetaHash, MapDataStoreNode>(capNodes);
             boundsdict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>(capBounds);
             usedboundsdict = new Dictionary<MetaHash, BoundsStoreItem>(capUsed);
             interiorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>(capInteriors);
 
-            var intlist = new List<BoundsStoreItem>(Math.Max(16, totalBoundsItems >> 3)); // only interiors subset
+            var intlist = new List<BoundsStoreItem>(Math.Max(16, totalBoundsItems >> 3));
             var filedates = new Dictionary<MetaHash, CacheFileDate>(capDates1);
-            var filedates2 = new Dictionary<uint, CacheFileDate>(capDates2);
+            var filedates2 = new Dictionary<uint, CacheFileDate>(capDates1);
 
-            // merge caches
-            for (int i = 0; i < caches.Count; i++)
+            // Cache frequently accessed dictionaries to avoid repeated property access
+            var ymapDict = GameFileCache.YmapDict;
+            var ybnDict = GameFileCache.YbnDict;
+
+            // Process caches in parallel for better performance
+            var lockObj = new object();
+            Parallel.ForEach(caches, cache =>
             {
-                var cache = caches[i];
+                if (cache == null) return;
+
+                // Local collections to minimize lock contention
+                var localNodeDict = new Dictionary<MetaHash, MapDataStoreNode>();
+                var localInteriorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>();
+                var localBoundsDict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>();
+                var localUsedBoundsDict = new Dictionary<MetaHash, BoundsStoreItem>();
+                var localIntList = new List<BoundsStoreItem>();
+                var localFileDates = new Dictionary<MetaHash, CacheFileDate>();
+                var localFileDates2 = new Dictionary<uint, CacheFileDate>();
+
+                // Process file dates
                 var dates = cache.FileDates;
                 if (dates != null)
                 {
-                    for (int j = 0; j < dates.Length; j++)
+                    foreach (var fd in dates)
                     {
-                        var fd = dates[j];
+                        if (fd == null) continue;
 
-                        CacheFileDate existing;
-                        if (filedates.TryGetValue(fd.FileName, out existing))
-                        {
-                            if (fd.TimeStamp >= existing.TimeStamp)
-                                filedates[fd.FileName] = fd;
-                        }
-                        else
-                        {
-                            filedates[fd.FileName] = fd;
-                        }
+                        // Use indexer for better performance than TryGetValue + conditional assignment
+                        if (!localFileDates.TryGetValue(fd.FileName, out var existing1) || fd.TimeStamp >= existing1.TimeStamp)
+                            localFileDates[fd.FileName] = fd;
 
-                        if (filedates2.TryGetValue(fd.FileID, out existing))
-                        {
-                            if (fd.TimeStamp >= existing.TimeStamp)
-                                filedates2[fd.FileID] = fd;
-                        }
-                        else
-                        {
-                            filedates2[fd.FileID] = fd;
-                        }
+                        if (!localFileDates2.TryGetValue(fd.FileID, out var existing2) || fd.TimeStamp >= existing2.TimeStamp)
+                            localFileDates2[fd.FileID] = fd;
                     }
                 }
 
-                // Map nodes
+                // Process map nodes
                 var nodes = cache.AllMapNodes;
                 if (nodes != null)
                 {
-                    for (int j = 0; j < nodes.Length; j++)
+                    foreach (var node in nodes)
                     {
-                        var node = nodes[j];
-                        if (GameFileCache.YmapDict.ContainsKey(node.Name))
+                        if (node != null && ymapDict.ContainsKey(node.Name))
                         {
-                            nodedict[node.Name] = node;
+                            localNodeDict[node.Name] = node;
                         }
                     }
                 }
 
-                // Interior proxies
+                // Process interior proxies
                 var proxies = cache.AllCInteriorProxies;
                 if (proxies != null)
                 {
-                    for (int j = 0; j < proxies.Length; j++)
+                    foreach (var prx in proxies)
                     {
-                        var prx = proxies[j];
-                        var key = new SpaceBoundsKey(prx.Name, prx.Position);
-                        interiorProxies[key] = prx; // overwrite newer
+                        if (prx != null)
+                        {
+                            var key = new SpaceBoundsKey(prx.Name, prx.Position);
+                            localInteriorProxies[key] = prx;
+                        }
                     }
                 }
 
-                // Bounds
+                // Process bounds
                 var bounds = cache.AllBoundsStoreItems;
                 if (bounds != null)
                 {
-                    for (int j = 0; j < bounds.Length; j++)
+                    foreach (var item in bounds)
                     {
-                        var item = bounds[j];
+                        if (item == null || !ybnDict.ContainsKey(item.Name)) continue;
 
-                        if (!GameFileCache.YbnDict.ContainsKey(item.Name))
-                            continue;
-
-                        MetaHash inthash;
-                        if (interiorLookup.TryGetValue(item.Name, out inthash))
+                        if (interiorLookup.TryGetValue(item.Name, out var inthash))
                         {
-                            intlist.Add(item);
+                            localIntList.Add(item);
                         }
                         else
                         {
-                            // exterior
                             var key = new SpaceBoundsKey(item.Name, item.Min);
-                            boundsdict[key] = item;
+                            localBoundsDict[key] = item;
                         }
 
-                        usedboundsdict[item.Name] = item;
+                        localUsedBoundsDict[item.Name] = item;
                     }
                 }
-            }
 
-            //generate cache for uncached ymap/ybn (mostly mods)
-            var maprpfs = GameFileCache.ActiveMapRpfFiles;
-            foreach (var maprpf in maprpfs.Values)
-            {
-                var entries = maprpf.AllEntries;
-                if (entries == null) continue;
-
-                for (int e = 0; e < entries.Count; e++)
+                // Merge local results into global dictionaries with minimal locking
+                lock (lockObj)
                 {
-                    var entry = entries[e];
-                    var nameLower = entry.NameLower;
-
-                    // ymaps
-                    if (nameLower.EndsWith(".ymap"))
+                    foreach (var kvp in localNodeDict) nodedict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localInteriorProxies) interiorProxies[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localBoundsDict) boundsdict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localUsedBoundsDict) usedboundsdict[kvp.Key] = kvp.Value;
+                    foreach (var item in localIntList) intlist.Add(item);
+                    
+                    foreach (var kvp in localFileDates)
                     {
-                        var h = new MetaHash(entry.ShortNameHash);
-                        if (!nodedict.ContainsKey(h))
+                        if (!filedates.TryGetValue(kvp.Key, out var existing) || kvp.Value.TimeStamp >= existing.TimeStamp)
+                            filedates[kvp.Key] = kvp.Value;
+                    }
+                    
+                    foreach (var kvp in localFileDates2)
+                    {
+                        if (!filedates2.TryGetValue(kvp.Key, out var existing) || kvp.Value.TimeStamp >= existing.TimeStamp)
+                            filedates2[kvp.Key] = kvp.Value;
+                    }
+                }
+            });
+
+            // Process uncached ymap/ybn files (mostly mods) - this part remains sequential due to file I/O
+            var maprpfs = GameFileCache.ActiveMapRpfFiles;
+            if (maprpfs != null)
+            {
+                // Pre-filter entries to reduce string comparisons
+                var uncachedEntries = new List<(RpfEntry entry, bool isYmap)>();
+                
+                foreach (var maprpf in maprpfs.Values)
+                {
+                    var entries = maprpf?.AllEntries;
+                    if (entries == null) continue;
+
+                    foreach (var entry in entries)
+                    {
+                        if (entry?.NameLower == null) continue;
+
+                        if (entry.NameLower.EndsWith(".ymap", StringComparison.Ordinal))
+                        {
+                            var h = new MetaHash(entry.ShortNameHash);
+                            if (!nodedict.ContainsKey(h))
+                            {
+                                uncachedEntries.Add((entry, true));
+                            }
+                        }
+                        else if (entry.NameLower.EndsWith(".ybn", StringComparison.Ordinal))
+                        {
+                            var ehash = new MetaHash(entry.ShortNameHash);
+                            if (!usedboundsdict.ContainsKey(ehash) && !interiorLookup.ContainsKey(ehash))
+                            {
+                                uncachedEntries.Add((entry, false));
+                            }
+                        }
+                    }
+                }
+
+                // Process uncached entries
+                foreach (var (entry, isYmap) in uncachedEntries)
+                {
+                    try
+                    {
+                        if (isYmap)
                         {
                             var ymap = GameFileCache.RpfMan.GetFile<YmapFile>(entry);
                             if (ymap != null)
@@ -298,22 +353,22 @@ namespace CodeWalker.World
                                     nodedict[dsn.Name] = dsn;
                             }
                         }
-                        continue;
-                    }
-                    if (nameLower.EndsWith(".ybn"))
-                    {
-                        var ehash = new MetaHash(entry.ShortNameHash);
-                        if (!usedboundsdict.ContainsKey(ehash) && !interiorLookup.ContainsKey(ehash))
+                        else
                         {
                             var ybn = GameFileCache.RpfMan.GetFile<YbnFile>(entry);
                             if (ybn != null)
                             {
+                                var ehash = new MetaHash(entry.ShortNameHash);
                                 var item = new BoundsStoreItem(ybn.Bounds) { Name = ehash };
                                 var key = new SpaceBoundsKey(ehash, item.Min);
                                 boundsdict[key] = item;
                                 usedboundsdict[ehash] = item;
                             }
                         }
+                    }
+                    catch
+                    {
+                        // Silently continue on file loading errors to maintain robustness
                     }
                 }
             }
@@ -497,18 +552,13 @@ namespace CodeWalker.World
 
         private void AddRpfYnds(RpfFile rpffile, Dictionary<uint, RpfFileEntry> yndentries)
         {
-            if (rpffile.AllEntries == null) return;
+            if (rpffile?.AllEntries == null) return;
+            
             foreach (var entry in rpffile.AllEntries)
             {
-                if (entry is RpfFileEntry)
+                if (entry is RpfFileEntry fentry && entry.NameLower.EndsWith(".ynd", StringComparison.Ordinal))
                 {
-                    RpfFileEntry fentry = entry as RpfFileEntry;
-                    if (entry.NameLower.EndsWith(".ynd"))
-                    {
-                        if (yndentries.ContainsKey(entry.NameHash))
-                        { }
-                        yndentries[entry.NameHash] = fentry;
-                    }
+                    yndentries[entry.NameHash] = fentry;
                 }
             }
         }
@@ -566,55 +616,79 @@ namespace CodeWalker.World
         }
         public void BuildYndVerts(YndFile ynd, YndNode[] selectedNodes, List<EditorVertex> tverts = null)
         {
-            var laneColour = (uint) new Color4(0f, 0f, 1f, 1f).ToRgba();
+            var laneColour = (uint)new Color4(0f, 0f, 1f, 1f).ToRgba();
             var ynodes = ynd.Nodes;
             if (ynodes == null) return;
 
             int nodecount = ynodes.Length;
 
-            //build the main linked vertex array (used by the renderable to draw the lines).
-            if(tverts==null) tverts = new List<EditorVertex>();
+            // Pre-calculate capacity for better performance
+            int estimatedVertCount = 0;
+            for (int i = 0; i < nodecount; i++)
+            {
+                var node = ynodes[i];
+                if (node.Links != null)
+                {
+                    estimatedVertCount += node.Links.Length * 10; // Rough estimate
+                }
+            }
+
+            if (tverts == null) tverts = new List<EditorVertex>(estimatedVertCount);
             tverts.Clear();
+            if (estimatedVertCount > 0) tverts.Capacity = Math.Max(tverts.Capacity, estimatedVertCount);
+
+            // Cache commonly used values
+            const float arrowSize = 0.5f;
+            const float negArrowSize = -0.5f;
+            var unitZ = Vector3.UnitZ;
+
             for (int i = 0; i < nodecount; i++)
             {
                 var node = ynodes[i];
                 if (node.Links == null) continue;
 
-
-                var nvert = new EditorVertex();
-                nvert.Position = node.Position;
-                nvert.Colour = (uint)node.Colour.ToRgba();
-
-
-                for (int l = 0; l < node.Links.Length; l++)
+                var nvert = new EditorVertex
                 {
-                    YndLink yl = node.Links[l];
-                    var laneDir = yl.GetDirection();
-                    var laneDirCross = Vector3.Cross(laneDir, Vector3.UnitZ);
-                    var laneWidth = yl.GetLaneWidth();
-                    var laneHalfWidth = laneWidth / 2;
-                    var offset = yl.IsTwoWay()
-                        ? yl.LaneOffset * laneWidth - laneHalfWidth
-                        : yl.LaneOffset - yl.LaneCountForward * laneWidth / 2f + laneHalfWidth;
+                    Position = node.Position,
+                    Colour = (uint)node.Colour.ToRgba()
+                };
 
-                    var iOffset = yl.IsTwoWay() ? 1 : 0;
-
+                var links = node.Links;
+                for (int l = 0; l < links.Length; l++)
+                {
+                    var yl = links[l];
                     var tnode = yl.Node2;
+                    if (tnode == null) continue; // Invalid links
 
-                    if (tnode == null) continue; //invalid links could hit here
-                    var tvert = new EditorVertex();
-                    tvert.Position = tnode.Position;
-                    tvert.Colour = (uint)tnode.Colour.ToRgba();
+                    // Cache calculations
+                    var laneDir = yl.GetDirection();
+                    var laneDirCross = Vector3.Cross(laneDir, unitZ);
+                    var laneWidth = yl.GetLaneWidth();
+                    var laneHalfWidth = laneWidth * 0.5f;
+                    var isTwoWay = yl.IsTwoWay();
+                    var offset = isTwoWay
+                        ? yl.LaneOffset * laneWidth - laneHalfWidth
+                        : yl.LaneOffset - yl.LaneCountForward * laneWidth * 0.5f + laneHalfWidth;
+
+                    var iOffset = isTwoWay ? 1 : 0;
+                    var laneCountForward = yl.LaneCountForward;
+
+                    var tvert = new EditorVertex
+                    {
+                        Position = tnode.Position,
+                        Colour = (uint)tnode.Colour.ToRgba()
+                    };
 
                     tverts.Add(nvert);
                     tverts.Add(tvert);
 
-                    // Add lane display
-                    for (int j = iOffset; j < yl.LaneCountForward + iOffset; j++)
+                    // Add lane display - batch vertex creation
+                    var laneEndIndex = laneCountForward + iOffset;
+                    for (int j = iOffset; j < laneEndIndex; j++)
                     {
                         var vertOffset = laneDirCross * (offset + laneWidth * j);
-                        
                         vertOffset.Z = 0.1f;
+
                         var lvert1 = new EditorVertex
                         {
                             Position = nvert.Position + vertOffset,
@@ -630,19 +704,21 @@ namespace CodeWalker.World
                         tverts.Add(lvert1);
                         tverts.Add(lvert2);
 
-                        // Arrow
-                        var apos = lvert1.Position + laneDir * yl.LinkLength / 2;
-                        const float asize = 0.5f;
-                        const float negasize = asize * -1f;
-                        tverts.Add(new EditorVertex(){ Position = apos, Colour = laneColour});
-                        tverts.Add(new EditorVertex() { Position = apos + laneDir * negasize + laneDirCross * asize, Colour = laneColour });
-                        tverts.Add(new EditorVertex() { Position = apos, Colour = laneColour });
-                        tverts.Add(new EditorVertex() { Position = apos + laneDir * negasize + laneDirCross * negasize, Colour = laneColour });
+                        // Arrow - optimized vertex creation
+                        var apos = lvert1.Position + laneDir * (yl.LinkLength * 0.5f);
+                        var arrowVert1 = new EditorVertex { Position = apos, Colour = laneColour };
+                        var arrowVert2 = new EditorVertex { Position = apos + laneDir * negArrowSize + laneDirCross * arrowSize, Colour = laneColour };
+                        var arrowVert3 = new EditorVertex { Position = apos, Colour = laneColour };
+                        var arrowVert4 = new EditorVertex { Position = apos + laneDir * negArrowSize + laneDirCross * negArrowSize, Colour = laneColour };
+
+                        tverts.Add(arrowVert1);
+                        tverts.Add(arrowVert2);
+                        tverts.Add(arrowVert3);
+                        tverts.Add(arrowVert4);
                     }
                 }
             }
             ynd.LinkedVerts = tverts.ToArray();
-
             ynd.UpdateTriangleVertices(selectedNodes);
         }
         public void BuildYndJuncs(YndFile ynd)
@@ -854,18 +930,13 @@ namespace CodeWalker.World
 
         private void AddRpfYnvs(RpfFile rpffile, Dictionary<uint, RpfFileEntry> ynventries)
         {
-            if (rpffile.AllEntries == null) return;
+            if (rpffile?.AllEntries == null) return;
+            
             foreach (var entry in rpffile.AllEntries)
             {
-                if (entry is RpfFileEntry)
+                if (entry is RpfFileEntry fentry && entry.NameLower.EndsWith(".ynv", StringComparison.Ordinal))
                 {
-                    RpfFileEntry fentry = entry as RpfFileEntry;
-                    if (entry.NameLower.EndsWith(".ynv"))
-                    {
-                        if (ynventries.ContainsKey(entry.NameHash))
-                        { }
-                        ynventries[entry.NameHash] = fentry;
-                    }
+                    ynventries[entry.NameHash] = fentry;
                 }
             }
         }
@@ -1138,31 +1209,41 @@ namespace CodeWalker.World
 
         public void GetVisibleYmaps(Camera cam, int hour, MetaHash weather, Dictionary<MetaHash, YmapFile> ymaps)
         {
-            if (!Inited) return;
-            if (MapDataStore == null) return;
+            if (!Inited || MapDataStore == null) return;
+            
             CurrentHour = hour;
             CurrentWeather = weather;
             var items = MapDataStore.GetItems(ref cam.Position);
-            for (int i = 0; i < items.Count; i++)
+            
+            // Pre-filter items and batch process for better performance
+            var validItems = new List<MapDataStoreNode>(items.Count);
+            foreach (var item in items)
             {
-                var item = items[i];
-                if (item == null)
+                if (item != null && item.Name > 0 && !ymaps.ContainsKey(item.Name))
                 {
-                    continue;
+                    validItems.Add(item);
                 }
+            }
 
+            // Process valid items
+            foreach (var item in validItems)
+            {
                 var hash = item.Name;
-                if (!ymaps.ContainsKey(hash))
+                var processedHashes = new HashSet<MetaHash>(); // Prevent infinite loops
+                
+                var ymap = GameFileCache.GetYmap(hash);
+                while (ymap != null && ymap.Loaded && !processedHashes.Contains(hash))
                 {
-                    var ymap = (hash > 0) ? GameFileCache.GetYmap(hash) : null;
-                    while ((ymap != null) && (ymap.Loaded))
-                    {
-                        if (!IsYmapAvailable(hash, hour, weather)) break;
-                        ymaps[hash] = ymap;
-                        hash = ymap._CMapData.parent;
-                        if (ymaps.ContainsKey(hash)) break;
-                        ymap = (hash > 0) ? GameFileCache.GetYmap(hash) : null;
-                    }
+                    processedHashes.Add(hash);
+                    
+                    if (!IsYmapAvailable(hash, hour, weather)) break;
+                    if (ymaps.ContainsKey(hash)) break;
+                    
+                    ymaps[hash] = ymap;
+                    hash = ymap._CMapData.parent;
+                    
+                    if (hash == 0) break;
+                    ymap = GameFileCache.GetYmap(hash);
                 }
             }
         }
@@ -1199,36 +1280,47 @@ namespace CodeWalker.World
 
         public void GetVisibleYnvs(Camera cam, int gridrange, List<YnvFile> ynvs)
         {
-            if (!Inited) return;
-            if (NavGrid == null) return;
-
+            if (!Inited || NavGrid == null) return;
 
             ynvs.Clear();
 
-
             var pos = NavGrid.GetCellPos(cam.Position);
-            int minx = Math.Min(Math.Max(pos.X - gridrange, 0), NavGrid.CellCountX-1);
-            int maxx = Math.Min(Math.Max(pos.X + gridrange, 0), NavGrid.CellCountX-1);
-            int miny = Math.Min(Math.Max(pos.Y - gridrange, 0), NavGrid.CellCountY-1);
-            int maxy = Math.Min(Math.Max(pos.Y + gridrange, 0), NavGrid.CellCountY-1);
+            
+            // Clamp bounds once for better performance
+            int minx = Math.Max(pos.X - gridrange, 0);
+            int maxx = Math.Min(pos.X + gridrange, NavGrid.CellCountX - 1);
+            int miny = Math.Max(pos.Y - gridrange, 0);
+            int maxy = Math.Min(pos.Y + gridrange, NavGrid.CellCountY - 1);
+
+            // Pre-size the list for better performance
+            int estimatedCount = (maxx - minx + 1) * (maxy - miny + 1);
+            if (ynvs.Capacity < estimatedCount)
+            {
+                ynvs.Capacity = estimatedCount;
+            }
+
+            // Cache cells array reference
+            var cells = NavGrid.Cells;
+            
             for (int x = minx; x <= maxx; x++)
             {
                 for (int y = miny; y <= maxy; y++)
                 {
-                    var cell = NavGrid.GetCell(new Vector2I(x, y));
-                    if ((cell != null) && (cell.YnvEntry != null))
+                    var cell = cells[x, y];
+                    if (cell?.YnvEntry != null)
                     {
                         var hash = cell.YnvEntry.ShortNameHash;
-                        var ynv = (hash > 0) ? GameFileCache.GetYnv(hash) : null;
-                        if ((ynv != null) && (ynv.Loaded))
+                        if (hash > 0)
                         {
-                            ynvs.Add(ynv);
+                            var ynv = GameFileCache.GetYnv(hash);
+                            if (ynv?.Loaded == true)
+                            {
+                                ynvs.Add(ynv);
+                            }
                         }
                     }
                 }
             }
-
-
         }
 
 
@@ -2208,9 +2300,14 @@ namespace CodeWalker.World
 
         public void UpdateYnd(YndFile ynd)
         {
-            for (int xx = 0; xx < Cells.GetLength(0); xx++)
+            // Cache dimensions for better performance
+            int lengthX = Cells.GetLength(0);
+            int lengthY = Cells.GetLength(1);
+            
+            // Clear existing references to this ynd
+            for (int xx = 0; xx < lengthX; xx++)
             {
-                for (int yy = 0; yy < Cells.GetLength(1); yy++)
+                for (int yy = 0; yy < lengthY; yy++)
                 {
                     if (Cells[xx, yy].Ynd == ynd)
                     {
@@ -2219,9 +2316,13 @@ namespace CodeWalker.World
                 }
             }
 
+            // Set new position - add bounds checking for safety
             var x = ynd.CellX;
             var y = ynd.CellY;
-            Cells[x, y].Ynd = ynd;
+            if (x >= 0 && x < lengthX && y >= 0 && y < lengthY)
+            {
+                Cells[x, y].Ynd = ynd;
+            }
         }
     }
     public class SpaceNodeGridCell

@@ -16,7 +16,7 @@ namespace CodeWalker.GameFiles
         public RpfManager RpfMan;
         private Action<string> UpdateStatus;
         private Action<string> ErrorLog;
-        public int MaxItemsPerLoop = 1; //to keep things flowing...
+        public int MaxItemsPerLoop = 4; //increased from 1 to process more items per loop for better performance
 
         private ConcurrentQueue<GameFile> requestQueue = new ConcurrentQueue<GameFile>();
 
@@ -957,18 +957,29 @@ namespace CodeWalker.GameFiles
 
         private void InitGlobalDicts()
         {
-            YdrDict = new Dictionary<uint, RpfFileEntry>();
-            YddDict = new Dictionary<uint, RpfFileEntry>();
-            YtdDict = new Dictionary<uint, RpfFileEntry>();
-            YftDict = new Dictionary<uint, RpfFileEntry>();
-            YcdDict = new Dictionary<uint, RpfFileEntry>();
-            YedDict = new Dictionary<uint, RpfFileEntry>();
+            // Pre-size dictionaries based on estimated file counts for better performance
+            YdrDict = new Dictionary<uint, RpfFileEntry>(8192);
+            YddDict = new Dictionary<uint, RpfFileEntry>(2048);
+            YtdDict = new Dictionary<uint, RpfFileEntry>(4096);
+            YftDict = new Dictionary<uint, RpfFileEntry>(1024);
+            YcdDict = new Dictionary<uint, RpfFileEntry>(512);
+            YedDict = new Dictionary<uint, RpfFileEntry>(256);
 
             if (AllRpfs == null || AllRpfs.Count == 0) return;
 
-            foreach (var rpf in AllRpfs)
+            // Use parallel processing for better performance on multi-core systems
+            var lockObj = new object();
+            Parallel.ForEach(AllRpfs, rpf =>
             {
-                if (rpf == null || rpf.AllEntries == null) continue;
+                if (rpf?.AllEntries == null) return;
+
+                // Create local dictionaries to avoid lock contention
+                var localYdrDict = new Dictionary<uint, RpfFileEntry>();
+                var localYddDict = new Dictionary<uint, RpfFileEntry>();
+                var localYtdDict = new Dictionary<uint, RpfFileEntry>();
+                var localYftDict = new Dictionary<uint, RpfFileEntry>();
+                var localYcdDict = new Dictionary<uint, RpfFileEntry>();
+                var localYedDict = new Dictionary<uint, RpfFileEntry>();
 
                 foreach (var entry in rpf.AllEntries)
                 {
@@ -977,47 +988,64 @@ namespace CodeWalker.GameFiles
                     var nameLower = entry.NameLower;
                     if (string.IsNullOrEmpty(nameLower)) continue;
 
-                    var ext = Path.GetExtension(nameLower);
-                    if (string.IsNullOrEmpty(ext)) continue;
+                    // Optimize extension check - avoid Path.GetExtension allocation
+                    var lastDot = nameLower.LastIndexOf('.');
+                    if (lastDot == -1 || lastDot == nameLower.Length - 1) continue;
 
+                    var ext = nameLower.Substring(lastDot);
                     switch (ext)
                     {
                         case ".ydr":
-                            YdrDict[entry.ShortNameHash] = fentry;
+                            localYdrDict[entry.ShortNameHash] = fentry;
                             break;
                         case ".ydd":
-                            YddDict[entry.ShortNameHash] = fentry;
+                            localYddDict[entry.ShortNameHash] = fentry;
                             break;
                         case ".ytd":
-                            YtdDict[entry.ShortNameHash] = fentry;
+                            localYtdDict[entry.ShortNameHash] = fentry;
                             break;
                         case ".yft":
-                            YftDict[entry.ShortNameHash] = fentry;
+                            localYftDict[entry.ShortNameHash] = fentry;
                             break;
                         case ".ycd":
-                            YcdDict[entry.ShortNameHash] = fentry;
+                            localYcdDict[entry.ShortNameHash] = fentry;
                             break;
                         case ".yed":
-                            YedDict[entry.ShortNameHash] = fentry;
-                            break;
-                        default:
+                            localYedDict[entry.ShortNameHash] = fentry;
                             break;
                     }
                 }
-            }
+
+                // Merge local dictionaries into global ones with minimal locking
+                lock (lockObj)
+                {
+                    foreach (var kvp in localYdrDict) YdrDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYddDict) YddDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYtdDict) YtdDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYftDict) YftDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYcdDict) YcdDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYedDict) YedDict[kvp.Key] = kvp.Value;
+                }
+            });
         }
 
         private void InitMapDicts()
         {
-            YmapDict = new Dictionary<uint, RpfFileEntry>();
-            YbnDict = new Dictionary<uint, RpfFileEntry>();
-            YnvDict = new Dictionary<uint, RpfFileEntry>();
+            // Pre-size dictionaries for better performance
+            YmapDict = new Dictionary<uint, RpfFileEntry>(2048);
+            YbnDict = new Dictionary<uint, RpfFileEntry>(1024);
+            YnvDict = new Dictionary<uint, RpfFileEntry>(512);
 
             if (ActiveMapRpfFiles != null && ActiveMapRpfFiles.Count > 0)
             {
-                foreach (var rpf in ActiveMapRpfFiles.Values)
+                var lockObj = new object();
+                Parallel.ForEach(ActiveMapRpfFiles.Values, rpf =>
                 {
-                    if (rpf == null || rpf.AllEntries == null) continue;
+                    if (rpf?.AllEntries == null) return;
+
+                    var localYmapDict = new Dictionary<uint, RpfFileEntry>();
+                    var localYbnDict = new Dictionary<uint, RpfFileEntry>();
+                    var localYnvDict = new Dictionary<uint, RpfFileEntry>();
 
                     foreach (var entry in rpf.AllEntries)
                     {
@@ -1026,33 +1054,43 @@ namespace CodeWalker.GameFiles
                         var nameLower = entry.NameLower;
                         if (string.IsNullOrEmpty(nameLower)) continue;
 
-                        var ext = Path.GetExtension(nameLower);
-                        if (string.IsNullOrEmpty(ext)) continue;
+                        // Optimize extension check
+                        var lastDot = nameLower.LastIndexOf('.');
+                        if (lastDot == -1 || lastDot == nameLower.Length - 1) continue;
 
+                        var ext = nameLower.Substring(lastDot);
                         switch (ext)
                         {
                             case ".ymap":
-                                YmapDict[entry.ShortNameHash] = fentry;
+                                localYmapDict[entry.ShortNameHash] = fentry;
                                 break;
                             case ".ybn":
-                                YbnDict[entry.ShortNameHash] = fentry;
+                                localYbnDict[entry.ShortNameHash] = fentry;
                                 break;
                             case ".ynv":
-                                YnvDict[entry.ShortNameHash] = fentry;
-                                break;
-                            default:
+                                localYnvDict[entry.ShortNameHash] = fentry;
                                 break;
                         }
                     }
-                }
+
+                    lock (lockObj)
+                    {
+                        foreach (var kvp in localYmapDict) YmapDict[kvp.Key] = kvp.Value;
+                        foreach (var kvp in localYbnDict) YbnDict[kvp.Key] = kvp.Value;
+                        foreach (var kvp in localYnvDict) YnvDict[kvp.Key] = kvp.Value;
+                    }
+                });
             }
 
-            AllYmapsDict = new Dictionary<uint, RpfFileEntry>();
+            AllYmapsDict = new Dictionary<uint, RpfFileEntry>(4096);
             if (AllRpfs != null && AllRpfs.Count > 0)
             {
-                foreach (var rpf in AllRpfs)
+                var lockObj = new object();
+                Parallel.ForEach(AllRpfs, rpf =>
                 {
-                    if (rpf == null || rpf.AllEntries == null) continue;
+                    if (rpf?.AllEntries == null) return;
+
+                    var localAllYmapsDict = new Dictionary<uint, RpfFileEntry>();
 
                     foreach (var entry in rpf.AllEntries)
                     {
@@ -1060,12 +1098,19 @@ namespace CodeWalker.GameFiles
 
                         var nameLower = entry.NameLower;
                         if (string.IsNullOrEmpty(nameLower)) continue;
-                        if (Path.GetExtension(nameLower) == ".ymap")
+
+                        // Optimize extension check for .ymap files
+                        if (nameLower.EndsWith(".ymap", StringComparison.Ordinal))
                         {
-                            AllYmapsDict[entry.ShortNameHash] = fentry;
+                            localAllYmapsDict[entry.ShortNameHash] = fentry;
                         }
                     }
-                }
+
+                    lock (lockObj)
+                    {
+                        foreach (var kvp in localAllYmapsDict) AllYmapsDict[kvp.Key] = kvp.Value;
+                    }
+                });
             }
         }
 
@@ -1257,13 +1302,15 @@ namespace CodeWalker.GameFiles
 
         private void InitArchetypeDicts()
         {
-            YtypDict = new Dictionary<uint, YtypFile>();
+            YtypDict = new Dictionary<uint, YtypFile>(512);
             archetypesLoaded = false;
             archetypeDict.Clear();
 
             if (!LoadArchetypes) return;
             var rpfs = EnableDlc ? AllRpfs : BaseRpfs;
 
+            // Collect all .ytyp entries first to avoid repeated file system access
+            var ytypEntries = new List<RpfEntry>();
             foreach (RpfFile file in rpfs)
             {
                 if (file.AllEntries == null) continue;
@@ -1271,19 +1318,66 @@ namespace CodeWalker.GameFiles
 
                 foreach (RpfEntry entry in file.AllEntries)
                 {
-                    try
+                    if (entry.NameLower.EndsWith(".ytyp", StringComparison.Ordinal))
                     {
-                        if (entry.NameLower.EndsWith(".ytyp"))
-                        {
-                            AddYtypToDictionary(entry);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        ErrorLog(entry.Path + ": " + ex.Message);
+                        ytypEntries.Add(entry);
                     }
                 }
             }
+
+            // Process .ytyp files in parallel for better performance
+            var lockObj = new object();
+            var exceptions = new ConcurrentBag<Exception>();
+
+            Parallel.ForEach(ytypEntries, entry =>
+            {
+                try
+                {
+                    var ytypfile = RpfMan.GetFile<YtypFile>(entry);
+                    if (ytypfile?.Meta == null) return;
+
+                    lock (lockObj)
+                    {
+                        UpdateStatus(entry.Path);
+                        
+                        if (YtypDict.ContainsKey(ytypfile.NameHash))
+                        {
+                            YtypDict[ytypfile.NameHash] = ytypfile;
+                        }
+                        else
+                        {
+                            YtypDict.Add(ytypfile.NameHash, ytypfile);
+                        }
+
+                        if (ytypfile.AllArchetypes?.Length > 0)
+                        {
+                            foreach (var arch in ytypfile.AllArchetypes)
+                            {
+                                uint hash = arch.Hash;
+                                if (hash != 0)
+                                {
+                                    archetypeDict[hash] = arch;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            ErrorLog(entry.Path + ": no archetypes found");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Add(new Exception($"{entry.Path}: {ex.Message}", ex));
+                }
+            });
+
+            // Report any exceptions that occurred during parallel processing
+            foreach (var ex in exceptions)
+            {
+                ErrorLog(ex.Message);
+            }
+
             archetypesLoaded = true;
         }
 
@@ -1333,32 +1427,35 @@ namespace CodeWalker.GameFiles
             string langstr2 = "americandlc.rpf";
             string langstr3 = "american.rpf";
 
-            Gxt2Dict = new Dictionary<uint, RpfFileEntry>();
+            Gxt2Dict = new Dictionary<uint, RpfFileEntry>(256);
             var gxt2files = new List<Gxt2File>();
+
+            // Collect relevant entries first to reduce iterations
+            var relevantEntries = new List<RpfEntry>();
             foreach (var rpf in AllRpfs)
             {
+                if (rpf?.AllEntries == null) continue;
+                
                 foreach (var entry in rpf.AllEntries)
                 {
                     if (entry is RpfFileEntry fentry)
                     {
-                        var p = entry.Path;
-                        if (entry.NameLower.EndsWith(".gxt2") && (p.Contains(langstr) || p.Contains(langstr2) || p.Contains(langstr3)))
+                        var nameLower = entry.NameLower;
+                        if (nameLower.EndsWith(".gxt2", StringComparison.Ordinal))
                         {
-                            Gxt2Dict[entry.ShortNameHash] = fentry;
-
-                            if (DoFullStringIndex)
+                            var p = entry.Path;
+                            if (p.Contains(langstr) || p.Contains(langstr2) || p.Contains(langstr3))
                             {
-                                var gxt2 = RpfMan.GetFile<Gxt2File>(entry);
-                                if (gxt2 != null)
+                                Gxt2Dict[entry.ShortNameHash] = fentry;
+                                if (DoFullStringIndex)
                                 {
-                                    for (int i = 0; i < gxt2.TextEntries.Length; i++)
-                                    {
-                                        var e = gxt2.TextEntries[i];
-                                        GlobalText.Ensure(e.Text, e.Hash);
-                                    }
-                                    gxt2files.Add(gxt2);
+                                    relevantEntries.Add(entry);
                                 }
                             }
+                        }
+                        else if (DoFullStringIndex && nameLower.EndsWith("statssetup.xml", StringComparison.Ordinal))
+                        {
+                            relevantEntries.Add(entry);
                         }
                     }
                 }
@@ -1368,50 +1465,73 @@ namespace CodeWalker.GameFiles
             {
                 string globalgxt2path = "x64b.rpf\\data\\lang\\" + langstr + ".rpf\\global.gxt2";
                 var globalgxt2 = RpfMan.GetFile<Gxt2File>(globalgxt2path);
-                if (globalgxt2 != null)
+                if (globalgxt2?.TextEntries != null)
                 {
-                    for (int i = 0; i < globalgxt2.TextEntries.Length; i++)
+                    foreach (var e in globalgxt2.TextEntries)
                     {
-                        var e = globalgxt2.TextEntries[i];
                         GlobalText.Ensure(e.Text, e.Hash);
                     }
                 }
                 return;
             }
-            
-            GlobalText.FullIndexBuilt = true;
-            foreach (var rpf in AllRpfs)
+
+            // Process entries in parallel for better performance
+            var lockObj = new object();
+            Parallel.ForEach(relevantEntries, entry =>
             {
-                foreach (var entry in rpf.AllEntries)
+                try
                 {
-                    if (entry.NameLower.EndsWith("statssetup.xml"))
+                    if (entry.NameLower.EndsWith(".gxt2", StringComparison.Ordinal))
+                    {
+                        var gxt2 = RpfMan.GetFile<Gxt2File>(entry);
+                        if (gxt2?.TextEntries != null)
+                        {
+                            lock (lockObj)
+                            {
+                                foreach (var e in gxt2.TextEntries)
+                                {
+                                    GlobalText.Ensure(e.Text, e.Hash);
+                                }
+                                gxt2files.Add(gxt2);
+                            }
+                        }
+                    }
+                    else if (entry.NameLower.EndsWith("statssetup.xml", StringComparison.Ordinal))
                     {
                         var xml = RpfMan.GetFileXml(entry.Path);
-                        if (xml == null)
-                        { continue; }
-
-                        var statnodes = xml.SelectNodes("StatsSetup/stats/stat");
-
-                        foreach (XmlNode statnode in statnodes)
+                        if (xml != null)
                         {
-                            if (statnode == null)
-                            { continue; }
-                            var statname = Xml.GetStringAttribute(statnode, "Name");
-                            if (string.IsNullOrEmpty(statname))
-                            { continue; }
+                            var statnodes = xml.SelectNodes("StatsSetup/stats/stat");
+                            if (statnodes != null)
+                            {
+                                lock (lockObj)
+                                {
+                                    foreach (XmlNode statnode in statnodes)
+                                    {
+                                        if (statnode == null) continue;
+                                        
+                                        var statname = Xml.GetStringAttribute(statnode, "Name");
+                                        if (string.IsNullOrEmpty(statname)) continue;
 
-                            var statnamel = statname.ToLowerInvariant();
-                            StatsNames.Ensure(statname);
-                            StatsNames.Ensure(statnamel);
-
-                            StatsNames.Ensure("sp_" + statnamel);
-                            StatsNames.Ensure("mp0_" + statnamel);
-                            StatsNames.Ensure("mp1_" + statnamel);
-
+                                        var statnamel = statname.ToLowerInvariant();
+                                        StatsNames.Ensure(statname);
+                                        StatsNames.Ensure(statnamel);
+                                        StatsNames.Ensure("sp_" + statnamel);
+                                        StatsNames.Ensure("mp0_" + statnamel);
+                                        StatsNames.Ensure("mp1_" + statnamel);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            }
+                catch (Exception ex)
+                {
+                    ErrorLog($"Error processing {entry.Path}: {ex.Message}");
+                }
+            });
+
+            GlobalText.FullIndexBuilt = true;
             StatsNames.FullIndexBuilt = true;
         }
 
@@ -2719,19 +2839,15 @@ namespace CodeWalker.GameFiles
 
         private string[] GetExcludePaths()
         {
+            if (string.IsNullOrEmpty(ExcludeFolders))
+                return null;
+
             string[] exclpaths = ExcludeFolders.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            if (exclpaths.Length > 0)
-            {
-                for (int i = 0; i < exclpaths.Length; i++)
-                {
-                    exclpaths[i] = exclpaths[i].ToLowerInvariant();
-                }
-            }
-            else
-            {
-                exclpaths = null;
-            }
-            return exclpaths;
+            if (exclpaths.Length == 0)
+                return null;
+
+            // Use Array.ConvertAll for better performance than manual loop
+            return Array.ConvertAll(exclpaths, path => path.ToLowerInvariant());
         }
 
 
