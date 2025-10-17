@@ -155,7 +155,7 @@ namespace CodeWalker
 
         bool MouseSelectEnabled = false;
         bool ShowSelectionBounds = true;
-        bool SelectByGeometry = false; //select by geometry needs more work 
+        bool SelectByGeometry = true; //select by geometry for more precise selection 
         MapSelection CurMouseHit = new MapSelection();
         MapSelection LastMouseHit = new MapSelection();
         MapSelection PrevMouseHit = new MapSelection();
@@ -2395,7 +2395,19 @@ namespace CodeWalker
         }
         private void UpdateMouseHitsFromRenderer()
         {
-            foreach (var rd in Renderer.RenderedDrawables)
+            // Sort rendered drawables by distance for better selection priority
+            var sortedDrawables = Renderer.RenderedDrawables
+                .Where(rd => rd.Entity != null)
+                .OrderBy(rd => (rd.Entity.Position - camera.Position).LengthSquared())
+                .ToList();
+            
+            foreach (var rd in sortedDrawables)
+            {
+                UpdateMouseHits(rd.Drawable, rd.Archetype, rd.Entity);
+            }
+            
+            // Also process drawables without entities
+            foreach (var rd in Renderer.RenderedDrawables.Where(rd => rd.Entity == null))
             {
                 UpdateMouseHits(rd.Drawable, rd.Archetype, rd.Entity);
             }
@@ -2423,6 +2435,78 @@ namespace CodeWalker
 
             }
         }
+        private float GetGeometryTriangleIntersection(DrawableGeometry geom, Ray ray, Vector3 scale)
+        {
+            // This method attempts to find the closest triangle intersection
+            // Returns the hit distance, or -1 if no hit
+            
+            try
+            {
+                var vb = geom.VertexBuffer;
+                var ib = geom.IndexBuffer;
+                
+                if ((vb?.Data1?.VertexBytes == null) || (ib?.Indices == null)) return -1;
+                
+                float closestHit = float.MaxValue;
+                bool hasHit = false;
+                
+                // Get vertex stride and position offset
+                int stride = vb.VertexStride;
+                if (stride <= 0) return -1;
+                
+                var vertices = vb.Data1.VertexBytes;
+                var indices = ib.Indices;
+                
+                // Process triangles
+                for (int i = 0; i < indices.Length - 2; i += 3)
+                {
+                    if (i + 2 >= indices.Length) break;
+                    
+                    int i1 = indices[i];
+                    int i2 = indices[i + 1];
+                    int i3 = indices[i + 2];
+                    
+                    if ((i1 * stride + 12 > vertices.Length) || 
+                        (i2 * stride + 12 > vertices.Length) || 
+                        (i3 * stride + 12 > vertices.Length)) continue;
+                    
+                    // Extract vertex positions (assuming first 12 bytes are position)
+                    Vector3 v1 = new Vector3(
+                        BitConverter.ToSingle(vertices, i1 * stride),
+                        BitConverter.ToSingle(vertices, i1 * stride + 4),
+                        BitConverter.ToSingle(vertices, i1 * stride + 8)) * scale;
+                    
+                    Vector3 v2 = new Vector3(
+                        BitConverter.ToSingle(vertices, i2 * stride),
+                        BitConverter.ToSingle(vertices, i2 * stride + 4),
+                        BitConverter.ToSingle(vertices, i2 * stride + 8)) * scale;
+                    
+                    Vector3 v3 = new Vector3(
+                        BitConverter.ToSingle(vertices, i3 * stride),
+                        BitConverter.ToSingle(vertices, i3 * stride + 4),
+                        BitConverter.ToSingle(vertices, i3 * stride + 8)) * scale;
+                    
+                    // Ray-triangle intersection test
+                    float hitDist;
+                    if (ray.Intersects(ref v1, ref v2, ref v3, out hitDist))
+                    {
+                        if (hitDist > 0 && hitDist < closestHit)
+                        {
+                            closestHit = hitDist;
+                            hasHit = true;
+                        }
+                    }
+                }
+                
+                return hasHit ? closestHit : -1;
+            }
+            catch
+            {
+                // If triangle intersection fails, return -1 to fall back to bounding box
+                return -1;
+            }
+        }
+
         private void UpdateMouseHits(DrawableBase drawable, Archetype arche, YmapEntityDef entity)
         {
             //if ((SelectionMode == MapSelectionMode.Entity) && !MouseSelectEnabled) return; //performance improvement when not selecting entities...
@@ -2552,7 +2636,7 @@ namespace CodeWalker
                 for (int i = 0; i < dmodels.Length; i++)
                 {
                     var m = dmodels[i];
-                    if (m.BoundsData == null)
+                    if ((m.BoundsData == null) || (m.Geometries == null))
                     { usegeomboxes = false; break; }
                 }
             }
@@ -2569,57 +2653,71 @@ namespace CodeWalker
 
             if (usegeomboxes)
             {
-                //geometry bounding boxes version
+                //geometry-based selection with triangle intersection
                 float ghitdist = float.MaxValue;
+                DrawableGeometry bestGeometry = null;
+                BoundingBox bestAABB = new BoundingBox();
+                int bestGeomIndex = 0;
+                
                 for (int i = 0; i < dmodels.Length; i++)
                 {
                     var m = dmodels[i];
+                    if ((m.Geometries == null) || (m.BoundsData == null)) continue;
+                    
                     int gbbcount = m.BoundsData.Length;
-                    for (int j = 0; j < gbbcount; j++) //first box seems to be whole model
+                    for (int j = 0; j < gbbcount; j++)
                     {
                         var gbox = m.BoundsData[j];
                         gbbox.Minimum = gbox.Min.XYZ();
                         gbbox.Maximum = gbox.Max.XYZ();
                         bbox.Minimum = gbbox.Minimum * scale;
                         bbox.Maximum = gbbox.Maximum * scale;
-                        bool usehit = false;
+                        
+                        // First check bounding box intersection
                         if (mraytrn.Intersects(ref bbox, out hitdist))
                         {
-                            if ((j == 0) && (gbbcount > 1)) continue;//ignore a model hit
-                            //bool firsthit = (mousehit.EntityDef == null);
-                            if (hitdist > 0.0f) //firsthit || //ignore when inside the box
+                            if ((j == 0) && (gbbcount > 1)) continue; // Skip model-level bounding box
+                            
+                            int gind = (j > 0) ? j - 1 : 0;
+                            if (gind >= m.Geometries.Length) continue;
+                            
+                            var geom = m.Geometries[gind];
+                            if (geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
                             {
-                                bool nearer = ((hitdist < CurMouseHit.HitDist) && (hitdist < ghitdist));
-                                bool radsm = true;
-                                if (CurMouseHit.Geometry != null)
+                                // Try to get actual triangle intersection
+                                float triangleHitDist = GetGeometryTriangleIntersection(geom, mraytrn, scale);
+                                if (triangleHitDist > 0 && triangleHitDist < ghitdist)
                                 {
-                                    var b1 = (gbbox.Maximum - gbbox.Minimum) * scale;
-                                    var b2 = (CurMouseHit.AABB.Maximum - CurMouseHit.AABB.Minimum) * scale;
-                                    float r1 = b1.Length() * 0.5f;
-                                    float r2 = b2.Length() * 0.5f;
-                                    radsm = (r1 < (r2));// * 0.5f));
+                                    ghitdist = triangleHitDist;
+                                    bestGeometry = geom;
+                                    bestAABB = gbbox;
+                                    bestGeomIndex = gind;
                                 }
-                                if ((nearer&&radsm) || radsm) usehit = true;
+                            }
+                            else if (hitdist > 0.0f && hitdist < ghitdist)
+                            {
+                                // Fallback to bounding box if no vertex data available
+                                ghitdist = hitdist;
+                                bestGeometry = geom;
+                                bestAABB = gbbox;
+                                bestGeomIndex = gind;
                             }
                         }
-                        else if (j == 0) //no hit on model box
+                        else if (j == 0)
                         {
-                            break; //don't try this model's geometries
-                        }
-                        if (usehit)
-                        {
-                            int gind = (j > 0) ? j - 1 : 0;
-                            ghitdist = hitdist;
-                            geometry = m.Geometries[gind];
-                            geometryAABB = gbbox;
-                            geometryIndex = gind;
+                            break; // No hit on model box, skip this model
                         }
                     }
                 }
-                if (geometry == null)
+                
+                if (bestGeometry == null)
                 {
-                    return; //no geometry hit.
+                    return; // No geometry hit
                 }
+                
+                geometry = bestGeometry;
+                geometryAABB = bestAABB;
+                geometryIndex = bestGeomIndex;
                 hitdist = ghitdist;
             }
             else
@@ -2654,14 +2752,35 @@ namespace CodeWalker
 
 
 
-            CurMouseHit.HitDist = (hitdist > 0.0f) ? hitdist : CurMouseHit.HitDist;
-            CurMouseHit.EntityDef = entity;
-            CurMouseHit.Archetype = arche;
-            CurMouseHit.Drawable = drawable;
-            CurMouseHit.Geometry = geometry;
-            CurMouseHit.AABB = geometryAABB;
-            CurMouseHit.GeometryIndex = geometryIndex;
-            CurMouseHit.CamRel = camrel;
+            // Only update if this is a better hit (closer or more precise)
+            bool isBetterHit = false;
+            if (hitdist > 0.0f)
+            {
+                if (CurMouseHit.HitDist <= 0 || hitdist < CurMouseHit.HitDist)
+                {
+                    isBetterHit = true;
+                }
+                else if (Math.Abs(hitdist - CurMouseHit.HitDist) < 0.1f) // Similar distance
+                {
+                    // Prefer geometry-based hits over bounding box hits
+                    if (usegeomboxes && geometry != null && CurMouseHit.Geometry == null)
+                    {
+                        isBetterHit = true;
+                    }
+                }
+            }
+            
+            if (isBetterHit)
+            {
+                CurMouseHit.HitDist = hitdist;
+                CurMouseHit.EntityDef = entity;
+                CurMouseHit.Archetype = arche;
+                CurMouseHit.Drawable = drawable;
+                CurMouseHit.Geometry = geometry;
+                CurMouseHit.AABB = geometryAABB;
+                CurMouseHit.GeometryIndex = geometryIndex;
+                CurMouseHit.CamRel = camrel;
+            }
 
 
 
