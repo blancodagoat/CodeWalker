@@ -10887,9 +10887,56 @@ namespace CodeWalker.GameFiles
             }
 
         }
+
+        private void SetTristateValue(ref uint flags, int flagid, TristateValue value)
+        {
+            flags &= (uint)~(0x3 << (flagid << 1));
+            flags |= (uint)((int)value << (flagid << 1));
+        }
+
+        private TristateValue GetTristateValue(uint flags, int flagid)
+        {
+            return (TristateValue)((flags >> (flagid << 1)) & 0x3);
+        }
+
+        public enum CarAudioSettingsFlagIds
+        {
+            SportsCarRevsEnabled,
+            ReverseWarning,
+            BigRigBrakes,
+            DoorOpenWarning,
+            DisableAmbientRadio,
+            HeavyRoadNoise,
+            IamNotACar,
+            TyreChirpsEnabled,
+            IsToyCar,
+            HasCBRadio,
+            DisableSkids,
+            CauseControllerRumble,
+            MobileCausesRadioInterference,
+            IsKickStarted,
+            HasAlarm
+        }
+        public enum TristateValue
+        {
+            False,
+            True,
+            Unspecified,
+        }
         public override void WriteXml(StringBuilder sb, int indent)
         {
             RelXml.ValueTag(sb, indent, "Flags", "0x" + Flags.Hex);
+
+            RelXml.Indent(sb, indent);
+            sb.AppendLine("<CarAudioSettingsFlags>");
+            foreach (CarAudioSettingsFlagIds flag in Enum.GetValues(typeof(CarAudioSettingsFlagIds)))
+            {
+                TristateValue value = GetTristateValue(Flags, (int)flag);
+                RelXml.SelfClosingTag(sb, indent + 1, flag.ToString() + $" value=\"{value.ToString().ToLower()}\"");
+            }
+            RelXml.Indent(sb, indent);
+            sb.AppendLine("</CarAudioSettingsFlags>");
+
             RelXml.StringTag(sb, indent, "Engine", RelXml.HashString(Engine));
             RelXml.StringTag(sb, indent, "GranularEngine", RelXml.HashString(GranularEngine));
             RelXml.StringTag(sb, indent, "HornSounds", RelXml.HashString(HornSounds));
@@ -10973,7 +11020,25 @@ namespace CodeWalker.GameFiles
         }
         public override void ReadXml(XmlNode node)
         {
-            Flags = Xml.GetChildUIntAttribute(node, "Flags", "value");
+
+            uint flags = Xml.GetChildUIntAttribute(node, "Flags", "value");
+            XmlNode flagsNode = node.SelectSingleNode("CarAudioSettingsFlags");
+            if (flagsNode != null)
+            {
+                foreach (XmlNode flagNode in flagsNode.ChildNodes)
+                {
+                    if (Enum.TryParse(flagNode.Name, out CarAudioSettingsFlagIds flag))
+                    {
+                        string valueStr = flagNode.Attributes?["value"]?.Value;
+                        if (Enum.TryParse(valueStr, true, out TristateValue value))
+                        {
+                            SetTristateValue(ref flags, (int)flag, value);
+                        }
+                    }
+                }
+            }
+            Flags = flags;
+
             Engine = XmlRel.GetHash(Xml.GetChildInnerText(node, "Engine"));
             GranularEngine = XmlRel.GetHash(Xml.GetChildInnerText(node, "GranularEngine"));
             HornSounds = XmlRel.GetHash(Xml.GetChildInnerText(node, "HornSounds"));
