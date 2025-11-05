@@ -407,6 +407,9 @@ namespace CodeWalker
 
             if (!Monitor.TryEnter(Renderer.RenderSyncRoot, 50))
             { return; } //couldn't get a lock, try again next time
+            
+            // cache frequently accessed properties
+            bool isMouseSelectEnabled = MouseSelectEnabled;
 
             UpdateControlInputs(elapsed);
 
@@ -498,8 +501,8 @@ namespace CodeWalker
         {
             if (elapsed > 0.1f) elapsed = 0.1f;
 
+            // cache settings
             var s = Settings.Default;
-
             float moveSpeed = 50.0f;
 
 
@@ -2334,11 +2337,14 @@ namespace CodeWalker
 
         private void BeginMouseHitTest()
         {
-            //reset variables for beginning the mouse hit test
+            // reset variables for beginning the mouse hit test
             CurMouseHit.Clear();
 
+            // cache input state
+            bool ctrlPressed = Input.CtrlPressed;
+            bool canPaintInstances = ProjectForm?.CanPaintInstances() ?? false;
          
-            if (Input.CtrlPressed && ProjectForm != null && ProjectForm.CanPaintInstances())   // Get whether or not we can brush from the project form.
+            if (ctrlPressed && canPaintInstances)   // get whether or not we can brush from the project form.
             {
                 ControlBrushEnabled = true;
                 MouseRayCollisionVisible = false;
@@ -2347,7 +2353,7 @@ namespace CodeWalker
             else
             {
                 ControlBrushEnabled = false;
-                if (Input.CtrlPressed && MouseRayCollisionEnabled)
+                if (ctrlPressed && MouseRayCollisionEnabled)
                 {
                     MouseRayCollisionVisible = true;
                     MouseRayCollision = GetSpaceMouseRay();
@@ -2358,28 +2364,54 @@ namespace CodeWalker
                 }
             }
 
+            // cache selection mode
+            var selectionMode = SelectionMode;
+            bool mouseSelectEnabled = MouseSelectEnabled;
 
             Renderer.RenderedDrawablesListEnable =
-                ((SelectionMode == MapSelectionMode.Entity) && MouseSelectEnabled) ||
-                (SelectionMode == MapSelectionMode.EntityExtension) ||
-                (SelectionMode == MapSelectionMode.ArchetypeExtension);
+                ((selectionMode == MapSelectionMode.Entity) && mouseSelectEnabled) ||
+                (selectionMode == MapSelectionMode.EntityExtension) ||
+                (selectionMode == MapSelectionMode.ArchetypeExtension);
 
-            Renderer.RenderedBoundCompsListEnable = (SelectionMode == MapSelectionMode.Collision);
-
-
+            Renderer.RenderedBoundCompsListEnable = (selectionMode == MapSelectionMode.Collision);
         }
+        
+        private SpaceRayIntersectResult _cachedMouseRay;
+        private Vector3 _lastMouseRayPosition;
+        private Vector3 _lastMouseRayDirection;
+        private Vector3 _lastCameraPosition;
         
         public SpaceRayIntersectResult GetSpaceMouseRay()
         {
-            SpaceRayIntersectResult ret = new SpaceRayIntersectResult();
-            if (space.Inited && space.BoundsStore != null)
+            if (!space.Inited || space.BoundsStore == null)
             {
-                Ray mray = new Ray();
-                mray.Position = camera.MouseRay.Position + camera.Position;
-                mray.Direction = camera.MouseRay.Direction;
-                return space.RayIntersect(mray, float.MaxValue, collisionmeshlayers);
+                return new SpaceRayIntersectResult();
             }
-            return ret;
+            
+            // check if we can use cached result
+            var currentMouseRayPos = camera.MouseRay.Position;
+            var currentMouseRayDir = camera.MouseRay.Direction;
+            var currentCameraPos = camera.Position;
+            
+            if (_cachedMouseRay.Hit && 
+                _lastMouseRayPosition == currentMouseRayPos &&
+                _lastMouseRayDirection == currentMouseRayDir &&
+                _lastCameraPosition == currentCameraPos)
+            {
+                return _cachedMouseRay;
+            }
+            
+            // calculate new ray intersection
+            Ray mray = new Ray();
+            mray.Position = currentMouseRayPos + currentCameraPos;
+            mray.Direction = currentMouseRayDir;
+            
+            _cachedMouseRay = space.RayIntersect(mray, float.MaxValue, collisionmeshlayers);
+            _lastMouseRayPosition = currentMouseRayPos;
+            _lastMouseRayDirection = currentMouseRayDir;
+            _lastCameraPosition = currentCameraPos;
+            
+            return _cachedMouseRay;
         }
 
         public SpaceRayIntersectResult Raycast(Ray ray)
@@ -2395,21 +2427,49 @@ namespace CodeWalker
         }
         private void UpdateMouseHitsFromRenderer()
         {
-            // Sort rendered drawables by distance for better selection priority
-            var sortedDrawables = Renderer.RenderedDrawables
-                .Where(rd => rd.Entity != null)
-                .OrderBy(rd => (rd.Entity.Position - camera.Position).LengthSquared())
-                .ToList();
+            if (!MouseSelectEnabled) return;
             
-            foreach (var rd in sortedDrawables)
+            var renderedDrawables = Renderer.RenderedDrawables;
+            if (renderedDrawables == null || renderedDrawables.Count == 0) return;
+            
+            // pre calculate camera position
+            var cameraPos = camera.Position;
+            
+            // only sort entities, not all drawables
+            var entitiesWithDrawables = new List<(RenderedDrawable rd, float distSq)>();
+            var drawablesWithoutEntities = new List<RenderedDrawable>();
+            
+            foreach (var rd in renderedDrawables)
             {
-                UpdateMouseHits(rd.Drawable, rd.Archetype, rd.Entity);
+                if (rd.Entity != null)
+                {
+                    var distSq = (rd.Entity.Position - cameraPos).LengthSquared();
+                    entitiesWithDrawables.Add((rd, distSq));
+                }
+                else
+                {
+                    drawablesWithoutEntities.Add(rd);
+                }
             }
             
-            // Also process drawables without entities
-            foreach (var rd in Renderer.RenderedDrawables.Where(rd => rd.Entity == null))
+            // sort only entities by distance
+            entitiesWithDrawables.Sort((a, b) => a.distSq.CompareTo(b.distSq));
+            
+            // process sorted entities first
+            foreach (var (rd, _) in entitiesWithDrawables)
             {
                 UpdateMouseHits(rd.Drawable, rd.Archetype, rd.Entity);
+                if (CurMouseHit.HasHit) break;
+            }
+            
+            // process drawables without entities only if no hit found
+            if (!CurMouseHit.HasHit)
+            {
+                foreach (var rd in drawablesWithoutEntities)
+                {
+                    UpdateMouseHits(rd.Drawable, rd.Archetype, rd.Entity);
+                    if (CurMouseHit.HasHit) break;
+                }
             }
         }
         private void UpdateMouseHitsFromSpace()
@@ -2437,9 +2497,8 @@ namespace CodeWalker
         }
         private float GetGeometryTriangleIntersection(DrawableGeometry geom, Ray ray, Vector3 scale)
         {
-            // This method attempts to find the closest triangle intersection
-            // Returns the hit distance, or -1 if no hit
-            
+            // this method attempts to find the closest triangle intersection
+            // returns the hit distance, or -1 if no hit
             try
             {
                 var vb = geom.VertexBuffer;
@@ -2447,46 +2506,57 @@ namespace CodeWalker
                 
                 if ((vb?.Data1?.VertexBytes == null) || (ib?.Indices == null)) return -1;
                 
-                float closestHit = float.MaxValue;
-                bool hasHit = false;
-                
-                // Get vertex stride and position offset
+                // get vertex stride and position offset
                 int stride = vb.VertexStride;
-                if (stride <= 0) return -1;
+                if (stride <= 0 || stride < 12) return -1; // need at least 12 bytes for position
                 
                 var vertices = vb.Data1.VertexBytes;
                 var indices = ib.Indices;
                 
-                // Process triangles
-                for (int i = 0; i < indices.Length - 2; i += 3)
+                // early bounds check
+                if (vertices.Length < stride * 3 || indices.Length < 3) return -1;
+                
+                float closestHit = float.MaxValue;
+                bool hasHit = false;
+                
+                // limit triangle processing for performance
+                int maxTriangles = Math.Min(indices.Length / 3, 1000); // Limit to 1000 triangles max
+                
+                // pocess triangles
+                for (int triIndex = 0; triIndex < maxTriangles; triIndex++)
                 {
-                    if (i + 2 >= indices.Length) break;
+                    int baseIndex = triIndex * 3;
+                    if (baseIndex + 2 >= indices.Length) break;
                     
-                    int i1 = indices[i];
-                    int i2 = indices[i + 1];
-                    int i3 = indices[i + 2];
+                    int i1 = indices[baseIndex];
+                    int i2 = indices[baseIndex + 1];
+                    int i3 = indices[baseIndex + 2];
                     
-                    if ((i1 * stride + 12 > vertices.Length) || 
-                        (i2 * stride + 12 > vertices.Length) || 
-                        (i3 * stride + 12 > vertices.Length)) continue;
+                    // bounds check
+                    int maxVertexIndex = Math.Max(Math.Max(i1, i2), i3);
+                    if (maxVertexIndex * stride + 12 > vertices.Length) continue;
                     
-                    // Extract vertex positions (assuming first 12 bytes are position)
+                    // extract vertex positions
+                    int offset1 = i1 * stride;
+                    int offset2 = i2 * stride;
+                    int offset3 = i3 * stride;
+                    
                     Vector3 v1 = new Vector3(
-                        BitConverter.ToSingle(vertices, i1 * stride),
-                        BitConverter.ToSingle(vertices, i1 * stride + 4),
-                        BitConverter.ToSingle(vertices, i1 * stride + 8)) * scale;
+                        BitConverter.ToSingle(vertices, offset1),
+                        BitConverter.ToSingle(vertices, offset1 + 4),
+                        BitConverter.ToSingle(vertices, offset1 + 8)) * scale;
                     
                     Vector3 v2 = new Vector3(
-                        BitConverter.ToSingle(vertices, i2 * stride),
-                        BitConverter.ToSingle(vertices, i2 * stride + 4),
-                        BitConverter.ToSingle(vertices, i2 * stride + 8)) * scale;
+                        BitConverter.ToSingle(vertices, offset2),
+                        BitConverter.ToSingle(vertices, offset2 + 4),
+                        BitConverter.ToSingle(vertices, offset2 + 8)) * scale;
                     
                     Vector3 v3 = new Vector3(
-                        BitConverter.ToSingle(vertices, i3 * stride),
-                        BitConverter.ToSingle(vertices, i3 * stride + 4),
-                        BitConverter.ToSingle(vertices, i3 * stride + 8)) * scale;
+                        BitConverter.ToSingle(vertices, offset3),
+                        BitConverter.ToSingle(vertices, offset3 + 4),
+                        BitConverter.ToSingle(vertices, offset3 + 8)) * scale;
                     
-                    // Ray-triangle intersection test
+                    // ray triangle intersection test
                     float hitDist;
                     if (ray.Intersects(ref v1, ref v2, ref v3, out hitDist))
                     {
@@ -2494,6 +2564,9 @@ namespace CodeWalker
                         {
                             closestHit = hitDist;
                             hasHit = true;
+                            
+                            // Early exit if we found a very close hit
+                            if (hitDist < 0.1f) break;
                         }
                     }
                 }
@@ -2502,7 +2575,7 @@ namespace CodeWalker
             }
             catch
             {
-                // If triangle intersection fails, return -1 to fall back to bounding box
+                // if triangle intersection fails, return -1 to fall back to bounding box
                 return -1;
             }
         }
@@ -2510,9 +2583,7 @@ namespace CodeWalker
         private void UpdateMouseHits(DrawableBase drawable, Archetype arche, YmapEntityDef entity)
         {
             //if ((SelectionMode == MapSelectionMode.Entity) && !MouseSelectEnabled) return; //performance improvement when not selecting entities...
-
             //test the selected entity/archetype for mouse hit.
-            
             //first test the bounding sphere for mouse hit..
             Quaternion orinv;
             Ray mraytrn;
@@ -4767,41 +4838,64 @@ namespace CodeWalker
 
         private MapMarker FindMousedMarker()
         {
-            lock (markersortedsyncroot)
+            if (!MouseSelectEnabled) return null;
+            
+            if (!Monitor.TryEnter(markersortedsyncroot, 1)) // dont wait long for lock
+                return null;
+            
+            try
             {
                 float mx = MouseLastPoint.X;
                 float my = MouseLastPoint.Y;
+                
+                // cache camera dimensions
+                float cameraWidth = camera.Width;
+                float cameraHeight = camera.Height;
 
-                if (ShowLocatorCheckBox.Checked)
+                if (ShowLocatorCheckBox.Checked && LocatorMarker != null)
                 {
-                    if (IsMarkerUnderPoint(LocatorMarker, mx, my))
+                    if (IsMarkerUnderPointOptimized(LocatorMarker, mx, my, cameraWidth, cameraHeight))
                     {
                         return LocatorMarker;
                     }
                 }
 
-                //search backwards through the render markers (front to back)
-                for (int i = SortedMarkers.Count - 1; i >= 0; i--)
+                // search backwards through the render markers
+                var markers = SortedMarkers;
+                for (int i = markers.Count - 1; i >= 0; i--)
                 {
-                    MapMarker m = SortedMarkers[i];
-                    if (IsMarkerUnderPoint(m, mx, my))
+                    MapMarker m = markers[i];
+                    if (IsMarkerUnderPointOptimized(m, mx, my, cameraWidth, cameraHeight))
                     {
                         return m;
                     }
                 }
             }
+            finally
+            {
+                Monitor.Exit(markersortedsyncroot);
+            }
+            
             return null;
+        }
+        
+        private bool IsMarkerUnderPointOptimized(MapMarker marker, float x, float y, float cameraWidth, float cameraHeight)
+        {
+            if (marker.ScreenPos.Z <= 0.0f) return false; // behind the camera...
+            
+            float screenX = ((marker.ScreenPos.X * 0.5f) + 0.5f) * cameraWidth;
+            float screenY = ((marker.ScreenPos.Y * -0.5f) + 0.5f) * cameraHeight;
+            
+            float dx = x - screenX;
+            float dy = y - screenY;
+            float mcx = marker.Icon.Center.X;
+            float mcy = marker.Icon.Center.Y;
+            
+            return (dx >= -mcx && dx <= mcx) && (dy <= 0.0f && dy >= -mcy);
         }
         private bool IsMarkerUnderPoint(MapMarker marker, float x, float y)
         {
-            if (marker.ScreenPos.Z <= 0.0f) return false; //behind the camera...
-            float dx = x - ((marker.ScreenPos.X * 0.5f) + 0.5f) * camera.Width;
-            float dy = y - ((marker.ScreenPos.Y * -0.5f) + 0.5f) * camera.Height;
-            float mcx = marker.Icon.Center.X;
-            float mcy = marker.Icon.Center.Y;
-            bool bx = ((dx >= -mcx) && (dx <= mcx));
-            bool by = ((dy <= 0.0f) && (dy >= -mcy));
-            return (bx && by);
+            return IsMarkerUnderPointOptimized(marker, x, y, camera.Width, camera.Height);
         }
 
         private void GoToMarker(MapMarker m)
