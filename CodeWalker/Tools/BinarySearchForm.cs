@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Threading;
 
 namespace CodeWalker.Tools
 {
@@ -166,58 +167,96 @@ namespace CodeWalker.Tools
 
             Task.Run(() =>
             {
-
                 FileSearchAddResult("Searching " + searchfolder + "...");
 
                 string[] filenames = Directory.GetFiles(searchfolder);
-
                 int matchcount = 0;
+                object lockObj = new object();
 
-                foreach (string filename in filenames)
+                // use parallel processing for better performance
+                var parallelOptions = new ParallelOptions
                 {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount
+                };
 
-
-                    FileInfo finf = new FileInfo(filename);
-                    byte[] filebytes = File.ReadAllBytes(filename);
-
-                    int hitlen1 = 0;
-                    int hitlen2 = 0;
-
-                    for (int i = 0; i < filebytes.Length; i++)
+                try
+                {
+                    Parallel.ForEach(filenames, parallelOptions, (filename, loopState) =>
                     {
-                        byte b = filebytes[i];
-                        byte b1 = searchbytes1[hitlen1]; //current test byte 1
-                        byte b2 = searchbytes2[hitlen2];
-
-                        if (b == b1) hitlen1++; else hitlen1 = 0;
-                        if (b == b2) hitlen2++; else hitlen2 = 0;
-
-                        if (hitlen1 == bytelen)
-                        {
-                            FileSearchAddResult(finf.Name + ":" + (i - bytelen));
-                            matchcount++;
-                            hitlen1 = 0;
-                        }
-                        if (hitlen2 == bytelen)
-                        {
-                            FileSearchAddResult(finf.Name + ":" + (i - bytelen));
-                            matchcount++;
-                            hitlen2 = 0;
-                        }
-
                         if (AbortOperation)
                         {
-                            FileSearchAddResult("Search aborted.");
-                            FileSearchComplete();
-                            InProgress = false;
+                            loopState.Stop();
                             return;
                         }
 
-                    }
+                        try
+                        {
+                            FileInfo finf = new FileInfo(filename);
+                            
+                            // skip very large files to avoid memory issues
+                            if (finf.Length > 100 * 1024 * 1024) // 100MB limit
+                                return;
+                                
+                            byte[] filebytes = File.ReadAllBytes(filename);
 
+                            // sse optimized Boyer-Moore-like search
+                            var matches = FindAllMatches(filebytes, searchbytes1);
+                            foreach (int match in matches)
+                            {
+                                lock (lockObj)
+                                {
+                                    FileSearchAddResult(finf.Name + ":" + match);
+                                    matchcount++;
+                                }
+                                
+                                if (AbortOperation)
+                                {
+                                    loopState.Stop();
+                                    return;
+                                }
+                            }
+                            
+                            // search reversed pattern if different
+                            if (!searchbytes1.SequenceEqual(searchbytes2))
+                            {
+                                var reverseMatches = FindAllMatches(filebytes, searchbytes2);
+                                foreach (int match in reverseMatches)
+                                {
+                                    lock (lockObj)
+                                    {
+                                        FileSearchAddResult(finf.Name + ":" + match);
+                                        matchcount++;
+                                    }
+                                    
+                                    if (AbortOperation)
+                                    {
+                                        loopState.Stop();
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            lock (lockObj)
+                            {
+                                FileSearchAddResult($"Error processing {filename}: {ex.Message}");
+                            }
+                        }
+                    });
                 }
+                catch (OperationCanceledException)
+                { }
 
-                FileSearchAddResult(string.Format("Search complete. {0} results found.", matchcount));
+                if (AbortOperation)
+                {
+                    FileSearchAddResult("Search aborted.");
+                }
+                else
+                {
+                    FileSearchAddResult(string.Format("Search complete. {0} results found.", matchcount));
+                }
+                
                 FileSearchComplete();
                 InProgress = false;
             });
@@ -260,16 +299,138 @@ namespace CodeWalker.Tools
             AbortOperation = true;
         }
 
+        // optimized Boyer-Moore-Horspool search algorithm
+        private List<int> FindAllMatches(byte[] haystack, byte[] needle)
+        {
+            var matches = new List<int>();
+            if (needle.Length == 0 || haystack.Length < needle.Length)
+                return matches;
 
+            // build bad character table for Boyer-Moore-Horspool
+            var badCharTable = new int[256];
+            for (int i = 0; i < 256; i++)
+                badCharTable[i] = needle.Length;
+            
+            for (int i = 0; i < needle.Length - 1; i++)
+                badCharTable[needle[i]] = needle.Length - 1 - i;
 
+            int pos = 0;
+            while (pos <= haystack.Length - needle.Length)
+            {
+                int j = needle.Length - 1;
+                
+                // compare from right to left
+                while (j >= 0 && needle[j] == haystack[pos + j])
+                    j--;
+                
+                if (j < 0)
+                {
+                    // found a match
+                    matches.Add(pos);
+                    pos += needle.Length; // move past this match
+                }
+                else
+                {
+                    // use bad character rule to skip
+                    pos += Math.Max(1, badCharTable[haystack[pos + needle.Length - 1]]);
+                }
+            }
+            
+            return matches;
+        }
 
+        // optimized KMP search for cases where Boyer-Moore might not be ideal
+        private List<int> FindAllMatchesKMP(byte[] haystack, byte[] needle)
+        {
+            var matches = new List<int>();
+            if (needle.Length == 0 || haystack.Length < needle.Length)
+                return matches;
 
+            // build failure function
+            var failure = new int[needle.Length];
+            int j = 0;
+            for (int i = 1; i < needle.Length; i++)
+            {
+                while (j > 0 && needle[i] != needle[j])
+                    j = failure[j - 1];
+                if (needle[i] == needle[j])
+                    j++;
+                failure[i] = j;
+            }
 
+            // search
+            j = 0;
+            for (int i = 0; i < haystack.Length; i++)
+            {
+                while (j > 0 && haystack[i] != needle[j])
+                    j = failure[j - 1];
+                if (haystack[i] == needle[j])
+                    j++;
+                if (j == needle.Length)
+                {
+                    matches.Add(i - j + 1);
+                    j = failure[j - 1];
+                }
+            }
+            
+            return matches;
+        }
 
+        // optimized file reading for large files using streaming
+        private List<int> SearchFileStream(string filename, byte[] searchBytes)
+        {
+            var matches = new List<int>();
+            const int bufferSize = 64 * 1024; // 64KB buffer
+            
+            try
+            {
+                using (var fileStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize))
+                {
+                    var buffer = new byte[bufferSize + searchBytes.Length - 1];
+                    int bytesRead;
+                    int totalBytesRead = 0;
+                    int overlap = 0;
 
+                    while ((bytesRead = fileStream.Read(buffer, overlap, bufferSize)) > 0)
+                    {
+                        int searchLength = bytesRead + overlap;
+                        
+                        // search in current buffer
+                        var bufferMatches = FindAllMatches(buffer.Take(searchLength).ToArray(), searchBytes);
+                        foreach (var match in bufferMatches)
+                        {
+                            matches.Add(totalBytesRead + match - overlap);
+                        }
 
+                        // prepare overlap for next iteration
+                        if (bytesRead == bufferSize && searchBytes.Length > 1)
+                        {
+                            overlap = searchBytes.Length - 1;
+                            Array.Copy(buffer, bufferSize, buffer, 0, overlap);
+                        }
+                        else
+                        {
+                            overlap = 0;
+                        }
 
-
+                        totalBytesRead += bytesRead;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                try
+                {
+                    var fileBytes = File.ReadAllBytes(filename);
+                    return FindAllMatches(fileBytes, searchBytes);
+                }
+                catch
+                {
+                    return matches;
+                }
+            }
+            return matches;
+        }
 
         private List<RpfSearchResult> RpfSearchResults = new List<RpfSearchResult>();
         private RpfEntry RpfSelectedEntry = null;
@@ -477,37 +638,42 @@ namespace CodeWalker.Tools
                             { continue; }
                         }
 
-                        UpdateStatus(string.Format("{0} - Searching {1}/{2} : {3}", duration.ToString(@"hh\:mm\:ss"), curfile, totfiles, fentry.Path));
+                        // update status less frequently for better performance
+                        if (curfile % 100 == 0 || curfile == totfiles)
+                        {
+                            UpdateStatus(string.Format("{0} - Searching {1}/{2} : {3}", duration.ToString(@"hh\:mm\:ss"), curfile, totfiles, fentry.Path));
+                        }
 
                         byte[] filebytes = fentry.File.ExtractFile(fentry);
                         if (filebytes == null) continue;
 
 
-                        int hitlen1 = 0;
-                        int hitlen2 = 0;
-
-                        for (int i = 0; i < filebytes.Length; i++)
+                        // prepare search data based on case sensitivity
+                        byte[] searchData = filebytes;
+                        if (!casesen)
                         {
-                            byte b = casesen ? filebytes[i] : LowerCaseByte(filebytes[i]);
-                            byte b1 = searchbytes1[hitlen1]; //current test byte 1
-                            byte b2 = searchbytes2[hitlen2];
-
-                            if (b == b1) hitlen1++; else hitlen1 = 0;
-                            if (hitlen1 == bytelen)
+                            searchData = new byte[filebytes.Length];
+                            for (int i = 0; i < filebytes.Length; i++)
                             {
-                                RpfSearchAddResult(new RpfSearchResult(fentry, (i - bytelen), bytelen));
-                                resultcount++;
-                                hitlen1 = 0;
+                                searchData[i] = LowerCaseByte(filebytes[i]);
                             }
-                            if (bothdirs)
+                        }
+
+                        var matches = FindAllMatches(searchData, searchbytes1);
+                        foreach (int match in matches)
+                        {
+                            RpfSearchAddResult(new RpfSearchResult(fentry, match, bytelen));
+                            resultcount++;
+                        }
+                        
+                        // search reversed pattern if enabled and different
+                        if (bothdirs && !searchbytes1.SequenceEqual(searchbytes2))
+                        {
+                            var reverseMatches = FindAllMatches(searchData, searchbytes2);
+                            foreach (int match in reverseMatches)
                             {
-                                if (b == b2) hitlen2++; else hitlen2 = 0;
-                                if (hitlen2 == bytelen)
-                                {
-                                    RpfSearchAddResult(new RpfSearchResult(fentry, (i - bytelen), bytelen));
-                                    resultcount++;
-                                    hitlen2 = 0;
-                                }
+                                RpfSearchAddResult(new RpfSearchResult(fentry, match, bytelen));
+                                resultcount++;
                             }
                         }
                     }
@@ -687,140 +853,7 @@ namespace CodeWalker.Tools
             {
                 DataTextBox.Text = "[Filesize >512KB. Select the Show large files option to view its contents]";
             }
-
-
-
-            //bool istexdict = false;
-            //if (rfe.NameLower.EndsWith(".ymap"))
-            //{
-            //    YmapFile ymap = new YmapFile(rfe);
-            //    ymap.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ymap;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ytyp"))
-            //{
-            //    YtypFile ytyp = new YtypFile();
-            //    ytyp.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ytyp;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ymf"))
-            //{
-            //    YmfFile ymf = new YmfFile();
-            //    ymf.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ymf;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ymt"))
-            //{
-            //    YmtFile ymt = new YmtFile();
-            //    ymt.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ymt;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ybn"))
-            //{
-            //    YbnFile ybn = new YbnFile();
-            //    ybn.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ybn;
-            //}
-            //else if (rfe.NameLower.EndsWith(".fxc"))
-            //{
-            //    FxcFile fxc = new FxcFile();
-            //    fxc.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = fxc;
-            //}
-            //else if (rfe.NameLower.EndsWith(".yft"))
-            //{
-            //    YftFile yft = new YftFile();
-            //    yft.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = yft;
-            //    if ((yft.Fragment != null) && (yft.Fragment.Drawable != null) && (yft.Fragment.Drawable.ShaderGroup != null) && (yft.Fragment.Drawable.ShaderGroup.TextureDictionary != null))
-            //    {
-            //        ShowTextures(yft.Fragment.Drawable.ShaderGroup.TextureDictionary);
-            //        istexdict = true;
-            //    }
-            //}
-            //else if (rfe.NameLower.EndsWith(".ydr"))
-            //{
-            //    YdrFile ydr = new YdrFile();
-            //    ydr.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ydr;
-            //    if ((ydr.Drawable != null) && (ydr.Drawable.ShaderGroup != null) && (ydr.Drawable.ShaderGroup.TextureDictionary != null))
-            //    {
-            //        ShowTextures(ydr.Drawable.ShaderGroup.TextureDictionary);
-            //        istexdict = true;
-            //    }
-            //}
-            //else if (rfe.NameLower.EndsWith(".ydd"))
-            //{
-            //    YddFile ydd = new YddFile();
-            //    ydd.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ydd;
-            //    //todo: show embedded texdicts in ydd's? is this possible?
-            //}
-            //else if (rfe.NameLower.EndsWith(".ytd"))
-            //{
-            //    YtdFile ytd = new YtdFile();
-            //    ytd.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ytd;
-            //    ShowTextures(ytd.TextureDict);
-            //    istexdict = true;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ycd"))
-            //{
-            //    YcdFile ycd = new YcdFile();
-            //    ycd.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ycd;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ynd"))
-            //{
-            //    YndFile ynd = new YndFile();
-            //    ynd.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ynd;
-            //}
-            //else if (rfe.NameLower.EndsWith(".ynv"))
-            //{
-            //    YnvFile ynv = new YnvFile();
-            //    ynv.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = ynv;
-            //}
-            //else if (rfe.NameLower.EndsWith("_cache_y.dat"))
-            //{
-            //    CacheDatFile cdf = new CacheDatFile();
-            //    cdf.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = cdf;
-            //}
-            //else if (rfe.NameLower.EndsWith(".rel"))
-            //{
-            //    RelFile rel = new RelFile(rfe);
-            //    rel.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = rel;
-            //}
-            //else if (rfe.NameLower.EndsWith(".gxt2"))
-            //{
-            //    Gxt2File gxt2 = new Gxt2File();
-            //    gxt2.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = gxt2;
-            //}
-            //else if (rfe.NameLower.EndsWith(".pso"))
-            //{
-            //    JPsoFile pso = new JPsoFile();
-            //    pso.Load(data, rfe);
-            //    DetailsPropertyGrid.SelectedObject = pso;
-            //}
-            //else
-            //{
-            //    DetailsPropertyGrid.SelectedObject = null;
-            //}
-
-
-            //if (!istexdict)
-            //{
-            //    ShowTextures(null);
-            //}
-
-
             Cursor = Cursors.Default;
-
-
         }
 
         private void DisplayFileContentsText(RpfFileEntry rfe, byte[] data, int length, int offset)
