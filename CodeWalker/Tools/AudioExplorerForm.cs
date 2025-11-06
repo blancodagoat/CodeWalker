@@ -283,12 +283,23 @@ namespace CodeWalker.Tools
             var font = e.Node.NodeFont ?? treeView.Font;
             using (var brush = new SolidBrush(textColor))
             {
-                var textSize = e.Graphics.MeasureString(e.Node.Text, font);
+                var textSize = e.Graphics.MeasureString(e.Node.Text, font, PointF.Empty, StringFormat.GenericDefault);
                 var textY = adjustedBounds.Y + (adjustedBounds.Height - textSize.Height) / 2;
-                var textBounds = new RectangleF(adjustedBounds.X + 3, textY, adjustedBounds.Width - 6, textSize.Height);
+                
+                var textWidth = Math.Max(adjustedBounds.Width - 6, textSize.Width + 5);
+                var textBounds = new RectangleF(adjustedBounds.X + 3, textY, textWidth, textSize.Height);
                 
                 e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                e.Graphics.DrawString(e.Node.Text, font, brush, textBounds);
+                
+                using (var stringFormat = new StringFormat(StringFormat.GenericDefault))
+                {
+                    stringFormat.LineAlignment = StringAlignment.Center;
+                    stringFormat.Alignment = StringAlignment.Near;
+                    stringFormat.FormatFlags = StringFormatFlags.NoWrap;
+                    stringFormat.Trimming = StringTrimming.None; // Prevent automatic trimming
+                    
+                    e.Graphics.DrawString(e.Node.Text, font, brush, textBounds, stringFormat);
+                }
             }
             
             if ((e.State & TreeNodeStates.Focused) != 0)
