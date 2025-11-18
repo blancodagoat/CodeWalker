@@ -84,9 +84,9 @@ namespace CodeWalker.Forms
             {
                 int charsperln = int.Parse(LineSizeDropDown.Text);
                 int lines = (data.Length / charsperln) + (((data.Length % charsperln) > 0) ? 1 : 0);
-                StringBuilder hexb = new StringBuilder();
-                StringBuilder texb = new StringBuilder();
-                StringBuilder finb = new StringBuilder();
+                StringBuilder hexb = new();
+                StringBuilder texb = new();
+                StringBuilder finb = new();
 
                 //if (offset > 0)
                 //{

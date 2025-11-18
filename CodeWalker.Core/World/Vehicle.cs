@@ -25,7 +25,7 @@ namespace CodeWalker.World
         public string DisplayMake { get; set; } = string.Empty;//make display name
         public string DisplayName { get; set; } = string.Empty;//model display name
 
-        public YmapEntityDef RenderEntity = new YmapEntityDef(); //placeholder entity object for rendering
+        public YmapEntityDef RenderEntity = new(); //placeholder entity object for rendering
 
         public Vector3 Position { get; set; } = Vector3.Zero;
         public Quaternion Rotation { get; set; } = Quaternion.Identity;

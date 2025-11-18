@@ -62,7 +62,7 @@ namespace CodeWalker.GameFiles
             RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
             if (resentry != null)
             {
-                ResourceDataReader rd = new ResourceDataReader(resentry, data);
+                ResourceDataReader rd = new(resentry, data);
 
                 Meta = rd.ReadBlock<Meta>();
 
@@ -80,7 +80,7 @@ namespace CodeWalker.GameFiles
             }
 
 
-            MemoryStream ms = new MemoryStream(data);
+            MemoryStream ms = new(data);
 
             if (RbfFile.IsRBF(ms))
             {
@@ -134,7 +134,7 @@ namespace CodeWalker.GameFiles
             ContentType = YmtFileContentType.MapParentTxds;
 
             CMapParentTxds = new Dictionary<string, string>();
-            //StringBuilder sblist = new StringBuilder();
+            //StringBuilder sblist = new();
             foreach(var child in rbfstruct.Children)
             {
                 var childstruct = child as RbfStructure;

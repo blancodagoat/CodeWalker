@@ -70,7 +70,7 @@ namespace CodeWalker.Rendering
         GpuVarsBuffer<TreesLodShaderPSEntityVars> PSEntityVars;
         SamplerState texsampler;
 
-        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
+        private Dictionary<VertexType, InputLayout> layouts = new();
 
         public bool Deferred = false;
 

@@ -31,7 +31,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             //MemoryUsage = 0;
 
@@ -67,7 +67,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YwrFile ywr)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if (ywr?.Waypoints != null)
@@ -85,14 +85,14 @@ namespace CodeWalker.GameFiles
 
         public static YwrFile GetYwr(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetYwr(doc, inputFolder);
         }
 
         public static YwrFile GetYwr(XmlDocument doc, string inputFolder = "")
         {
-            YwrFile r = new YwrFile();
+            YwrFile r = new();
 
             var node = doc.DocumentElement;
             if (node != null)

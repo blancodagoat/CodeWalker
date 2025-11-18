@@ -38,7 +38,7 @@ namespace CodeWalker.World
             for (int i = 0; i < tracks.Count; i++)
             {
                 var trackxml = tracks[i];
-                TrainTrack tt = new TrainTrack();
+                TrainTrack tt = new();
                 tt.Load(gameFileCache, trackxml);
                 TrainTracks.Add(tt);
             }
@@ -158,7 +158,7 @@ namespace CodeWalker.World
         public byte[] Save()
         {
             NodeCount = Nodes.Count;
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(Nodes.Count.ToString());
             foreach (var node in Nodes)
             {
@@ -197,14 +197,14 @@ namespace CodeWalker.World
                     int nodecount;
                     int.TryParse(trackstrs[0], out nodecount);
                     NodeCount = nodecount;
-                    List<TrainTrackNode> nodes = new List<TrainTrackNode>();
+                    List<TrainTrackNode> nodes = new();
                     for (int i = 1; i < trackstrs.Length; i++)
                     {
                         var nodestr = trackstrs[i].Trim();
                         var nodevals = nodestr.Split(' ');
                         if (nodevals.Length == 4)
                         {
-                            TrainTrackNode ttnode = new TrainTrackNode();
+                            TrainTrackNode ttnode = new();
                             var x = FloatUtil.Parse(nodevals[0]);
                             var y = FloatUtil.Parse(nodevals[1]);
                             var z = FloatUtil.Parse(nodevals[2]);
@@ -311,7 +311,7 @@ namespace CodeWalker.World
         public TrainTrackNode AddNode(TrainTrackNode afternode = null)
         {
             int cnt = Nodes?.Count ?? 0;
-            TrainTrackNode tn = new TrainTrackNode();
+            TrainTrackNode tn = new();
             tn.Track = this;
             tn.Index = (afternode != null) ? afternode.Index + 1 : cnt;
 

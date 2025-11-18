@@ -28,7 +28,7 @@ namespace CodeWalker.Tools
             JenkHashInputEncoding encoding = JenkHashInputEncoding.UTF8;
             if (ASCIIRadioButton.Checked) encoding = JenkHashInputEncoding.ASCII;
 
-            JenkHash h = new JenkHash(InputTextBox.Text, encoding);
+            JenkHash h = new(InputTextBox.Text, encoding);
 
             HashHexTextBox.Text = h.HashHex;
             HashSignedTextBox.Text = h.HashInt.ToString();

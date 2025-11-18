@@ -24,7 +24,7 @@ namespace CodeWalker.GameFiles
             FileEntry = entry;
             //Dict = new Dictionary<uint, string>();
 
-            using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
+            using (BinaryReader br = new(new MemoryStream(data)))
             {
                 uint gxt2 = br.ReadUInt32(); //"GXT2" - 1196971058
                 if (gxt2 != 1196971058)
@@ -46,7 +46,7 @@ namespace CodeWalker.GameFiles
 
                 uint endpos = br.ReadUInt32();
 
-                List<byte> buf = new List<byte>();
+                List<byte> buf = new();
 
                 for (uint i = 0; i < EntryCount; i++)
                 {
@@ -72,7 +72,7 @@ namespace CodeWalker.GameFiles
             if (TextEntries == null) TextEntries = new Gxt2Entry[0];
             EntryCount = (uint)TextEntries.Length;
             uint offset = 16 + (EntryCount * 8);
-            List<byte[]> datas = new List<byte[]>();
+            List<byte[]> datas = new();
 
             var ms = new MemoryStream();
             var bw = new BinaryWriter(ms);
@@ -106,7 +106,7 @@ namespace CodeWalker.GameFiles
 
         public string ToText()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             if (TextEntries != null)
             {
                 foreach (var entry in TextEntries)
@@ -171,7 +171,7 @@ namespace CodeWalker.GameFiles
 
     public static class GlobalText
     {
-        public static Dictionary<uint, string> Index = new Dictionary<uint, string>();
+        public static Dictionary<uint, string> Index = new();
         private static object syncRoot = new object();
 
         public static volatile bool FullIndexBuilt = false;

@@ -11,7 +11,7 @@ namespace CodeWalker.World
         public volatile bool Inited = false;
         public GameFileCache GameFileCache;
 
-        public List<HeightmapFile> HeightmapFiles = new List<HeightmapFile>();
+        public List<HeightmapFile> HeightmapFiles = new();
 
 
         public Vector4[] GetNodePositions()

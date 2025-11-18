@@ -35,9 +35,9 @@ namespace CodeWalker.GameFiles
                 Name = entry.Name;
             }
 
-            using (MemoryStream ms = new MemoryStream(data))
+            using (MemoryStream ms = new(data))
             {
-                DataReader r = new DataReader(ms, Endianess.LittleEndian);
+                DataReader r = new(ms, Endianess.LittleEndian);
 
                 Read(r);
             }
@@ -48,8 +48,8 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MemoryStream s = new MemoryStream();
-            DataWriter w = new DataWriter(s);
+            MemoryStream s = new();
+            DataWriter w = new(s);
 
             Write(w);
 
@@ -369,7 +369,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YpdbFile ypdb)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if ((ypdb != null) && (ypdb.WeightSet != null))
@@ -393,14 +393,14 @@ namespace CodeWalker.GameFiles
 
         public static YpdbFile GetYpdb(string xml)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetYpdb(doc);
         }
 
         public static YpdbFile GetYpdb(XmlDocument doc)
         {
-            YpdbFile ypdb = new YpdbFile();
+            YpdbFile ypdb = new();
             ypdb.ReadXml(doc.DocumentElement);
             return ypdb;
         }

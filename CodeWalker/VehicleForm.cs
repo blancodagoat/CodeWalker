@@ -32,13 +32,13 @@ namespace CodeWalker
         volatile bool pauserendering = false;
         //volatile bool initialised = false;
 
-        Stopwatch frametimer = new Stopwatch();
+        Stopwatch frametimer = new();
         Camera camera;
         Timecycle timecycle;
         Weather weather;
         Clouds clouds;
 
-        Entity camEntity = new Entity();
+        Entity camEntity = new();
 
 
         bool MouseLButtonDown = false;
@@ -52,7 +52,7 @@ namespace CodeWalker
         public GameFileCache GameFileCache { get; } = GameFileCacheFactory.Create();
 
 
-        InputManager Input = new InputManager();
+        InputManager Input = new();
 
 
         bool initedOk = false;
@@ -64,18 +64,18 @@ namespace CodeWalker
         int toolsPanelResizeStartLeft = 0;
         int toolsPanelResizeStartRight = 0;
 
-        Dictionary<DrawableBase, bool> DrawableDrawFlags = new Dictionary<DrawableBase, bool>();
+        Dictionary<DrawableBase, bool> DrawableDrawFlags = new();
 
         bool enableGrid = false;
         float gridSize = 1.0f;
         int gridCount = 40;
-        List<VertexTypePC> gridVerts = new List<VertexTypePC>();
+        List<VertexTypePC> gridVerts = new();
         object gridSyncRoot = new object();
 
 
 
 
-        Vehicle SelectedVehicle = new Vehicle();
+        Vehicle SelectedVehicle = new();
 
         bool PlayConvRoofAnim = false;
 
@@ -457,7 +457,7 @@ namespace CodeWalker
 
         private void AddDrawableTreeNode(DrawableBase drawable, uint hash, bool check)
         {
-            MetaHash mhash = new MetaHash(hash);
+            MetaHash mhash = new(hash);
 
             var dnode = ModelsTreeView.Nodes.Add(mhash.ToString());
             dnode.Tag = drawable;
@@ -1383,7 +1383,7 @@ namespace CodeWalker
 
             //if (td != null)
             //{
-            //    YtdForm f = new YtdForm();
+            //    YtdForm f = new();
             //    f.Show();
             //    f.LoadTexDict(td, fileName);
             //    //f.LoadYtd(ytd);

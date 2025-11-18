@@ -1064,7 +1064,7 @@ namespace CodeWalker.GameFiles
                 b40, b41, b42, b43, b44, b45, b46, b47, b48, b49, b50, b51, b52, b53, b54, b55, b56, b57, b58, b59,
                 b60, b61, b62, b63
             };
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             for (int i = 0; i < bytes.Length; i++)
             {
                 if (bytes[i] == 0) break;

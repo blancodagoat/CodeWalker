@@ -15,8 +15,8 @@ namespace CodeWalker.Tools
     {
         private GameFileCache GameFileCache { get; set; }
 
-        private List<string> NameComboItems = new List<string>();
-        private Dictionary<string, RelData> NameComboLookup = new Dictionary<string, RelData>();
+        private List<string> NameComboItems = new();
+        private Dictionary<string, RelData> NameComboLookup = new();
 
 
         public AudioExplorerForm(GameFileCache gfc)

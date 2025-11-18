@@ -69,7 +69,7 @@ namespace CodeWalker.Forms
             {
                 foreach (var kvp in dict)
                 {
-                    MetaHash mhash = new MetaHash(kvp.Key);
+                    MetaHash mhash = new(kvp.Key);
                     var drawable = kvp.Value;
 
                     var dnode = LightsTreeView.Nodes.Add(mhash.ToString());
@@ -237,7 +237,7 @@ namespace CodeWalker.Forms
 
         private LightAttributes NewLightAttribute()
         {
-            LightAttributes light = new LightAttributes();
+            LightAttributes light = new();
             light.Direction = Vector3.BackwardLH;
             light.Tangent = Vector3.Left;
             light.Intensity = 5;
@@ -254,7 +254,7 @@ namespace CodeWalker.Forms
         }
         private LightAttributes DuplicateLightAttribute()
         {
-            LightAttributes light = new LightAttributes();
+            LightAttributes light = new();
             light.Unknown_0h = selectedLight.Unknown_0h;
             light.Unknown_4h = selectedLight.Unknown_4h;
             light.Position = selectedLight.Position;

@@ -11,7 +11,7 @@ namespace CodeWalker.World
         public volatile bool Inited = false;
         public GameFileCache GameFileCache;
 
-        public List<WatermapFile> WatermapFiles = new List<WatermapFile>();
+        public List<WatermapFile> WatermapFiles = new();
 
 
         public Vector4[] GetNodePositions()

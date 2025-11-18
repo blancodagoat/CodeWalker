@@ -44,10 +44,10 @@ namespace CodeWalker.Rendering
 
 
 
-            List<Vector4> verts = new List<Vector4>();
-            Dictionary<Vector4, int> vdict = new Dictionary<Vector4, int>();
-            List<SphTri> curtris = new List<SphTri>();
-            //List<SphTri> nxttris = new List<SphTri>();
+            List<Vector4> verts = new();
+            Dictionary<Vector4, int> vdict = new();
+            List<SphTri> curtris = new();
+            //List<SphTri> nxttris = new();
 
             verts.Add(new Vector4(0.0f, -1.0f, 0.0f, 0.0f));//top end
             verts.Add(new Vector4(0.0f, 1.0f, 0.0f, 1.0f));//bottom end
@@ -167,9 +167,9 @@ namespace CodeWalker.Rendering
                     Vector4 v1 = verts[tri.v1];
                     Vector4 v2 = verts[tri.v2];
                     Vector4 v3 = verts[tri.v3];
-                    Vector4 s1 = new Vector4(Vector3.Normalize((v1 + v2).XYZ()), v1.W);
-                    Vector4 s2 = new Vector4(Vector3.Normalize((v2 + v3).XYZ()), v1.W);
-                    Vector4 s3 = new Vector4(Vector3.Normalize((v3 + v1).XYZ()), v1.W);
+                    Vector4 s1 = new(Vector3.Normalize((v1 + v2).XYZ()), v1.W);
+                    Vector4 s2 = new(Vector3.Normalize((v2 + v3).XYZ()), v1.W);
+                    Vector4 s3 = new(Vector3.Normalize((v3 + v1).XYZ()), v1.W);
                     int i1, i2, i3;
                     if (!vdict.TryGetValue(s1, out i1))
                     {
@@ -204,7 +204,7 @@ namespace CodeWalker.Rendering
 
 
 
-            List<uint> idata = new List<uint>();
+            List<uint> idata = new();
             foreach (var tri in curtris)
             {
                 idata.Add((uint)tri.v1);

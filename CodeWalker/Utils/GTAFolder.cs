@@ -72,7 +72,7 @@ namespace CodeWalker
             var gen9 = IsGen9;
             string origFolder = CurrentGTAFolder;
             string folder = CurrentGTAFolder;
-            SelectFolderForm f = new SelectFolderForm();
+            SelectFolderForm f = new();
 
             if (autoDetect)
             {

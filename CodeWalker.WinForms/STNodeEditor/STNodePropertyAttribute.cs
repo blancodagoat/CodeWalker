@@ -165,7 +165,7 @@ namespace ST.Library.UI.NodeEditor
             var t = this.PropertyInfo.PropertyType;
             if (v == null) return null;
             if (t.IsArray) {
-                List<string> lst = new List<string>();
+                List<string> lst = new();
                 foreach (var item in (Array)v) lst.Add(item.ToString());
                 return string.Join(",", lst.ToArray());
             }

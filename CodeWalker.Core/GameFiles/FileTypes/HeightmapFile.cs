@@ -51,9 +51,9 @@ namespace CodeWalker.GameFiles
                 Endianess = Endianess.LittleEndian;
             }
 
-            using (MemoryStream ms = new MemoryStream(data))
+            using (MemoryStream ms = new(data))
             {
-                DataReader r = new DataReader(ms, Endianess);
+                DataReader r = new(ms, Endianess);
 
                 Read(r);
             }
@@ -64,8 +64,8 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MemoryStream s = new MemoryStream();
-            DataWriter w = new DataWriter(s, Endianess);
+            MemoryStream s = new();
+            DataWriter w = new(s, Endianess);
 
             Write(w);
 
@@ -316,7 +316,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(HeightmapFile hmf)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if ((hmf != null) && (hmf.MaxHeights != null))
@@ -342,14 +342,14 @@ namespace CodeWalker.GameFiles
 
         public static HeightmapFile GetHeightmap(string xml)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetHeightmap(doc);
         }
 
         public static HeightmapFile GetHeightmap(XmlDocument doc)
         {
-            HeightmapFile hmf = new HeightmapFile();
+            HeightmapFile hmf = new();
             hmf.ReadXml(doc.DocumentElement);
             return hmf;
         }

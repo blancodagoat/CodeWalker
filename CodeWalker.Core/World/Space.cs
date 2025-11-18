@@ -12,35 +12,35 @@ namespace CodeWalker.World
     public class Space
     {
 
-        public LinkedList<Entity> TemporaryEntities = new LinkedList<Entity>();
-        public LinkedList<Entity> PersistentEntities = new LinkedList<Entity>();
-        public List<Entity> EnabledEntities = new List<Entity>(); //built each frame
+        public LinkedList<Entity> TemporaryEntities = new();
+        public LinkedList<Entity> PersistentEntities = new();
+        public List<Entity> EnabledEntities = new(); //built each frame
 
         private GameFileCache GameFileCache = null;
 
         public SpaceMapDataStore MapDataStore;
         public SpaceBoundsStore BoundsStore;
 
-        private Dictionary<MetaHash, MetaHash> interiorLookup = new Dictionary<MetaHash, MetaHash>();
-        private Dictionary<MetaHash, YmfInterior> interiorManifest = new Dictionary<MetaHash, YmfInterior>();
-        private Dictionary<SpaceBoundsKey, CInteriorProxy> interiorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>();
-        private Dictionary<MetaHash, YmfMapDataGroup> dataGroupDict = new Dictionary<MetaHash, YmfMapDataGroup>();
-        private Dictionary<MetaHash, MapDataStoreNode> nodedict = new Dictionary<MetaHash, MapDataStoreNode>();
-        private Dictionary<SpaceBoundsKey, BoundsStoreItem> boundsdict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>();
-        private Dictionary<MetaHash, BoundsStoreItem> usedboundsdict = new Dictionary<MetaHash, BoundsStoreItem>();
+        private Dictionary<MetaHash, MetaHash> interiorLookup = new();
+        private Dictionary<MetaHash, YmfInterior> interiorManifest = new();
+        private Dictionary<SpaceBoundsKey, CInteriorProxy> interiorProxies = new();
+        private Dictionary<MetaHash, YmfMapDataGroup> dataGroupDict = new();
+        private Dictionary<MetaHash, MapDataStoreNode> nodedict = new();
+        private Dictionary<SpaceBoundsKey, BoundsStoreItem> boundsdict = new();
+        private Dictionary<MetaHash, BoundsStoreItem> usedboundsdict = new();
 
-        private Dictionary<MetaHash, uint> ymaptimes = new Dictionary<MetaHash, uint>();
-        private Dictionary<MetaHash, MetaHash[]> ymapweathertypes = new Dictionary<MetaHash, MetaHash[]>();
+        private Dictionary<MetaHash, uint> ymaptimes = new();
+        private Dictionary<MetaHash, MetaHash[]> ymapweathertypes = new();
 
         public bool Inited = false;
 
 
         public SpaceNodeGrid NodeGrid;
-        private Dictionary<uint, YndFile> AllYnds = new Dictionary<uint, YndFile>();
+        private Dictionary<uint, YndFile> AllYnds = new();
 
         public SpaceNavGrid NavGrid;
 
-        public List<SpaceEntityCollision> Collisions = new List<SpaceEntityCollision>();
+        public List<SpaceEntityCollision> Collisions = new();
         private bool[] CollisionLayers = new[] { true, false, false };
 
         private int CurrentHour;
@@ -399,7 +399,7 @@ namespace CodeWalker.World
             AllYnds.Clear();
 
             var rpfman = GameFileCache.RpfMan;
-            Dictionary<uint, RpfFileEntry> yndentries = new Dictionary<uint, RpfFileEntry>();
+            Dictionary<uint, RpfFileEntry> yndentries = new();
             foreach (var rpffile in GameFileCache.BaseRpfs) //load nodes from base rpfs
             {
                 AddRpfYnds(rpffile, yndentries);
@@ -425,8 +425,8 @@ namespace CodeWalker.World
             }
 
 
-            Vector3 corner = new Vector3(-8192, -8192, -2048);
-            Vector3 cellsize = new Vector3(512, 512, 4096);
+            Vector3 corner = new(-8192, -8192, -2048);
+            Vector3 cellsize = new(512, 512, 4096);
 
             for (int x = 0; x < NodeGrid.CellCountX; x++)
             {
@@ -529,10 +529,10 @@ namespace CodeWalker.World
             }
 
             //join the dots....
-            //StringBuilder sb = new StringBuilder();
-            List<EditorVertex> tverts = new List<EditorVertex>();
-            List<YndLink> tlinks = new List<YndLink>();
-            List<YndLink> nlinks = new List<YndLink>();
+            //StringBuilder sb = new();
+            List<EditorVertex> tverts = new();
+            List<YndLink> tlinks = new();
+            List<YndLink> nlinks = new();
             foreach (var ynd in AllYnds.Values)
             {
                 BuildYndData(ynd, tverts, tlinks, nlinks);
@@ -604,7 +604,7 @@ namespace CodeWalker.World
                         { /*continue;*/ } //non-adjacent cell? seems to be the carrier problem...
                     }
 
-                    YndLink yl = new YndLink();
+                    YndLink yl = new();
                     yl.Init(ynd, node, tnode, link);
                     tlinks.Add(yl);
                     nlinks.Add(yl);
@@ -769,7 +769,7 @@ namespace CodeWalker.World
 
         public HashSet<YndFile> GetYndFilesThatDependOnYndFile(YndFile file)
         {
-            HashSet<YndFile> result = new HashSet<YndFile>();
+            HashSet<YndFile> result = new();
             int targetAreaID = file.AreaID; // Cache to avoid repeated property access
 
             foreach (var ynd in AllYnds.Values)
@@ -885,7 +885,7 @@ namespace CodeWalker.World
             NavGrid = new SpaceNavGrid();
 
             var rpfman = GameFileCache.RpfMan;
-            Dictionary<uint, RpfFileEntry> ynventries = new Dictionary<uint, RpfFileEntry>();
+            Dictionary<uint, RpfFileEntry> ynventries = new();
             foreach (var rpffile in GameFileCache.BaseRpfs) //load navmeshes from base rpfs
             {
                 AddRpfYnvs(rpffile, ynventries);
@@ -967,7 +967,7 @@ namespace CodeWalker.World
 
 
             float gravamt = -9.8f;
-            Vector3 dvgrav = new Vector3(0, 0, gravamt * elapsed); //gravity acceleration vector
+            Vector3 dvgrav = new(0, 0, gravamt * elapsed); //gravity acceleration vector
             dvgrav += (0.5f * dvgrav * elapsed); //v = ut+0.5at^2 !
             float minvel = 0.5f; // stop bouncing when slow...
 
@@ -1073,7 +1073,7 @@ namespace CodeWalker.World
 
         public SpaceEntityCollision FindFirstCollision(Entity e, float elapsed)
         {
-            SpaceEntityCollision r = new SpaceEntityCollision();
+            SpaceEntityCollision r = new();
             r.Entity = e;
 
             Vector3 pos = e.Position;
@@ -1088,7 +1088,7 @@ namespace CodeWalker.World
             r.PreT = 0.0f;
             r.PrePos = pos;
 
-            BoundingSphere sph = new BoundingSphere(r.HitPos + e.Center, e.Radius);
+            BoundingSphere sph = new(r.HitPos + e.Center, e.Radius);
 
             r.SphereHit = SphereIntersect(sph, CollisionLayers);
 
@@ -1096,7 +1096,7 @@ namespace CodeWalker.World
             {
                 if (absdisp > e.Radius) //fast-moving... do a ray test to make sure it's not tunnelling
                 {
-                    Ray rayt = new Ray(sphpos, r.HitVelDir);
+                    Ray rayt = new(sphpos, r.HitVelDir);
                     float rayl = absdisp + e.Radius * 4.0f; //include some extra incase of glancing hit
                     var rayhit = RayIntersect(rayt, rayl);
                     if (rayhit.Hit) //looks like it is tunnelling... need to find the sphere hit point
@@ -1182,7 +1182,7 @@ namespace CodeWalker.World
 
         private bool IsYmapAvailable(uint ymaphash, int hour, MetaHash weather)
         {
-            MetaHash ymapname = new MetaHash(ymaphash);
+            MetaHash ymapname = new(ymaphash);
             uint ymaptime;
             MetaHash[] weathers;
             if ((hour >= 0) && (hour <= 23))
@@ -1840,7 +1840,7 @@ namespace CodeWalker.World
         public SpaceMapDataStoreNode RootNode;
         public int SplitThreshold = 10;
 
-        public List<MapDataStoreNode> VisibleItems = new List<MapDataStoreNode>();
+        public List<MapDataStoreNode> VisibleItems = new();
 
         public void Init(List<MapDataStoreNode> rootnodes)
         {
@@ -1892,8 +1892,8 @@ namespace CodeWalker.World
         public SpaceMapDataStore Owner = null;
         public SpaceMapDataStoreNode[] Children = null;
         public List<MapDataStoreNode> Items = null;
-        public Vector3 BBMin = new Vector3(float.MaxValue);
-        public Vector3 BBMax = new Vector3(float.MinValue);
+        public Vector3 BBMin = new(float.MaxValue);
+        public Vector3 BBMax = new(float.MinValue);
         public int Depth = 0;
 
         public void Add(MapDataStoreNode item)
@@ -2059,7 +2059,7 @@ namespace CodeWalker.World
         public SpaceBoundsStoreNode RootNode;
         public int SplitThreshold = 10;
 
-        public List<BoundsStoreItem> VisibleItems = new List<BoundsStoreItem>();
+        public List<BoundsStoreItem> VisibleItems = new();
 
         public void Init(List<BoundsStoreItem> items)
         {
@@ -2100,8 +2100,8 @@ namespace CodeWalker.World
         public SpaceBoundsStore Owner = null;
         public SpaceBoundsStoreNode[] Children = null;
         public List<BoundsStoreItem> Items = null;
-        public Vector3 BBMin = new Vector3(float.MaxValue);
-        public Vector3 BBMax = new Vector3(float.MinValue);
+        public Vector3 BBMin = new(float.MaxValue);
+        public Vector3 BBMax = new(float.MinValue);
         public int Depth = 0;
 
         public void Add(BoundsStoreItem item)
@@ -2412,7 +2412,7 @@ namespace CodeWalker.World
 
         public Vector3 GetCellMin(SpaceNavGridCell cell)
         {
-            Vector3 c = new Vector3(cell.X, cell.Y, 0);
+            Vector3 c = new(cell.X, cell.Y, 0);
             return new Vector3(CornerX, CornerY, 0) + (c * CellSize);
         }
         public Vector3 GetCellMax(SpaceNavGridCell cell)

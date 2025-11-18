@@ -34,7 +34,7 @@ namespace CodeWalker.GameFiles
 
 
             //can be PSO .ymt or XML .meta
-            MemoryStream ms = new MemoryStream(data);
+            MemoryStream ms = new(data);
             if (PsoFile.IsPSO(ms))
             {
                 Pso = new PsoFile();
@@ -46,7 +46,7 @@ namespace CodeWalker.GameFiles
                 Xml = TextUtil.GetUTF8Text(data);
             }
 
-            XmlDocument xdoc = new XmlDocument();
+            XmlDocument xdoc = new();
             if (!string.IsNullOrEmpty(Xml))
             {
                 try

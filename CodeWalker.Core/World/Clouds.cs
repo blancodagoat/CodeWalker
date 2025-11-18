@@ -17,7 +17,7 @@ namespace CodeWalker.World
         public Weather Weather;
         public Timecycle Timecycle;
         public Dictionary<string, CloudAnimSetting> AnimSettings { get; set; }
-        public CloudAnimOverrides AnimOverrides = new CloudAnimOverrides();
+        public CloudAnimOverrides AnimOverrides = new();
 
         public CloudHatManager HatManager;
         public CloudSettingsMap SettingsMap;
@@ -117,14 +117,14 @@ namespace CodeWalker.World
 
         public void Init(XmlElement xml)
         {
-            List<CloudHatFrag> fraglist = new List<CloudHatFrag>();
+            List<CloudHatFrag> fraglist = new();
             XmlNodeList frags = xml.SelectNodes("mCloudHatFrags/Item");
             foreach (XmlNode node in frags)
             {
                 XmlElement fragel = node as XmlElement;
                 if (fragel != null)
                 {
-                    CloudHatFrag frag = new CloudHatFrag();
+                    CloudHatFrag frag = new();
                     frag.Init(fragel);
                     fraglist.Add(frag);
                 }
@@ -175,14 +175,14 @@ namespace CodeWalker.World
             Scale = Xml.GetChildVector3Attributes(xml, "mScale");
             Name = Xml.GetChildInnerText(xml, "mName");
 
-            List<CloudHatFragLayer> layerlist = new List<CloudHatFragLayer>();
+            List<CloudHatFragLayer> layerlist = new();
             XmlNodeList layersxml = xml.SelectNodes("mLayers/Item");
             foreach (XmlNode node in layersxml)
             {
                 XmlElement layerel = node as XmlElement;
                 if (layerel != null)
                 {
-                    CloudHatFragLayer layer = new CloudHatFragLayer();
+                    CloudHatFragLayer layer = new();
                     layer.Init(layerel);
                     layerlist.Add(layer);
                 }
@@ -301,7 +301,7 @@ namespace CodeWalker.World
                 XmlElement itemel = node as XmlElement;
                 if (itemel != null)
                 {
-                    CloudSettingsMapItem item = new CloudSettingsMapItem();
+                    CloudSettingsMapItem item = new();
                     item.Init(itemel);
                     SettingsMap[item.Name] = item;
                 }

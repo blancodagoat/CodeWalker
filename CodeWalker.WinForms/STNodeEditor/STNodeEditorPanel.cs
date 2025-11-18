@@ -126,7 +126,7 @@ namespace ST.Library.UI.NodeEditor
         private Pen m_pen;
 
         private bool m_nInited;
-        private Dictionary<ConnectionStatus, string> m_dic_status_key = new Dictionary<ConnectionStatus, string>();
+        private Dictionary<ConnectionStatus, string> m_dic_status_key = new();
 
         private STNodeEditor m_editor;
         private STNodeTreeView m_tree;

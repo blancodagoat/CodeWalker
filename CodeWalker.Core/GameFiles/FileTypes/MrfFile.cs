@@ -53,9 +53,9 @@ namespace CodeWalker.GameFiles
                 Name = entry.Name;
             }
 
-            using (MemoryStream ms = new MemoryStream(data))
+            using (MemoryStream ms = new(data))
             {
-                DataReader r = new DataReader(ms, Endianess.LittleEndian);
+                DataReader r = new(ms, Endianess.LittleEndian);
 
                 Read(r);
             };
@@ -63,9 +63,9 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MemoryStream s = new MemoryStream();
-            DataWriter w = new DataWriter(s);
-            NoOpDataWriter nw = new NoOpDataWriter();
+            MemoryStream s = new();
+            DataWriter w = new(s);
+            NoOpDataWriter nw = new();
 
             Write(nw, updateOffsets: true); // first pass to calculate relative offsets
             DataLength = (uint)(nw.Length - 32 - (Unk1_Items?.Sum(i => i.Size) ?? 0) - UnkBytesCount);
@@ -5353,7 +5353,7 @@ namespace CodeWalker.GameFiles
     {
         public static string GetXml(MrfFile mrf)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if (mrf != null)
@@ -5456,14 +5456,14 @@ namespace CodeWalker.GameFiles
     {
         public static MrfFile GetMrf(string xml)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetMrf(doc);
         }
 
         public static MrfFile GetMrf(XmlDocument doc)
         {
-            MrfFile mrf = new MrfFile();
+            MrfFile mrf = new();
             mrf.ReadXml(doc.DocumentElement);
             return mrf;
         }

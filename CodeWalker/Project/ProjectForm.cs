@@ -101,17 +101,17 @@ namespace CodeWalker.Project
         private object projectsyncroot = new object();
         public object ProjectSyncRoot { get { return projectsyncroot; } }
 
-        private Dictionary<string, YbnFile> visibleybns = new Dictionary<string, YbnFile>();
-        private Dictionary<int, YndFile> visibleynds = new Dictionary<int, YndFile>();
-        private Dictionary<int, YnvFile> visibleynvs = new Dictionary<int, YnvFile>();
-        private Dictionary<string, TrainTrack> visibletrains = new Dictionary<string, TrainTrack>();
-        private Dictionary<string, YmtFile> visiblescenarios = new Dictionary<string, YmtFile>();
-        private Dictionary<uint, YmapEntityDef> visiblemloentities = new Dictionary<uint, YmapEntityDef>();
-        private Dictionary<uint, RelFile> visibleaudiofiles = new Dictionary<uint, RelFile>();
+        private Dictionary<string, YbnFile> visibleybns = new();
+        private Dictionary<int, YndFile> visibleynds = new();
+        private Dictionary<int, YnvFile> visibleynvs = new();
+        private Dictionary<string, TrainTrack> visibletrains = new();
+        private Dictionary<string, YmtFile> visiblescenarios = new();
+        private Dictionary<uint, YmapEntityDef> visiblemloentities = new();
+        private Dictionary<uint, RelFile> visibleaudiofiles = new();
 
-        private Dictionary<uint, YbnFile> projectybns = new Dictionary<uint, YbnFile>();//used for handling interior ybns
+        private Dictionary<uint, YbnFile> projectybns = new();//used for handling interior ybns
 
-        private List<YmapEntityDef> interiorslist = new List<YmapEntityDef>(); //used for handling interiors ybns
+        private List<YmapEntityDef> interiorslist = new(); //used for handling interiors ybns
 
         private bool ShowProjectItemInProcess = false;
         private bool WorldSelectionChangeInProcess = false;
@@ -2115,7 +2115,7 @@ namespace CodeWalker.Project
             Vector3 pos = cp ? copy.Position : GetSpawnPos(spawndist);
 
 
-            CEntityDef cent = new CEntityDef();
+            CEntityDef cent = new();
 
             if (copy != null)
             {
@@ -2140,7 +2140,7 @@ namespace CodeWalker.Project
             cent.position = pos;
 
 
-            YmapEntityDef ent = new YmapEntityDef(CurrentYmapFile, 0, ref cent);
+            YmapEntityDef ent = new(CurrentYmapFile, 0, ref cent);
 
             ent.SetArchetype(GameFileCache.GetArchetype(cent.archetypeName));
 
@@ -2483,8 +2483,8 @@ namespace CodeWalker.Project
                         var gb = ymap.GrassInstanceBatches[i];
                         if (!batchFilter(gb)) continue;
 
-                        BoundingBox bbox = new BoundingBox();
-                        MapBox mb = new MapBox();
+                        BoundingBox bbox = new();
+                        MapBox mb = new();
                         mb.BBMin = gb.AABBMin;
                         mb.BBMax = gb.AABBMax;
                         mb.Orientation = Quaternion.Identity;
@@ -2515,7 +2515,7 @@ namespace CodeWalker.Project
 
             Vector3 pos = GetSpawnPos(10.0f);
 
-            CCarGen ccg = new CCarGen();
+            CCarGen ccg = new();
 
             if (copy != null)
             {
@@ -2539,7 +2539,7 @@ namespace CodeWalker.Project
             }
 
 
-            YmapCarGen cg = new YmapCarGen(CurrentYmapFile, ccg);
+            YmapCarGen cg = new(CurrentYmapFile, ccg);
 
             if (WorldForm != null)
             {
@@ -2636,7 +2636,7 @@ namespace CodeWalker.Project
 
             Vector3 pos = GetSpawnPos(10.0f);
 
-            YmapLODLight yll = new YmapLODLight();
+            YmapLODLight yll = new();
 
             if (copy != null)
             {
@@ -3148,7 +3148,7 @@ namespace CodeWalker.Project
 
             var finf = new FileInfo(xmlpath);
 
-            MenyooXml menyooXml = new MenyooXml();
+            MenyooXml menyooXml = new();
             menyooXml.FilePath = xmlpath;
             menyooXml.FileName = finf.Name;
             menyooXml.Name = Path.GetFileNameWithoutExtension(finf.Name);
@@ -3185,7 +3185,7 @@ namespace CodeWalker.Project
                 }
                 else if (placement.Type == 2)
                 {
-                    CCarGen ccg = new CCarGen();
+                    CCarGen ccg = new();
                     var rotq = Quaternion.Invert(new Quaternion(placement.Rotation));
                     Vector3 cdir = rotq.Multiply(new Vector3(0, 5, 0));
                     ccg.flags = 3680;
@@ -3204,7 +3204,7 @@ namespace CodeWalker.Project
                         ccg.livery = livery;
                     }
 
-                    YmapCarGen cg = new YmapCarGen(CurrentYmapFile, ccg);
+                    YmapCarGen cg = new(CurrentYmapFile, ccg);
 
                     if (WorldForm != null)
                     {
@@ -3222,7 +3222,7 @@ namespace CodeWalker.Project
                 }
                 else if (placement.Type == 3) //standard entity
                 {
-                    CEntityDef cent = new CEntityDef();
+                    CEntityDef cent = new();
                     cent.archetypeName = placement.ModelHash;
                     cent.position = placement.Position;
                     cent.rotation = placement.Rotation;
@@ -3240,7 +3240,7 @@ namespace CodeWalker.Project
                         cent.tintValue = tint;
                     }
 
-                    YmapEntityDef ent = new YmapEntityDef(CurrentYmapFile, 0, ref cent);
+                    YmapEntityDef ent = new(CurrentYmapFile, 0, ref cent);
 
                     ent.SetArchetype(GameFileCache.GetArchetype(cent.archetypeName));
 
@@ -3461,7 +3461,7 @@ namespace CodeWalker.Project
             foreach (var file in files)
             {
                 archetype = CurrentYtypFile.AddArchetype();
-                YdrFile ydr = new YdrFile();
+                YdrFile ydr = new();
                 RpfFile.LoadResourceFile(ydr, File.ReadAllBytes(file), 165);
                 var name = Path.GetFileNameWithoutExtension(file);
                 var hash = JenkHash.GenHash(name);
@@ -3561,7 +3561,7 @@ namespace CodeWalker.Project
             Quaternion rot = cp ? copy.CEntityDef.rotation.ToQuaternion() : Quaternion.Identity;
 
 
-            CEntityDef cent = new CEntityDef();
+            CEntityDef cent = new();
 
             if (copy != null)
             {
@@ -5569,7 +5569,7 @@ namespace CodeWalker.Project
             var copye = CurrentScenarioChainEdge;
             var copycl = CurrentScenarioNode?.Cluster;
 
-            MCScenarioChain chain = new MCScenarioChain();
+            MCScenarioChain chain = new();
             chain.Unk1 = 1; //default value
             if (copy != null)
             {
@@ -5588,7 +5588,7 @@ namespace CodeWalker.Project
 
             if (copycl != null)
             {
-                ScenarioNode copyclnode = new ScenarioNode(CurrentScenario);
+                ScenarioNode copyclnode = new(CurrentScenario);
                 copyclnode.Cluster = copycl;
                 copyclnode.ClusterMyPoint = new MCScenarioPoint(CurrentScenario.CScenarioPointRegion);
                 copyclnode.ClusterMyPoint.InteriorName = 493038497; //JenkHash.GenHash("none");
@@ -5691,8 +5691,8 @@ namespace CodeWalker.Project
             var copy = CurrentScenarioNode?.Cluster;
 
 
-            MCScenarioPointCluster cluster = new MCScenarioPointCluster(rgn, copy);
-            List<MCScenarioPoint> clusterpoints = new List<MCScenarioPoint>();
+            MCScenarioPointCluster cluster = new(rgn, copy);
+            List<MCScenarioPoint> clusterpoints = new();
 
             if (copy != null)
             {
@@ -5821,8 +5821,8 @@ namespace CodeWalker.Project
             var copy = CurrentScenarioNode?.Entity;
 
 
-            MCScenarioEntityOverride entity = new MCScenarioEntityOverride(rgn, copy);
-            List<MCExtensionDefSpawnPoint> entpoints = new List<MCExtensionDefSpawnPoint>();
+            MCScenarioEntityOverride entity = new(rgn, copy);
+            List<MCExtensionDefSpawnPoint> entpoints = new();
 
             if (copy != null)
             {
@@ -6111,7 +6111,7 @@ namespace CodeWalker.Project
             var rgn = CurrentScenario.ScenarioRegion;
             if (rgn == null) return;
 
-            TextInputForm f = new TextInputForm();
+            TextInputForm f = new();
             f.TitleText = "Import scenario chain points";
             f.PromptText = "Input chain points in CSV (or TSV) format. Direction is in radians. NavSpeed is from 0 to 15. NavMode can be either Direct, NavMesh, or Roads. ScenarioType is the name of the scenario type to use.";
             f.MainText = "X, Y, Z, Direction, NavSpeed, NavMode, ScenarioType, ModelSet, Flags";
@@ -6142,7 +6142,7 @@ namespace CodeWalker.Project
 
 
 
-            MCScenarioChain chain = new MCScenarioChain();
+            MCScenarioChain chain = new();
 
             paths.AddChain(chain);
 
@@ -8784,7 +8784,7 @@ namespace CodeWalker.Project
 
             if (WorldForm != null)
             {
-                HashSet<YndFile> updatedFiles = new HashSet<YndFile>();
+                HashSet<YndFile> updatedFiles = new();
                 Dictionary<YndFile, List<YndFile>> dependencyCache = new Dictionary<YndFile, List<YndFile>>();
 
                 foreach (var file in CurrentProjectFile.YndFiles)

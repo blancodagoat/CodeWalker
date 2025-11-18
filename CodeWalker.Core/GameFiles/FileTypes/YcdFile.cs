@@ -226,7 +226,7 @@ namespace CodeWalker.GameFiles
                                 return $"					{q[index]}\r\n";
                             }
 
-                            StringBuilder db = new StringBuilder();
+                            StringBuilder db = new();
                             for (int f = 0; f < seq.NumFrames; f++)
                             {
                                 db.AppendLine($"					{seq.Sequences[i].EvaluateQuaternionType7(f)[index]}");
@@ -245,7 +245,7 @@ namespace CodeWalker.GameFiles
                                 return $"					{q3.Value[0]} {q3.Value[1]} {q3.Value[2]} {q3.Value[3]}\r\n";
                             default:
                                 {
-                                    StringBuilder db = new StringBuilder();
+                                    StringBuilder db = new();
                                     for (int f = 0; f < seq.NumFrames; f++)
                                     {
                                         db.AppendLine($"					{chan.EvaluateFloat(f)}");
@@ -311,7 +311,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YcdFile ycd)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if ((ycd != null) && (ycd.ClipDictionary != null))
@@ -335,14 +335,14 @@ namespace CodeWalker.GameFiles
 
         public static YcdFile GetYcd(string xml)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetYcd(doc);
         }
 
         public static YcdFile GetYcd(XmlDocument doc)
         {
-            YcdFile ycd = new YcdFile();
+            YcdFile ycd = new();
             ycd.ClipDictionary = new ClipDictionary();
             ycd.ClipDictionary.ReadXml(doc.DocumentElement);
             ycd.InitDictionaries();

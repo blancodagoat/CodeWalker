@@ -26,7 +26,7 @@ namespace CodeWalker.Rendering
         DepthStencilState DepthRenderDS;
         ViewportF DepthRenderVP;
         GpuVarsBuffer<ShadowmapVars> ShadowVars;
-        RenderTargetSwitch RTS = new RenderTargetSwitch();
+        RenderTargetSwitch RTS = new();
         public List<ShadowmapCascade> Cascades;
         Matrix SceneCamView;
         Matrix LightView;
@@ -77,7 +77,7 @@ namespace CodeWalker.Rendering
             Cascades = new List<ShadowmapCascade>(CascadeCount);
             for (int i = 0; i < CascadeCount; i++)
             {
-                ShadowmapCascade c = new ShadowmapCascade();
+                ShadowmapCascade c = new();
                 c.Owner = this;
                 c.Index = i;
                 c.ZNear = 0.0f;
@@ -177,10 +177,10 @@ namespace CodeWalker.Rendering
 
 
             //the items passed in here are visible items. need to compute the scene bounds from these.
-            Vector4 vFLTMAX = new Vector4(float.MaxValue);
-            Vector4 vFLTMIN = new Vector4(float.MinValue);
-            Vector3 vHMAX = new Vector3(float.MaxValue);
-            Vector3 vHMIN = new Vector3(float.MinValue);
+            Vector4 vFLTMAX = new(float.MaxValue);
+            Vector4 vFLTMIN = new(float.MinValue);
+            Vector3 vHMAX = new(float.MaxValue);
+            Vector3 vHMIN = new(float.MinValue);
             WorldMin = vHMAX;
             WorldMax = vHMIN;
             for (int i = 0; i < items.Count; i++)
@@ -202,7 +202,7 @@ namespace CodeWalker.Rendering
             SceneCamView = Matrix.Multiply(sceneCamTrans, view);
             Matrix camViewInv = Matrix.Invert(SceneCamView);
 
-            Vector3 lightUp = new Vector3(0.0f, 1.0f, 0.0f); //BUG: should select this depending on light dir!?
+            Vector3 lightUp = new(0.0f, 1.0f, 0.0f); //BUG: should select this depending on light dir!?
             LightView = Matrix.LookAtLH(lightDir, Vector3.Zero, lightUp); //BUG?: pos/lightdir wrong way around??
             LightDirection = lightDir;
 
@@ -498,13 +498,13 @@ namespace CodeWalker.Rendering
             vViewFrust.Near = -fCascadeIntervalBegin; //negative due to negative aspect ratio projection matrix..
             vViewFrust.Far = -fCascadeIntervalEnd;
 
-            Vector3 vGrabY = new Vector3(0.0f, 1.0f, 0.0f);
-            Vector3 vGrabX = new Vector3(1.0f, 0.0f, 0.0f);
+            Vector3 vGrabY = new(0.0f, 1.0f, 0.0f);
+            Vector3 vGrabX = new(1.0f, 0.0f, 0.0f);
 
-            Vector3 vRightTop = new Vector3(vViewFrust.RightSlope, vViewFrust.TopSlope, 1.0f);
-            Vector3 vLeftBottom = new Vector3(vViewFrust.LeftSlope, vViewFrust.BottomSlope, 1.0f);
-            Vector3 vNear = new Vector3(vViewFrust.Near, vViewFrust.Near, vViewFrust.Near);
-            Vector3 vFar = new Vector3(vViewFrust.Far, vViewFrust.Far, vViewFrust.Far);
+            Vector3 vRightTop = new(vViewFrust.RightSlope, vViewFrust.TopSlope, 1.0f);
+            Vector3 vLeftBottom = new(vViewFrust.LeftSlope, vViewFrust.BottomSlope, 1.0f);
+            Vector3 vNear = new(vViewFrust.Near, vViewFrust.Near, vViewFrust.Near);
+            Vector3 vFar = new(vViewFrust.Far, vViewFrust.Far, vViewFrust.Far);
             Vector3 vRightTopNear = vRightTop * vNear;
             Vector3 vRightTopFar = vRightTop * vFar;
             Vector3 vLeftBottomNear = vLeftBottom * vNear;

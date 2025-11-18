@@ -328,7 +328,7 @@ namespace CodeWalker.World
                 byte[] pixels = DDSIO.GetPixels(tex, cmip);
                 int w = tex.Width >> cmip;
                 int h = tex.Height >> cmip;
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new(w, h, PixelFormat.Format32bppArgb);
 
                 if (pixels != null)
                 {

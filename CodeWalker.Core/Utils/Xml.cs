@@ -225,7 +225,7 @@ namespace CodeWalker
 
         public static byte[] GetRawByteArray(XmlNode node, int fromBase = 16)
         {
-            if (node == null) return new byte[0];
+            if (node == null) return [];
             var data = new List<byte>();
             var split = Regex.Split(node.InnerText, @"[\s\r\n\t]");
             for (int i = 0; i < split.Length; i++)
@@ -254,7 +254,7 @@ namespace CodeWalker
 
         public static ushort[] GetRawUshortArray(XmlNode node)
         {
-            if (node == null) return new ushort[0];
+            if (node == null) return [];
             var data = new List<ushort>();
             var split = Regex.Split(node.InnerText, @"[\s\r\n\t]");
             for (int i = 0; i < split.Length; i++)
@@ -284,7 +284,7 @@ namespace CodeWalker
 
         public static uint[] GetRawUintArray(XmlNode node)
         {
-            if (node == null) return new uint[0];
+            if (node == null) return [];
             var data = new List<uint>();
             var split = Regex.Split(node.InnerText, @"[\s\r\n\t]");
             for (int i = 0; i < split.Length; i++)
@@ -314,7 +314,7 @@ namespace CodeWalker
 
         public static int[] GetRawIntArray(XmlNode node)
         {
-            if (node == null) return new int[0];
+            if (node == null) return [];
             var data = new List<int>();
             var split = Regex.Split(node.InnerText, @"[\s\r\n\t]");
             for (int i = 0; i < split.Length; i++)
@@ -344,7 +344,7 @@ namespace CodeWalker
 
         public static float[] GetRawFloatArray(XmlNode node)
         {
-            if (node == null) return new float[0];
+            if (node == null) return [];
             var items = new List<float>();
             var split = Regex.Split(node.InnerText, @"[\s\r\n\t]");//node.InnerText.Split('\n');// 
             for (int i = 0; i < split.Length; i++)
@@ -370,7 +370,7 @@ namespace CodeWalker
 
         public static Vector2[] GetRawVector2Array(XmlNode node)
         {
-            if (node == null) return new Vector2[0];
+            if (node == null) return [];
             float x = 0f;
             float y = 0f;
             var items = new List<Vector2>();
@@ -412,7 +412,7 @@ namespace CodeWalker
 
         public static Vector3[] GetRawVector3Array(XmlNode node)
         {
-            if (node == null) return new Vector3[0];
+            if (node == null) return [];
             float x = 0f;
             float y = 0f;
             float z = 0f;
@@ -461,7 +461,7 @@ namespace CodeWalker
 
         public static Vector4[] GetRawVector4Array(XmlNode node)
         {
-            if (node == null) return new Vector4[0];
+            if (node == null) return [];
             float x = 0f;
             float y = 0f;
             float z = 0f;

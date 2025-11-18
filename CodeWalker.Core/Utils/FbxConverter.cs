@@ -24,7 +24,7 @@ namespace CodeWalker
             var dwbl = TryConvertDrawable(fdoc, name);
 
 
-            YdrFile ydr = new YdrFile();
+            YdrFile ydr = new();
             ydr.Drawable = dwbl;
             ydr.Name = name;
 
@@ -968,7 +968,7 @@ namespace CodeWalker
         }
         private int GetColourInt(Vector4 c)
         {
-            Color v = new Color(c);
+            Color v = new(c);
             return v.ToRgba();
         }
 

@@ -119,7 +119,7 @@ namespace CodeWalker.Utils
             };
             
 
-            ImagingFactory wicf = new ImagingFactory();
+            ImagingFactory wicf = new();
 
             var b = new SharpDX.WIC.Bitmap(wicf, w, h, SharpDX.WIC.PixelFormat.Format32bppBGRA, dataRectangle);
 
@@ -150,7 +150,7 @@ namespace CodeWalker.Utils
 
 
 
-            //Palette pal = new Palette(wf);
+            //Palette pal = new(wf);
             //b.CopyPalette(pal);
 
             //byte[] pixels = new byte[w * h * 4];

@@ -112,9 +112,9 @@ namespace CodeWalker.GameFiles
                 Name = entry.Name;
             }
 
-            MemoryStream ms = new MemoryStream(data);
-            BinaryReader br = new BinaryReader(ms);
-            StringBuilder sb = new StringBuilder();
+            MemoryStream ms = new(data);
+            BinaryReader br = new(ms);
+            StringBuilder sb = new();
 
             RelType = (RelDatFileType)br.ReadUInt32(); //type
 
@@ -170,7 +170,7 @@ namespace CodeWalker.GameFiles
                             char c = (char)br.ReadByte();
                             if (c != 0) sb.Append(c);
                         }
-                        RelIndexString ristr = new RelIndexString();
+                        RelIndexString ristr = new();
                         ristr.Name = sb.ToString();
                         ristr.Offset = br.ReadUInt32();
                         ristr.Length = br.ReadUInt32();
@@ -184,7 +184,7 @@ namespace CodeWalker.GameFiles
                     RelIndexHash[] indexhashes = new RelIndexHash[IndexCount];
                     for (uint i = 0; i < IndexCount; i++)
                     {
-                        RelIndexHash rihash = new RelIndexHash();
+                        RelIndexHash rihash = new();
                         rihash.Name = new MetaHash(br.ReadUInt32());
                         rihash.Offset = br.ReadUInt32();
                         rihash.Length = br.ReadUInt32();
@@ -253,8 +253,8 @@ namespace CodeWalker.GameFiles
 
 
 
-            MemoryStream ms = new MemoryStream(DataBlock);
-            BinaryReader br = new BinaryReader(ms);
+            MemoryStream ms = new(DataBlock);
+            BinaryReader br = new(ms);
 
             DataUnkVal = br.ReadUInt32(); //3 bytes used... for? ..version? flags?
             #region DataUnkVal unk values test
@@ -294,7 +294,7 @@ namespace CodeWalker.GameFiles
             #endregion
 
 
-            List<RelData> reldatas = new List<RelData>();
+            List<RelData> reldatas = new();
             if (IndexHashes != null)
             {
                 foreach (var indexhash in IndexHashes)
@@ -449,7 +449,7 @@ namespace CodeWalker.GameFiles
             byte[] data = br.ReadBytes((int)length);
 
 
-            RelData d = new RelData(this); //use this base object to construct the derived one...
+            RelData d = new(this); //use this base object to construct the derived one...
             d.Name = name;
             d.NameHash = hash;
             d.DataOffset = offset;
@@ -457,7 +457,7 @@ namespace CodeWalker.GameFiles
             d.Data = data;
 
 
-            using (BinaryReader dbr = new BinaryReader(new MemoryStream(data)))
+            using (BinaryReader dbr = new(new MemoryStream(data)))
             {
                 d.ReadType(dbr);
 
@@ -1042,8 +1042,8 @@ namespace CodeWalker.GameFiles
 
 
 
-            MemoryStream ms = new MemoryStream();
-            BinaryWriter bw = new BinaryWriter(ms);
+            MemoryStream ms = new();
+            BinaryWriter bw = new(ms);
 
             bw.Write(DataUnkVal);
 
@@ -1483,8 +1483,8 @@ namespace CodeWalker.GameFiles
 
             //write the file data.
 
-            MemoryStream ms = new MemoryStream();
-            BinaryWriter bw = new BinaryWriter(ms);
+            MemoryStream ms = new();
+            BinaryWriter bw = new(ms);
 
 
             bw.Write((uint)RelType);
@@ -25940,7 +25940,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(RelFile rel)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if ((rel != null) && (rel.RelDatasSorted != null))
@@ -26086,7 +26086,7 @@ namespace CodeWalker.GameFiles
 
         public static RelFile GetRel(string xml)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetRel(doc);
         }
@@ -26106,7 +26106,7 @@ namespace CodeWalker.GameFiles
                     break;// return null; //TODO
             }
 
-            RelFile rel = new RelFile();
+            RelFile rel = new();
             rel.RelType = reltype;
             rel.DataUnkVal = Xml.GetChildUIntAttribute(node, "Version", "value");
             rel.IsAudioConfig = Xml.GetChildBoolAttribute(node, "IsAudioConfig", "value");

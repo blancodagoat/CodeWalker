@@ -40,7 +40,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             if (rd.IsGen9)
             {
@@ -105,7 +105,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YftFile yft, string outputFolder = "")
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if (yft?.Fragment != null)
@@ -123,14 +123,14 @@ namespace CodeWalker.GameFiles
 
         public static YftFile GetYft(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetYft(doc, inputFolder);
         }
 
         public static YftFile GetYft(XmlDocument doc, string inputFolder = "")
         {
-            YftFile r = new YftFile();
+            YftFile r = new();
 
             var ddsfolder = inputFolder;
 

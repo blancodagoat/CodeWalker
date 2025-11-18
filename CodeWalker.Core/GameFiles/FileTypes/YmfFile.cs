@@ -30,7 +30,7 @@ namespace CodeWalker.GameFiles
             RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
             if (resentry == null)
             {
-                MemoryStream ms = new MemoryStream(data);
+                MemoryStream ms = new(data);
                 if (RbfFile.IsRBF(ms))
                 {
                     Rbf = new RbfFile();
@@ -67,7 +67,7 @@ namespace CodeWalker.GameFiles
 
 
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             Meta = rd.ReadBlock<Meta>();
 

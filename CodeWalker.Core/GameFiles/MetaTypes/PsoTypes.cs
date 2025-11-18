@@ -17,8 +17,8 @@ namespace CodeWalker.GameFiles
         //for parsing schema info in PSO files to generate structs for PSO parsing.
         //equivalent of MetaTypes but for PSO.
 
-        public static Dictionary<MetaName, PsoEnumInfo> EnumDict = new Dictionary<MetaName, PsoEnumInfo>();
-        public static Dictionary<MetaName, PsoStructureInfo> StructDict = new Dictionary<MetaName, PsoStructureInfo>();
+        public static Dictionary<MetaName, PsoEnumInfo> EnumDict = new();
+        public static Dictionary<MetaName, PsoStructureInfo> StructDict = new();
 
 
 
@@ -129,8 +129,8 @@ namespace CodeWalker.GameFiles
 
         public static string GetTypesString()
         {
-            StringBuilder sbe = new StringBuilder();
-            StringBuilder sbs = new StringBuilder();
+            StringBuilder sbe = new();
+            StringBuilder sbs = new();
 
             sbe.AppendLine("//Enum infos");
             sbs.AppendLine("//Struct infos");
@@ -219,7 +219,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetTypesInitString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             foreach (var si in StructDict.Values)
             {
@@ -16164,7 +16164,7 @@ namespace CodeWalker.GameFiles
 
             //string s = Encoding.ASCII.GetString(data, doffset, length);
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             var o = block.Offset + offset;
             char c = (char)data[o];
             while (c != 0)
