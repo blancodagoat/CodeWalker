@@ -44,6 +44,9 @@
             this.label6 = new System.Windows.Forms.Label();
             this.LodDistNumericUpDown = new System.Windows.Forms.NumericUpDown();
             this.BrushTab = new System.Windows.Forms.TabPage();
+            this.brushModeGroupBox = new System.Windows.Forms.GroupBox();
+            this.label16 = new System.Windows.Forms.Label();
+            this.BrushModeCheckBox = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.GrassColorLabel = new System.Windows.Forms.Label();
             this.label15 = new System.Windows.Forms.Label();
@@ -75,10 +78,10 @@
             this.GrassGoToButton = new System.Windows.Forms.Button();
             this.label17 = new System.Windows.Forms.Label();
             this.OptmizationThresholdNumericUpDown = new System.Windows.Forms.NumericUpDown();
-            this.BrushModeCheckBox = new System.Windows.Forms.CheckBox();
             this.label8 = new System.Windows.Forms.Label();
-            this.brushModeGroupBox = new System.Windows.Forms.GroupBox();
-            this.label16 = new System.Windows.Forms.Label();
+            this.label18 = new System.Windows.Forms.Label();
+            this.colorRandomMinUpDown = new System.Windows.Forms.NumericUpDown();
+            this.colorRandomMaxUpDown = new System.Windows.Forms.NumericUpDown();
             this.tabControl1.SuspendLayout();
             this.GrassBatchTab.SuspendLayout();
             this.groupBox1.SuspendLayout();
@@ -87,6 +90,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.LodFadeStartDistanceNumericUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.LodDistNumericUpDown)).BeginInit();
             this.BrushTab.SuspendLayout();
+            this.brushModeGroupBox.SuspendLayout();
             this.groupBox2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.AoNumericUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.ScaleNumericUpDown)).BeginInit();
@@ -94,7 +98,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.DensityNumericUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.RadiusNumericUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.OptmizationThresholdNumericUpDown)).BeginInit();
-            this.brushModeGroupBox.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.colorRandomMinUpDown)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.colorRandomMaxUpDown)).BeginInit();
             this.SuspendLayout();
             // 
             // tabControl1
@@ -113,7 +118,7 @@
             this.GrassBatchTab.Location = new System.Drawing.Point(4, 22);
             this.GrassBatchTab.Name = "GrassBatchTab";
             this.GrassBatchTab.Padding = new System.Windows.Forms.Padding(3);
-            this.GrassBatchTab.Size = new System.Drawing.Size(517, 183);
+            this.GrassBatchTab.Size = new System.Drawing.Size(517, 188);
             this.GrassBatchTab.TabIndex = 0;
             this.GrassBatchTab.Text = "Grass Batch";
             this.GrassBatchTab.UseVisualStyleBackColor = true;
@@ -264,8 +269,42 @@
             this.BrushTab.Text = " Brush";
             this.BrushTab.UseVisualStyleBackColor = true;
             // 
+            // brushModeGroupBox
+            // 
+            this.brushModeGroupBox.Controls.Add(this.label16);
+            this.brushModeGroupBox.Controls.Add(this.BrushModeCheckBox);
+            this.brushModeGroupBox.Location = new System.Drawing.Point(8, 83);
+            this.brushModeGroupBox.Name = "brushModeGroupBox";
+            this.brushModeGroupBox.Size = new System.Drawing.Size(249, 99);
+            this.brushModeGroupBox.TabIndex = 69;
+            this.brushModeGroupBox.TabStop = false;
+            this.brushModeGroupBox.Text = "Brush Mode";
+            // 
+            // label16
+            // 
+            this.label16.Location = new System.Drawing.Point(9, 49);
+            this.label16.Name = "label16";
+            this.label16.Size = new System.Drawing.Size(231, 40);
+            this.label16.TabIndex = 69;
+            this.label16.Text = "Hold CTRL to paint instances in this batch. Hold CTRL+SHIFT to delete in this bat" +
+    "ch. Open Tools menu for bulk delete option.";
+            // 
+            // BrushModeCheckBox
+            // 
+            this.BrushModeCheckBox.AutoSize = true;
+            this.BrushModeCheckBox.Location = new System.Drawing.Point(12, 25);
+            this.BrushModeCheckBox.Name = "BrushModeCheckBox";
+            this.BrushModeCheckBox.Size = new System.Drawing.Size(83, 17);
+            this.BrushModeCheckBox.TabIndex = 68;
+            this.BrushModeCheckBox.Text = "Brush Mode";
+            this.BrushModeCheckBox.UseVisualStyleBackColor = true;
+            this.BrushModeCheckBox.CheckedChanged += new System.EventHandler(this.BrushModeCheckBox_CheckedChanged);
+            // 
             // groupBox2
             // 
+            this.groupBox2.Controls.Add(this.colorRandomMaxUpDown);
+            this.groupBox2.Controls.Add(this.colorRandomMinUpDown);
+            this.groupBox2.Controls.Add(this.label18);
             this.groupBox2.Controls.Add(this.GrassColorLabel);
             this.groupBox2.Controls.Add(this.label15);
             this.groupBox2.Controls.Add(this.label4);
@@ -287,7 +326,7 @@
             // 
             this.GrassColorLabel.BackColor = System.Drawing.Color.White;
             this.GrassColorLabel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.GrassColorLabel.Location = new System.Drawing.Point(50, 22);
+            this.GrassColorLabel.Location = new System.Drawing.Point(53, 22);
             this.GrassColorLabel.Name = "GrassColorLabel";
             this.GrassColorLabel.Size = new System.Drawing.Size(119, 21);
             this.GrassColorLabel.TabIndex = 12;
@@ -296,7 +335,7 @@
             // label15
             // 
             this.label15.AutoSize = true;
-            this.label15.Location = new System.Drawing.Point(9, 106);
+            this.label15.Location = new System.Drawing.Point(11, 141);
             this.label15.Name = "label15";
             this.label15.Size = new System.Drawing.Size(26, 13);
             this.label15.TabIndex = 46;
@@ -305,7 +344,7 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(9, 79);
+            this.label4.Location = new System.Drawing.Point(11, 114);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(34, 13);
             this.label4.TabIndex = 16;
@@ -313,7 +352,7 @@
             // 
             // AoNumericUpDown
             // 
-            this.AoNumericUpDown.Location = new System.Drawing.Point(50, 51);
+            this.AoNumericUpDown.Location = new System.Drawing.Point(52, 86);
             this.AoNumericUpDown.Maximum = new decimal(new int[] {
             255,
             0,
@@ -330,7 +369,7 @@
             // 
             // PadTextBox
             // 
-            this.PadTextBox.Location = new System.Drawing.Point(49, 103);
+            this.PadTextBox.Location = new System.Drawing.Point(51, 138);
             this.PadTextBox.Name = "PadTextBox";
             this.PadTextBox.Size = new System.Drawing.Size(120, 20);
             this.PadTextBox.TabIndex = 45;
@@ -338,7 +377,7 @@
             // 
             // ScaleNumericUpDown
             // 
-            this.ScaleNumericUpDown.Location = new System.Drawing.Point(49, 77);
+            this.ScaleNumericUpDown.Location = new System.Drawing.Point(51, 112);
             this.ScaleNumericUpDown.Maximum = new decimal(new int[] {
             255,
             0,
@@ -356,7 +395,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(9, 53);
+            this.label2.Location = new System.Drawing.Point(11, 88);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(20, 13);
             this.label2.TabIndex = 14;
@@ -374,7 +413,7 @@
             // RandomizeScaleCheckBox
             // 
             this.RandomizeScaleCheckBox.AutoSize = true;
-            this.RandomizeScaleCheckBox.Location = new System.Drawing.Point(176, 79);
+            this.RandomizeScaleCheckBox.Location = new System.Drawing.Point(178, 114);
             this.RandomizeScaleCheckBox.Name = "RandomizeScaleCheckBox";
             this.RandomizeScaleCheckBox.Size = new System.Drawing.Size(66, 17);
             this.RandomizeScaleCheckBox.TabIndex = 18;
@@ -603,17 +642,6 @@
             0,
             0});
             // 
-            // BrushModeCheckBox
-            // 
-            this.BrushModeCheckBox.AutoSize = true;
-            this.BrushModeCheckBox.Location = new System.Drawing.Point(12, 25);
-            this.BrushModeCheckBox.Name = "BrushModeCheckBox";
-            this.BrushModeCheckBox.Size = new System.Drawing.Size(83, 17);
-            this.BrushModeCheckBox.TabIndex = 68;
-            this.BrushModeCheckBox.Text = "Brush Mode";
-            this.BrushModeCheckBox.UseVisualStyleBackColor = true;
-            this.BrushModeCheckBox.CheckedChanged += new System.EventHandler(this.BrushModeCheckBox_CheckedChanged);
-            // 
             // label8
             // 
             this.label8.AutoSize = true;
@@ -624,25 +652,48 @@
             this.label8.Text = ".ydr";
             this.label8.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
-            // brushModeGroupBox
+            // label18
             // 
-            this.brushModeGroupBox.Controls.Add(this.label16);
-            this.brushModeGroupBox.Controls.Add(this.BrushModeCheckBox);
-            this.brushModeGroupBox.Location = new System.Drawing.Point(8, 83);
-            this.brushModeGroupBox.Name = "brushModeGroupBox";
-            this.brushModeGroupBox.Size = new System.Drawing.Size(249, 99);
-            this.brushModeGroupBox.TabIndex = 69;
-            this.brushModeGroupBox.TabStop = false;
-            this.brushModeGroupBox.Text = "Brush Mode";
+            this.label18.AutoSize = true;
+            this.label18.Location = new System.Drawing.Point(9, 58);
+            this.label18.Name = "label18";
+            this.label18.Size = new System.Drawing.Size(74, 13);
+            this.label18.TabIndex = 47;
+            this.label18.Text = "Color Random";
             // 
-            // label16
+            // colorRandomMinUpDown
             // 
-            this.label16.Location = new System.Drawing.Point(9, 49);
-            this.label16.Name = "label16";
-            this.label16.Size = new System.Drawing.Size(231, 40);
-            this.label16.TabIndex = 69;
-            this.label16.Text = "Hold CTRL to paint instances in this batch. Hold CTRL+SHIFT to delete in this bat" +
-    "ch. Open Tools menu for bulk delete option.";
+            this.colorRandomMinUpDown.Location = new System.Drawing.Point(89, 56);
+            this.colorRandomMinUpDown.Maximum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            0});
+            this.colorRandomMinUpDown.Minimum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            -2147483648});
+            this.colorRandomMinUpDown.Name = "colorRandomMinUpDown";
+            this.colorRandomMinUpDown.Size = new System.Drawing.Size(47, 20);
+            this.colorRandomMinUpDown.TabIndex = 48;
+            // 
+            // colorRandomMaxUpDown
+            // 
+            this.colorRandomMaxUpDown.Location = new System.Drawing.Point(142, 56);
+            this.colorRandomMaxUpDown.Maximum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            0});
+            this.colorRandomMaxUpDown.Minimum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            -2147483648});
+            this.colorRandomMaxUpDown.Name = "colorRandomMaxUpDown";
+            this.colorRandomMaxUpDown.Size = new System.Drawing.Size(47, 20);
+            this.colorRandomMaxUpDown.TabIndex = 49;
             // 
             // EditYmapGrassPanel
             // 
@@ -678,6 +729,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.LodFadeStartDistanceNumericUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.LodDistNumericUpDown)).EndInit();
             this.BrushTab.ResumeLayout(false);
+            this.brushModeGroupBox.ResumeLayout(false);
+            this.brushModeGroupBox.PerformLayout();
             this.groupBox2.ResumeLayout(false);
             this.groupBox2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.AoNumericUpDown)).EndInit();
@@ -687,8 +740,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.DensityNumericUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.RadiusNumericUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.OptmizationThresholdNumericUpDown)).EndInit();
-            this.brushModeGroupBox.ResumeLayout(false);
-            this.brushModeGroupBox.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.colorRandomMinUpDown)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.colorRandomMaxUpDown)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -745,5 +798,8 @@
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.GroupBox brushModeGroupBox;
         private System.Windows.Forms.Label label16;
+        private System.Windows.Forms.NumericUpDown colorRandomMaxUpDown;
+        private System.Windows.Forms.NumericUpDown colorRandomMinUpDown;
+        private System.Windows.Forms.Label label18;
     }
 }
