@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 using CodeWalker.GameFiles;
 using CodeWalker.Utils;
@@ -32,6 +33,9 @@ namespace CodeWalker.Project.Panels
         }
 
         public YmapGrassInstanceBatch CurrentBatch { get; set; }
+
+        // Grass model randomization - uses existing batches in the ymap
+        private static readonly Random _random = new Random();
 
         #region Form
 
@@ -244,26 +248,8 @@ namespace CodeWalker.Project.Panels
             var wf = ProjectForm.WorldForm;
             if (wf == null) return;
 
-            lock (wf.RenderSyncRoot)
-            {
-                CurrentBatch.CreateInstancesAtMouse(
-                    CurrentBatch,
-                    mouseRay,
-                    (float)RadiusNumericUpDown.Value,
-                    (int)DensityNumericUpDown.Value,
-                    SpawnRayFunc, new Color(GrassColorLabel.BackColor.R, GrassColorLabel.BackColor.G, GrassColorLabel.BackColor.B),
-                    (int)AoNumericUpDown.Value,
-                    (int)ScaleNumericUpDown.Value,
-                    FloatUtil.ParseVector3String(PadTextBox.Text),
-                    RandomizeScaleCheckBox.Checked,
-                    (int)colorRandomMinUpDown.Value,
-                    (int)colorRandomMaxUpDown.Value
-                    );
-
-                wf.UpdateGrassBatchGraphics(CurrentBatch);
-            }
-
-            BatchChanged();
+            // Always use randomized model mode
+            CreateRandomizedModelInstances(mouseRay);
         }
 
         #endregion
@@ -282,6 +268,53 @@ namespace CodeWalker.Project.Panels
             CurrentBatch.UpdateInstanceCount();
             CurrentBatch.HasChanged = true;
             ProjectForm.SetGrassBatchHasChanged(false);
+        }
+
+        private void CreateRandomizedModelInstances(SpaceRayIntersectResult mouseRay)
+        {
+            var wf = ProjectForm.WorldForm;
+            if (wf == null) return;
+
+            // Get all grass batches from the ymap
+            var grassBatches = CurrentBatch?.Ymap?.GrassInstanceBatches;
+            if (grassBatches == null || grassBatches.Length == 0) return;
+
+            // Randomly select a batch from the existing batches
+            var targetBatch = grassBatches[_random.Next(grassBatches.Length)];
+            
+            // Ensure target batch has brush mode enabled and same settings
+            targetBatch.BrushEnabled = true;
+            targetBatch.BrushRadius = (float)RadiusNumericUpDown.Value;
+            
+            // Switch to the target batch temporarily for painting
+            var originalBatch = CurrentBatch;
+            CurrentBatch = targetBatch;
+
+            lock (wf.RenderSyncRoot)
+            {
+                targetBatch.CreateInstancesAtMouse(
+                    targetBatch,
+                    mouseRay,
+                    (float)RadiusNumericUpDown.Value,
+                    (int)DensityNumericUpDown.Value,
+                    SpawnRayFunc,
+                    new Color(GrassColorLabel.BackColor.R, GrassColorLabel.BackColor.G, GrassColorLabel.BackColor.B),
+                    (int)AoNumericUpDown.Value,
+                    (int)ScaleNumericUpDown.Value,
+                    FloatUtil.ParseVector3String(PadTextBox.Text),
+                    RandomizeScaleCheckBox.Checked,
+                    (int)colorRandomMinUpDown.Value,
+                    (int)colorRandomMaxUpDown.Value
+                );
+
+                wf.UpdateGrassBatchGraphics(targetBatch);
+            }
+
+            // Mark batch as changed and update
+            BatchChanged();
+            
+            // Restore original batch
+            CurrentBatch = originalBatch;
         }
 
         #endregion
