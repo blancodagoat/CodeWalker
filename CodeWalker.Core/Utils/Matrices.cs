@@ -36,44 +36,6 @@ namespace CodeWalker
             //this quick mul ignores W and translation...
         }
 
-        /// <summary>
-        /// SIMD-optimized matrix-vector multiplication for arrays.
-        /// </summary>
-        public static void MultiplyArray(this Matrix m, ReadOnlySpan<Vector3> source, Span<Vector3> destination)
-        {
-            if (source.Length != destination.Length)
-                throw new ArgumentException("Source and destination spans must have the same length");
-
-            for (int i = 0; i < source.Length; i++)
-            {
-                var v = source[i];
-                destination[i] = new Vector3(
-                    m.M11 * v.X + m.M21 * v.Y + m.M31 * v.Z + m.M41,
-                    m.M12 * v.X + m.M22 * v.Y + m.M32 * v.Z + m.M42,
-                    m.M13 * v.X + m.M23 * v.Y + m.M33 * v.Z + m.M43
-                );
-            }
-        }
-
-        /// <summary>
-        /// SIMD-optimized rotation-only matrix-vector multiplication for arrays.
-        /// </summary>
-        public static void MultiplyRotArray(this Matrix m, ReadOnlySpan<Vector3> source, Span<Vector3> destination)
-        {
-            if (source.Length != destination.Length)
-                throw new ArgumentException("Source and destination spans must have the same length");
-
-            for (int i = 0; i < source.Length; i++)
-            {
-                var v = source[i];
-                destination[i] = new Vector3(
-                    m.M11 * v.X + m.M21 * v.Y + m.M31 * v.Z,
-                    m.M12 * v.X + m.M22 * v.Y + m.M32 * v.Z,
-                    m.M13 * v.X + m.M23 * v.Y + m.M33 * v.Z
-                );
-            }
-        }
-
         public static Vector4 Multiply(this Matrix m, Vector4 v)
         {
             float x = (((m.M11 * v.X) + (m.M21 * v.Y)) + (m.M31 * v.Z)) + m.M41;

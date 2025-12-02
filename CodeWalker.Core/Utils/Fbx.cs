@@ -679,7 +679,7 @@ namespace CodeWalker
         /// </remarks>
         public int MaxLineLength { get; set; } = 260;
 
-        readonly Stack<string> nodePath = new();
+        readonly Stack<string> nodePath = new Stack<string>();
 
         // Adds the given node text to the string
         void BuildString(FbxNode node, StringBuilder sb, bool writeArrayLength, int indentLevel = 0)
@@ -902,7 +902,7 @@ namespace CodeWalker
 
         const string timePath1 = "FBXHeaderExtension";
         const string timePath2 = "CreationTimeStamp";
-        static readonly Stack<string> timePath = new(new[] { timePath1, timePath2 });
+        static readonly Stack<string> timePath = new Stack<string>(new[] { timePath1, timePath2 });
 
         // Gets a single timestamp component
         static int GetTimestampVar(FbxNode timestamp, string element)
@@ -1288,7 +1288,7 @@ namespace CodeWalker
         private readonly MemoryStream memory;
         private readonly BinaryWriter stream;
 
-        readonly Stack<string> nodePath = new();
+        readonly Stack<string> nodePath = new Stack<string>();
 
         /// <summary>
         /// The minimum size of an array in bytes before it is compressed

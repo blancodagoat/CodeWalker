@@ -14,7 +14,7 @@ namespace CodeWalker.ModManager
         public bool FileExists;
         public bool OnlySaveIfFileExists;
         public Exception FileError;
-        public Dictionary<string, string> Items = new();
+        public Dictionary<string, string> Items = new Dictionary<string, string>();
 
 
         public SimpleKvpFile() { }

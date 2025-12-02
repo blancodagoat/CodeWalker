@@ -218,7 +218,7 @@ namespace CodeWalker.Rendering
             FinalPSVars = new GpuVarsBuffer<PostProcessorFinalPSVars>(device);
 
             TextureAddressMode a = TextureAddressMode.Clamp;
-            Color4 b = new(0.0f, 0.0f, 0.0f, 0.0f);
+            Color4 b = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
             Comparison c = Comparison.Always;
             SampleStatePoint = DXUtility.CreateSamplerState(device, a, b, c, Filter.MinMagMipPoint, 0, 1.0f, 1.0f, 0.0f);
             SampleStateLinear = DXUtility.CreateSamplerState(device, a, b, c, Filter.MinMagMipLinear, 0, 1.0f, 1.0f, 0.0f);
@@ -419,8 +419,8 @@ namespace CodeWalker.Rendering
 
         public void Clear(DeviceContext context)
         {
-            Color4 clearColour = new(0.2f, 0.4f, 0.6f, 0.0f);
-            //Color4 clearColour = new(0.0f, 0.0f, 0.0f, 0.0f);
+            Color4 clearColour = new Color4(0.2f, 0.4f, 0.6f, 0.0f);
+            //Color4 clearColour = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
 
             Primary.Clear(context, clearColour);
         }

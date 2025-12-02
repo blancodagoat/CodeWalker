@@ -42,7 +42,7 @@ namespace CodeWalker
         public volatile bool kbjump = false;
         public volatile bool kbmoving = false;
 
-        public KeyBindings keyBindings = new(Settings.Default.KeyBindings);
+        public KeyBindings keyBindings = new KeyBindings(Settings.Default.KeyBindings);
 
         public bool CtrlPressed = false;
         public bool ShiftPressed = false;
@@ -299,7 +299,7 @@ namespace CodeWalker
 
         public StringCollection GetSetting()
         {
-            StringCollection sc = new();
+            StringCollection sc = new StringCollection();
             sc.Add(GetSettingItem("Move Forwards", MoveForward));
             sc.Add(GetSettingItem("Move Backwards", MoveBackward));
             sc.Add(GetSettingItem("Move Left", MoveLeft));

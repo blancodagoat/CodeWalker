@@ -97,12 +97,10 @@
 
 using CodeWalker.GameFiles;
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace CodeWalker.Utils
@@ -110,24 +108,6 @@ namespace CodeWalker.Utils
 
     public static class DDSIO
     {
-        // Buffer pool for texture operations - reduces allocations for large textures
-        private static readonly ArrayPool<byte> BufferPool = ArrayPool<byte>.Shared;
-
-        /// <summary>
-        /// Rents a buffer from the pool for texture operations
-        /// </summary>
-        public static byte[] RentBuffer(int minimumLength)
-        {
-            return BufferPool.Rent(minimumLength);
-        }
-
-        /// <summary>
-        /// Returns a buffer to the pool
-        /// </summary>
-        public static void ReturnBuffer(byte[] buffer, bool clearArray = false)
-        {
-            BufferPool.Return(buffer, clearArray);
-        }
 
 
         public static byte[] GetPixels(Texture texture, int mip)
@@ -241,8 +221,8 @@ namespace CodeWalker.Utils
 
 
 
-            MemoryStream ms = new();
-            BinaryWriter bw = new(ms);
+            MemoryStream ms = new MemoryStream();
+            BinaryWriter bw = new BinaryWriter(ms);
 
             int nimages = img.MipMapLevels;
 
@@ -493,75 +473,6 @@ namespace CodeWalker.Utils
             return tex;
         }
 
-        public static async Task<Texture> GetTextureAsync(byte[] ddsfile, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            return await Task.Run(() =>
-            {
-                progress?.Report(0.2f);
-                var result = GetTexture(ddsfile);
-                progress?.Report(1.0f);
-                return result;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        public static async Task<Texture> GetTextureAsync(ReadOnlyMemory<byte> ddsfile, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            return await Task.Run(() =>
-            {
-                progress?.Report(0.2f);
-                // Use ArrayPool for temporary buffer if needed
-                var result = GetTexture(ddsfile.ToArray());
-                progress?.Report(1.0f);
-                return result;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        public static async Task<byte[]> GetDDSFileAsync(Texture texture, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            return await Task.Run(() =>
-            {
-                progress?.Report(0.2f);
-                var result = GetDDSFile(texture);
-                progress?.Report(1.0f);
-                return result;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        public static async Task<byte[]> GetPixelsAsync(Texture texture, int mip, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            return await Task.Run(() =>
-            {
-                progress?.Report(0.2f);
-                var result = GetPixels(texture, mip);
-                progress?.Report(1.0f);
-                return result;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Gets pixels using Memory<byte> for better performance with large textures
-        /// </summary>
-        public static Memory<byte> GetPixelsMemory(Texture texture, int mip)
-        {
-            // Use the existing GetPixels implementation but return as Memory
-            var pixels = GetPixels(texture, mip);
-            return new Memory<byte>(pixels);
-        }
-
-        /// <summary>
-        /// Async version that uses Memory<byte> for better performance
-        /// </summary>
-        public static async Task<Memory<byte>> GetPixelsMemoryAsync(Texture texture, int mip, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            return await Task.Run(() =>
-            {
-                progress?.Report(0.2f);
-                var result = GetPixelsMemory(texture, mip);
-                progress?.Report(1.0f);
-                return result;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
 
 
 
@@ -615,7 +526,7 @@ namespace CodeWalker.Utils
 
         private static ImageStruct GetImageStruct(Texture texture, DXGI_FORMAT format)
         {
-            ImageStruct img = new();
+            ImageStruct img = new ImageStruct();
             img.Data = texture.Data.FullData;
             img.Width = texture.Width;
             img.Height = texture.Height;
@@ -649,7 +560,7 @@ namespace CodeWalker.Utils
 
         private static TexMetadata GetImageMetadata(ImageStruct img, DXGI_FORMAT format)
         {
-            TexMetadata meta = new();
+            TexMetadata meta = new TexMetadata();
             meta.width = img.Width;
             meta.height = img.Height;
             meta.depth = 1;
@@ -1304,7 +1215,7 @@ namespace CodeWalker.Utils
                     flags |= (uint)DDS_FLAGS.DDS_FLAGS_FORCE_DX10_EXT;
                 }
 
-                DDS_PIXELFORMAT ddpf = new(0);
+                DDS_PIXELFORMAT ddpf = new DDS_PIXELFORMAT(0);
                 if (!((flags & (uint)DDS_FLAGS.DDS_FLAGS_FORCE_DX10_EXT)!=0))
                 {
                     switch (metadata.format)
@@ -1914,36 +1825,36 @@ namespace CodeWalker.Utils
             public static uint DDS_PAL8 = 0x00000020;  // DDPF_PALETTEINDEXED8
 
 
-            public static DDS_PIXELFORMAT DDSPF_DXT1 = new(32, DDS_FOURCC, MAKEFOURCC('D','X','T','1'), 0, 0, 0, 0, 0 );
-            public static DDS_PIXELFORMAT DDSPF_DXT2 = new(32, DDS_FOURCC, MAKEFOURCC('D', 'X', 'T', '2'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_DXT3 = new(32, DDS_FOURCC, MAKEFOURCC('D','X','T','3'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_DXT4 = new(32, DDS_FOURCC, MAKEFOURCC('D','X','T','4'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_DXT5 = new(32, DDS_FOURCC, MAKEFOURCC('D','X','T','5'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_BC4_UNORM = new(32, DDS_FOURCC, MAKEFOURCC('B','C','4','U'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_BC4_SNORM = new(32, DDS_FOURCC, MAKEFOURCC('B','C','4','S'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_BC5_UNORM = new(32, DDS_FOURCC, MAKEFOURCC('B','C','5','U'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_BC5_SNORM = new(32, DDS_FOURCC, MAKEFOURCC('B','C','5','S'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_R8G8_B8G8 = new(32, DDS_FOURCC, MAKEFOURCC('R','G','B','G'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_G8R8_G8B8 = new(32, DDS_FOURCC, MAKEFOURCC('G','R','G','B'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_YUY2 = new(32, DDS_FOURCC, MAKEFOURCC('Y','U','Y','2'), 0, 0, 0, 0, 0);
-            public static DDS_PIXELFORMAT DDSPF_A8R8G8B8 = new(32, DDS_RGBA, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
-            public static DDS_PIXELFORMAT DDSPF_X8R8G8B8 = new(32, DDS_RGB,  0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0x00000000);
-            public static DDS_PIXELFORMAT DDSPF_A8B8G8R8 = new(32, DDS_RGBA, 0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
-            public static DDS_PIXELFORMAT DDSPF_X8B8G8R8 = new(32, DDS_RGB,  0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0x00000000);
-            public static DDS_PIXELFORMAT DDSPF_G16R16 = new(32, DDS_RGB,  0, 32, 0x0000ffff, 0xffff0000, 0x00000000, 0x00000000);
-            public static DDS_PIXELFORMAT DDSPF_R5G6B5 = new(32, DDS_RGB, 0, 16, 0x0000f800, 0x000007e0, 0x0000001f, 0x00000000);
-            public static DDS_PIXELFORMAT DDSPF_A1R5G5B5 = new(32, DDS_RGBA, 0, 16, 0x00007c00, 0x000003e0, 0x0000001f, 0x00008000);
-            public static DDS_PIXELFORMAT DDSPF_A4R4G4B4 = new(32, DDS_RGBA, 0, 16, 0x00000f00, 0x000000f0, 0x0000000f, 0x0000f000);
-            public static DDS_PIXELFORMAT DDSPF_R8G8B8 = new(32, DDS_RGB, 0, 24, 0x00ff0000, 0x0000ff00, 0x000000ff, 0x00000000);
-            public static DDS_PIXELFORMAT DDSPF_L8 = new(32, DDS_LUMINANCE, 0,  8, 0xff, 0x00, 0x00, 0x00);
-            public static DDS_PIXELFORMAT DDSPF_L16 = new(32, DDS_LUMINANCE, 0, 16, 0xffff, 0x0000, 0x0000, 0x0000);
-            public static DDS_PIXELFORMAT DDSPF_A8L8 = new(32, DDS_LUMINANCEA, 0, 16, 0x00ff, 0x0000, 0x0000, 0xff00);
-            public static DDS_PIXELFORMAT DDSPF_A8 = new(32, DDS_ALPHA, 0, 8, 0x00, 0x00, 0x00, 0xff);
+            public static DDS_PIXELFORMAT DDSPF_DXT1 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D','X','T','1'), 0, 0, 0, 0, 0 );
+            public static DDS_PIXELFORMAT DDSPF_DXT2 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D', 'X', 'T', '2'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_DXT3 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D','X','T','3'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_DXT4 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D','X','T','4'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_DXT5 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D','X','T','5'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_BC4_UNORM = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('B','C','4','U'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_BC4_SNORM = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('B','C','4','S'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_BC5_UNORM = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('B','C','5','U'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_BC5_SNORM = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('B','C','5','S'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_R8G8_B8G8 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('R','G','B','G'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_G8R8_G8B8 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('G','R','G','B'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_YUY2 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('Y','U','Y','2'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_A8R8G8B8 = new DDS_PIXELFORMAT(32, DDS_RGBA, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
+            public static DDS_PIXELFORMAT DDSPF_X8R8G8B8 = new DDS_PIXELFORMAT(32, DDS_RGB,  0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0x00000000);
+            public static DDS_PIXELFORMAT DDSPF_A8B8G8R8 = new DDS_PIXELFORMAT(32, DDS_RGBA, 0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+            public static DDS_PIXELFORMAT DDSPF_X8B8G8R8 = new DDS_PIXELFORMAT(32, DDS_RGB,  0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0x00000000);
+            public static DDS_PIXELFORMAT DDSPF_G16R16 = new DDS_PIXELFORMAT(32, DDS_RGB,  0, 32, 0x0000ffff, 0xffff0000, 0x00000000, 0x00000000);
+            public static DDS_PIXELFORMAT DDSPF_R5G6B5 = new DDS_PIXELFORMAT(32, DDS_RGB, 0, 16, 0x0000f800, 0x000007e0, 0x0000001f, 0x00000000);
+            public static DDS_PIXELFORMAT DDSPF_A1R5G5B5 = new DDS_PIXELFORMAT(32, DDS_RGBA, 0, 16, 0x00007c00, 0x000003e0, 0x0000001f, 0x00008000);
+            public static DDS_PIXELFORMAT DDSPF_A4R4G4B4 = new DDS_PIXELFORMAT(32, DDS_RGBA, 0, 16, 0x00000f00, 0x000000f0, 0x0000000f, 0x0000f000);
+            public static DDS_PIXELFORMAT DDSPF_R8G8B8 = new DDS_PIXELFORMAT(32, DDS_RGB, 0, 24, 0x00ff0000, 0x0000ff00, 0x000000ff, 0x00000000);
+            public static DDS_PIXELFORMAT DDSPF_L8 = new DDS_PIXELFORMAT(32, DDS_LUMINANCE, 0,  8, 0xff, 0x00, 0x00, 0x00);
+            public static DDS_PIXELFORMAT DDSPF_L16 = new DDS_PIXELFORMAT(32, DDS_LUMINANCE, 0, 16, 0xffff, 0x0000, 0x0000, 0x0000);
+            public static DDS_PIXELFORMAT DDSPF_A8L8 = new DDS_PIXELFORMAT(32, DDS_LUMINANCEA, 0, 16, 0x00ff, 0x0000, 0x0000, 0xff00);
+            public static DDS_PIXELFORMAT DDSPF_A8 = new DDS_PIXELFORMAT(32, DDS_ALPHA, 0, 8, 0x00, 0x00, 0x00, 0xff);
 
             // D3DFMT_A2R10G10B10/D3DFMT_A2B10G10R10 should be written using DX10 extension to avoid D3DX 10:10:10:2 reversal issue
 
             // This indicates the DDS_HEADER_DXT10 extension is present (the format is in dxgiFormat)
-            public static DDS_PIXELFORMAT DDSPF_DX10 = new(32, DDS_FOURCC, MAKEFOURCC('D','X','1','0'), 0, 0, 0, 0, 0);
+            public static DDS_PIXELFORMAT DDSPF_DX10 = new DDS_PIXELFORMAT(32, DDS_FOURCC, MAKEFOURCC('D','X','1','0'), 0, 0, 0, 0, 0);
 
 
 
@@ -2213,7 +2124,7 @@ namespace CodeWalker.Utils
 
         internal static byte[] DecompressDxt1(byte[] imageData, int width, int height)
         {
-            using (MemoryStream imageStream = new(imageData))
+            using (MemoryStream imageStream = new MemoryStream(imageData))
                 return DecompressDxt1(imageStream, width, height);
         }
 
@@ -2221,7 +2132,7 @@ namespace CodeWalker.Utils
         {
             byte[] imageData = new byte[width * height * 4];
 
-            using (BinaryReader imageReader = new(imageStream))
+            using (BinaryReader imageReader = new BinaryReader(imageStream))
             {
                 int blockCountX = (width + 3) / 4;
                 int blockCountY = (height + 3) / 4;
@@ -2328,7 +2239,7 @@ namespace CodeWalker.Utils
 
         internal static byte[] DecompressDxt3(byte[] imageData, int width, int height)
         {
-            using (MemoryStream imageStream = new(imageData))
+            using (MemoryStream imageStream = new MemoryStream(imageData))
                 return DecompressDxt3(imageStream, width, height);
         }
 
@@ -2336,7 +2247,7 @@ namespace CodeWalker.Utils
         {
             byte[] imageData = new byte[width * height * 4];
 
-            using (BinaryReader imageReader = new(imageStream))
+            using (BinaryReader imageReader = new BinaryReader(imageStream))
             {
                 int blockCountX = (width + 3) / 4;
                 int blockCountY = (height + 3) / 4;
@@ -2477,7 +2388,7 @@ namespace CodeWalker.Utils
 
         internal static byte[] DecompressDxt5(byte[] imageData, int width, int height)
         {
-            using (MemoryStream imageStream = new(imageData))
+            using (MemoryStream imageStream = new MemoryStream(imageData))
                 return DecompressDxt5(imageStream, width, height);
         }
 
@@ -2485,7 +2396,7 @@ namespace CodeWalker.Utils
         {
             byte[] imageData = new byte[width * height * 4];
 
-            using (BinaryReader imageReader = new(imageStream))
+            using (BinaryReader imageReader = new BinaryReader(imageStream))
             {
                 int blockCountX = (width + 3) / 4;
                 int blockCountY = (height + 3) / 4;
@@ -2626,7 +2537,7 @@ namespace CodeWalker.Utils
 
         internal static byte[] DecompressBC4(byte[] imageData, int width, int height)
         {
-            using (MemoryStream imageStream = new(imageData))
+            using (MemoryStream imageStream = new MemoryStream(imageData))
                 return DecompressBC4(imageStream, width, height);
         }
 
@@ -2634,7 +2545,7 @@ namespace CodeWalker.Utils
         {
             byte[] imageData = new byte[width * height * 4];
 
-            using (BinaryReader imageReader = new(imageStream))
+            using (BinaryReader imageReader = new BinaryReader(imageStream))
             {
                 int blockCountX = (width + 3) / 4;
                 int blockCountY = (height + 3) / 4;
@@ -2712,7 +2623,7 @@ namespace CodeWalker.Utils
 
         internal static byte[] DecompressBC5(byte[] imageData, int width, int height)
         {
-            using (MemoryStream imageStream = new(imageData))
+            using (MemoryStream imageStream = new MemoryStream(imageData))
                 return DecompressBC5(imageStream, width, height);
         }
 
@@ -2720,7 +2631,7 @@ namespace CodeWalker.Utils
         {
             byte[] imageData = new byte[width * height * 4];
 
-            using (BinaryReader imageReader = new(imageStream))
+            using (BinaryReader imageReader = new BinaryReader(imageStream))
             {
                 int blockCountX = (width + 3) / 4;
                 int blockCountY = (height + 3) / 4;

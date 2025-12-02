@@ -26,12 +26,10 @@
 
 using SharpDX;
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace CodeWalker.GameFiles
@@ -221,7 +219,7 @@ namespace CodeWalker.GameFiles
 
         public Vector3 ReadVector3()
         {
-            Vector3 v = new();
+            Vector3 v = new Vector3();
             v.X = ReadSingle();
             v.Y = ReadSingle();
             v.Z = ReadSingle();
@@ -229,7 +227,7 @@ namespace CodeWalker.GameFiles
         }
         public Vector4 ReadVector4()
         {
-            Vector4 v = new();
+            Vector4 v = new Vector4();
             v.X = ReadSingle();
             v.Y = ReadSingle();
             v.Z = ReadSingle();
@@ -239,7 +237,7 @@ namespace CodeWalker.GameFiles
 
         public Matrix ReadMatrix()
         {
-            Matrix m = new();
+            Matrix m = new Matrix();
             m.M11 = ReadSingle();
             m.M21 = ReadSingle();
             m.M31 = ReadSingle();
@@ -257,211 +255,6 @@ namespace CodeWalker.GameFiles
             m.M34 = ReadSingle();
             m.M44 = ReadSingle();
             return m;
-        }
-
-        // Span-based reading methods for better performance
-        public short ReadInt16(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 2));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 2).Reverse();
-            }
-            return BitConverter.ToInt16(buffer);
-        }
-
-        public int ReadInt32(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 4));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 4).Reverse();
-            }
-            return BitConverter.ToInt32(buffer);
-        }
-
-        public uint ReadUInt32(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 4));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 4).Reverse();
-            }
-            return BitConverter.ToUInt32(buffer);
-        }
-
-        public long ReadInt64(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 8));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 8).Reverse();
-            }
-            return BitConverter.ToInt64(buffer);
-        }
-
-        public ulong ReadUInt64(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 8));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 8).Reverse();
-            }
-            return BitConverter.ToUInt64(buffer);
-        }
-
-        public float ReadSingle(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 4));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 4).Reverse();
-            }
-            return BitConverter.ToSingle(buffer);
-        }
-
-        public double ReadDouble(Span<byte> buffer)
-        {
-            baseStream.Read(buffer.Slice(0, 8));
-            if (Endianess == Endianess.BigEndian)
-            {
-                buffer.Slice(0, 8).Reverse();
-            }
-            return BitConverter.ToDouble(buffer);
-        }
-
-        // Async reading methods
-        public async Task<short> ReadInt16Async(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(2);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 2), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 2);
-                }
-                return BitConverter.ToInt16(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<int> ReadInt32Async(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(4);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 4);
-                }
-                return BitConverter.ToInt32(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<uint> ReadUInt32Async(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(4);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 4);
-                }
-                return BitConverter.ToUInt32(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<long> ReadInt64Async(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(8);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 8);
-                }
-                return BitConverter.ToInt64(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<ulong> ReadUInt64Async(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(8);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 8);
-                }
-                return BitConverter.ToUInt64(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<float> ReadSingleAsync(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(4);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 4);
-                }
-                return BitConverter.ToSingle(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<double> ReadDoubleAsync(CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(8);
-            try
-            {
-                await baseStream.ReadAsync(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false);
-                if (Endianess == Endianess.BigEndian)
-                {
-                    Array.Reverse(buffer, 0, 8);
-                }
-                return BitConverter.ToDouble(buffer, 0);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        public async Task<byte[]> ReadBytesAsync(int count, CancellationToken cancellationToken = default)
-        {
-            byte[] buffer = new byte[count];
-            await baseStream.ReadAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
-            return buffer;
         }
 
 

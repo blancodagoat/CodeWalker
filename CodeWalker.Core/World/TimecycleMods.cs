@@ -12,7 +12,7 @@ namespace CodeWalker.World
     public class TimecycleMods
     {
 
-        public Dictionary<uint, TimecycleMod> Dict = new();
+        public Dictionary<uint, TimecycleMod> Dict = new Dictionary<uint, TimecycleMod>();
 
 
 
@@ -62,7 +62,7 @@ namespace CodeWalker.World
             foreach (XmlNode modnode in modnodes)
             {
                 if (!(modnode is XmlElement)) continue; 
-                TimecycleMod mod = new();
+                TimecycleMod mod = new TimecycleMod();
                 mod.Init(modnode);
                 Dict[mod.nameHash] = mod;
             }
@@ -96,12 +96,12 @@ namespace CodeWalker.World
             JenkIndex.Ensure(namel);
             nameHash = JenkHash.GenHash(namel);
 
-            List<TimecycleModValue> vals = new();
+            List<TimecycleModValue> vals = new List<TimecycleModValue>();
             foreach (XmlNode valnode in node.ChildNodes)
             {
                 if (!(valnode is XmlElement)) continue;
 
-                TimecycleModValue val = new();
+                TimecycleModValue val = new TimecycleModValue();
                 val.Init(valnode);
 
                 vals.Add(val);

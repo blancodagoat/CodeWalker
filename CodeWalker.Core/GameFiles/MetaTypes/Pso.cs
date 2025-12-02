@@ -863,7 +863,7 @@ namespace CodeWalker.GameFiles
         {
             Ident = reader.ReadInt32();
             Length = reader.ReadInt32();
-            List<string> strs = new();
+            List<string> strs = new List<string>();
             while (reader.Position < reader.Length)
             {
                 strs.Add(reader.ReadString());
@@ -918,7 +918,7 @@ namespace CodeWalker.GameFiles
             Ident = reader.ReadInt32();
             Length = reader.ReadInt32();
 
-            List<string> strs = new();
+            List<string> strs = new List<string>();
             while (reader.Position < reader.Length)
             {
                 strs.Add(reader.ReadString());

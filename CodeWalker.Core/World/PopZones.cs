@@ -13,7 +13,7 @@ namespace CodeWalker.World
         public volatile bool Inited = false;
         public GameFileCache GameFileCache;
 
-        public Dictionary<string, PopZone> Groups = new();
+        public Dictionary<string, PopZone> Groups = new Dictionary<string, PopZone>();
 
         public Vector4[] GetNodePositions()
         {
@@ -70,7 +70,7 @@ namespace CodeWalker.World
                 }
                 else if (inzone)
                 {
-                    PopZoneBox box = new();
+                    PopZoneBox box = new PopZoneBox();
                     box.Init(linet);
 
                     PopZone group;
@@ -184,7 +184,7 @@ namespace CodeWalker.World
             if (parts.Length >= 9)
             {
                 ID = parts[0].Trim();
-                BoundingBox b = new();
+                BoundingBox b = new BoundingBox();
                 b.Minimum.X = FloatUtil.Parse(parts[1].Trim());
                 b.Minimum.Y = FloatUtil.Parse(parts[2].Trim());
                 b.Minimum.Z = FloatUtil.Parse(parts[3].Trim());

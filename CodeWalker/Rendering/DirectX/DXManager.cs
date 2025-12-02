@@ -48,7 +48,7 @@ namespace CodeWalker.Rendering
             {
                 //SharpDX.Configuration.EnableObjectTracking = true;
 
-                SwapChainDescription scd = new()
+                SwapChainDescription scd = new SwapChainDescription()
                 {
                     BufferCount = 2,
                     Flags = SwapChainFlags.None,

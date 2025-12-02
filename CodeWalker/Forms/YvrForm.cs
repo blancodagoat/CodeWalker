@@ -65,7 +65,7 @@ namespace CodeWalker.Forms
 
         private string GenerateText()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine("PositionX, PositionY, PositionZ, Time, VelocityX, VelocityY, VelocityZ, RightX, RightY, RightZ, ForwardX, ForwardY, ForwardZ, SteeringAngle, GasPedalPower, BrakePedalPower, HandbrakeUsed");
             foreach (var entry in yvr.Records.Entries.data_items)
             {

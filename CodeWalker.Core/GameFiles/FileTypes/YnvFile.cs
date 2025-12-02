@@ -90,7 +90,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new(resentry, data);
+            ResourceDataReader rd = new ResourceDataReader(resentry, data);
 
 
             Nav = rd.ReadBlock<NavMesh>();
@@ -136,7 +136,7 @@ namespace CodeWalker.GameFiles
                 Edges = new List<YnvEdge>(edges.Count);
                 for (int i = 0; i < edges.Count; i++)
                 {
-                    YnvEdge edge = new();
+                    YnvEdge edge = new YnvEdge();
                     edge.Init(this, edges[i]);
                     Edges.Add(edge);
                 }
@@ -147,7 +147,7 @@ namespace CodeWalker.GameFiles
                 Polys = new List<YnvPoly>(polys.Count);
                 for (int i = 0; i < polys.Count; i++)
                 {
-                    YnvPoly poly = new();
+                    YnvPoly poly = new YnvPoly();
                     poly.Init(this, polys[i]);
                     poly.Index = i;
                     Polys.Add(poly);
@@ -159,7 +159,7 @@ namespace CodeWalker.GameFiles
                 Portals = new List<YnvPortal>(portals.Length);
                 for (int i = 0; i < portals.Length; i++)
                 {
-                    YnvPortal portal = new();
+                    YnvPortal portal = new YnvPortal();
                     portal.Init(this, portals[i]);
                     portal.Index = i;
                     portal.PositionFrom = posoffset + portal._RawData.PositionFrom.ToVector3() * aabbsize;
@@ -190,7 +190,7 @@ namespace CodeWalker.GameFiles
                         }
                         for (int i = 0; i < points.Length; i++)
                         {
-                            YnvPoint point = new();
+                            YnvPoint point = new YnvPoint();
                             point.Init(this, points[i]);
                             point.Index = pointi; pointi++;
                             point.Position = posoffset + point._RawData.Position * aabbsize;
@@ -407,7 +407,7 @@ namespace CodeWalker.GameFiles
             //vehicle navmesh has a single level, static has 3..
 
             NavMeshSector orig = Nav.SectorTree;
-            NavMeshSector root = new();
+            NavMeshSector root = new NavMeshSector();
             root.SetAABBs(orig.AABBMin.XYZ(), orig.AABBMax.XYZ());
 
             uint pointindex = 0;
@@ -442,7 +442,7 @@ namespace CodeWalker.GameFiles
             if (depth <= 0)
             {
                 //go through polys and points and create new lists for this node
-                NavMeshSectorData data = new();
+                NavMeshSectorData data = new NavMeshSectorData();
                 node.Data = data;
 
                 data.PointsStartID = pointindex;
@@ -450,7 +450,7 @@ namespace CodeWalker.GameFiles
 
                 if (Polys != null)
                 {
-                    List<ushort> polyids = new();
+                    List<ushort> polyids = new List<ushort>();
                     for (int i = 0; i < Polys.Count; i++)
                     {
                         var poly = Polys[i];
@@ -468,7 +468,7 @@ namespace CodeWalker.GameFiles
 
                 if (Points != null)
                 {
-                    List<NavMeshPoint> points = new();
+                    List<NavMeshPoint> points = new List<NavMeshPoint>();
                     for (int i = 0; i < Points.Count; i++)
                     {
                         var point = Points[i];
@@ -628,7 +628,7 @@ namespace CodeWalker.GameFiles
             Vector3 posoffset = Nav.SectorTree.AABBMin.XYZ();
             Vector3 aabbsize = Nav.AABBSize;
 
-            EditorVertex v = new();
+            EditorVertex v = new EditorVertex();
             v.Colour = 0xFF0000FF;
             var lv = new List<EditorVertex>();
             var nv = new List<Vector4>();
@@ -678,10 +678,10 @@ namespace CodeWalker.GameFiles
 
             int vc = Vertices.Count;
 
-            List<EditorVertex> rverts = new();
-            EditorVertex p0 = new();
-            EditorVertex p1 = new();
-            EditorVertex p2 = new();
+            List<EditorVertex> rverts = new List<EditorVertex>();
+            EditorVertex p0 = new EditorVertex();
+            EditorVertex p1 = new EditorVertex();
+            EditorVertex p2 = new EditorVertex();
             foreach (var ypoly in Polys)
             {
                 if ((ypoly.Vertices == null) || (ypoly.Vertices.Length < 3))
@@ -1338,7 +1338,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YnvFile ynv)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if ((ynv != null) && (ynv.Nav != null))
@@ -1364,14 +1364,14 @@ namespace CodeWalker.GameFiles
 
         public static YnvFile GetYnv(string xml)
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYnv(doc);
         }
 
         public static YnvFile GetYnv(XmlDocument doc)
         {
-            YnvFile ynv = new();
+            YnvFile ynv = new YnvFile();
             ynv.ReadXml(doc.DocumentElement);
             return ynv;
         }

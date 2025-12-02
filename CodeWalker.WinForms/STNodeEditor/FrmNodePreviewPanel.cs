@@ -34,8 +34,8 @@ namespace ST.Library.UI.NodeEditor
         private STNodeEditor m_editor;
         private STNodePropertyGrid m_property;
 
-        private Pen m_pen = new(Color.Black);
-        private SolidBrush m_brush = new(Color.Black);
+        private Pen m_pen = new Pen(Color.Black);
+        private SolidBrush m_brush = new SolidBrush(Color.Black);
         private static FrmNodePreviewPanel m_last_frm;
 
         [DllImport("user32.dll")]

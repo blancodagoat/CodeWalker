@@ -111,7 +111,7 @@ namespace CodeWalker.Project.Panels
                 EnviromentRuleTextBox.Text = z.EnvironmentRule.ToString();
                 AudioSceneTextBox.Text = z.AudioScene.ToString();
 
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 if (z.Rules != null)
                 {
                     foreach (var hash in z.Rules)

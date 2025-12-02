@@ -105,7 +105,7 @@ namespace CodeWalker.Project.Panels
                 LastPlayedTextBox.Text = FloatUtil.ToString(e.LastPlayTime);
                 BankIDTextBox.Text = FloatUtil.ToString(e.DynamicBankID);
 
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 if (e.Conditions != null)
                 {
                     foreach (var extparam in e.Conditions)

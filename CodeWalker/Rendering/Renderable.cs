@@ -982,8 +982,8 @@ namespace CodeWalker.Rendering
 
                 var pl = shader.ParametersList.Parameters;
                 var hl = shader.ParametersList.Hashes;
-                List<TextureBase> texs = new();
-                List<ShaderParamNames> phashes = new();
+                List<TextureBase> texs = new List<TextureBase>();
+                List<ShaderParamNames> phashes = new List<ShaderParamNames>();
                 if ((pl != null) && (hl != null))
                 {
                     for (int i = 0; (i < pl.Length) && (i < hl.Length); i++)
@@ -1275,7 +1275,7 @@ namespace CodeWalker.Rendering
                     //get databoxes for mips
                     int offset = 0;
                     int level = 1;
-                    List<DataBox> boxes = new();
+                    List<DataBox> boxes = new List<DataBox>();
                     for (int i = 0; i < mips; i++)
                     {
                         if (offset >= totlength) break; //only load as many mips as there are..
@@ -2339,7 +2339,7 @@ namespace CodeWalker.Rendering
 
         private ushort AddVertex(Vector3 pos, Vector3 norm, uint colour, List<VertexTypeDefault> list)
         {
-            VertexTypeDefault v = new();
+            VertexTypeDefault v = new VertexTypeDefault();
             v.Position = pos;
             v.Normal = norm;
             v.Colour = colour;

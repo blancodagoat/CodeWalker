@@ -16,7 +16,7 @@ namespace CodeWalker.World
     {
         private WorldForm worldForm;
 
-        private KeyBindings keyBindings = new(Settings.Default.KeyBindings);
+        private KeyBindings keyBindings = new KeyBindings(Settings.Default.KeyBindings);
         private string selKeyBinding = "";
         private Keys selKeyBindingVal = Keys.None;
 
@@ -167,7 +167,7 @@ namespace CodeWalker.World
 
         private void KeyBindButton_Click(object sender, EventArgs e)
         {
-            KeyBindForm f = new();
+            KeyBindForm f = new KeyBindForm();
             f.SelectedKey = selKeyBindingVal;
             if (f.ShowDialog() == DialogResult.OK)
             {

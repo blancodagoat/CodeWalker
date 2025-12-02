@@ -19,7 +19,7 @@ namespace CodeWalker.Rendering
         private RenderableCache renderableCache;
         public RenderableCache RenderableCache { get { return renderableCache; } }
 
-        private DXManager dxman = new();
+        private DXManager dxman = new DXManager();
         public DXManager DXMan { get { return dxman; } }
         private Device currentdevice;
         public Device Device { get { return currentdevice; } }
@@ -63,13 +63,13 @@ namespace CodeWalker.Rendering
         public bool rendermoon = true;
 
 
-        public Timecycle timecycle = new();
-        public Weather weather = new();
-        public Clouds clouds = new();
+        public Timecycle timecycle = new Timecycle();
+        public Weather weather = new Weather();
+        public Clouds clouds = new Clouds();
 
 
 
-        private ShaderGlobalLights globalLights = new();
+        private ShaderGlobalLights globalLights = new ShaderGlobalLights();
         public bool rendernaturalambientlight = true;
         public bool renderartificialambientlight = true;
 
@@ -82,19 +82,19 @@ namespace CodeWalker.Rendering
         public bool markerdepthclip = Settings.Default.MarkerDepthClip;
 
 
-        private RenderLodManager LodManager = new();
+        private RenderLodManager LodManager = new RenderLodManager();
 
-        private List<YmapEntityDef> renderworldentities = new(); //used when rendering world view.
-        private List<RenderableEntity> renderworldrenderables = new();
-        private Dictionary<Archetype, Renderable> ArchetypeRenderables = new();
-        private Dictionary<YmapEntityDef, Renderable> RequiredParents = new();
-        private List<YmapEntityDef> RenderEntities = new();
+        private List<YmapEntityDef> renderworldentities = new List<YmapEntityDef>(); //used when rendering world view.
+        private List<RenderableEntity> renderworldrenderables = new List<RenderableEntity>();
+        private Dictionary<Archetype, Renderable> ArchetypeRenderables = new Dictionary<Archetype, Renderable>();
+        private Dictionary<YmapEntityDef, Renderable> RequiredParents = new Dictionary<YmapEntityDef, Renderable>();
+        private List<YmapEntityDef> RenderEntities = new List<YmapEntityDef>();
 
-        public Dictionary<uint, YmapEntityDef> HideEntities = new();//dictionary of entities to hide, for cutscenes to use 
+        public Dictionary<uint, YmapEntityDef> HideEntities = new Dictionary<uint, YmapEntityDef>();//dictionary of entities to hide, for cutscenes to use 
 
         public bool ShowScriptedYmaps = true;
-        public List<YmapFile> VisibleYmaps = new();
-        public List<YmapEntityDef> VisibleMlos = new();
+        public List<YmapFile> VisibleYmaps = new List<YmapFile>();
+        public List<YmapEntityDef> VisibleMlos = new List<YmapEntityDef>();
 
         public rage__eLodType renderworldMaxLOD = rage__eLodType.LODTYPES_DEPTH_ORPHANHD;
         public float renderworldLodDistMult = 1.0f;
@@ -117,8 +117,8 @@ namespace CodeWalker.Rendering
         public bool rendercollisionmeshlayerdrawable = true;
 
         public bool renderskeletons = false;
-        private List<RenderSkeletonItem> renderskeletonlist = new();
-        private List<VertexTypePC> skeletonLineVerts = new();
+        private List<RenderSkeletonItem> renderskeletonlist = new List<RenderSkeletonItem>();
+        private List<VertexTypePC> skeletonLineVerts = new List<VertexTypePC>();
 
         public bool renderhdtextures = true;
 
@@ -132,37 +132,37 @@ namespace CodeWalker.Rendering
         public bool renderboundsclip = Settings.Default.BoundsDepthClip;
         public float renderboundsmaxrad = 20000.0f;
         public float renderboundsmaxdist = 10000.0f;
-        public List<MapBox> BoundingBoxes = new();
-        public List<MapSphere> BoundingSpheres = new();
-        public List<MapSphere> HilightSpheres = new();
-        public List<MapBox> HilightBoxes = new();
-        public List<MapBox> SelectionBoxes = new();
-        public List<MapBox> WhiteBoxes = new();
-        public List<MapSphere> SelectionSpheres = new();
-        public List<MapSphere> WhiteSpheres = new();
-        public List<VertexTypePC> SelectionLineVerts = new();
-        public List<VertexTypePC> SelectionTriVerts = new();
+        public List<MapBox> BoundingBoxes = new List<MapBox>();
+        public List<MapSphere> BoundingSpheres = new List<MapSphere>();
+        public List<MapSphere> HilightSpheres = new List<MapSphere>();
+        public List<MapBox> HilightBoxes = new List<MapBox>();
+        public List<MapBox> SelectionBoxes = new List<MapBox>();
+        public List<MapBox> WhiteBoxes = new List<MapBox>();
+        public List<MapSphere> SelectionSpheres = new List<MapSphere>();
+        public List<MapSphere> WhiteSpheres = new List<MapSphere>();
+        public List<VertexTypePC> SelectionLineVerts = new List<VertexTypePC>();
+        public List<VertexTypePC> SelectionTriVerts = new List<VertexTypePC>();
 
 
-        private YmapEntityDef SelectedCarGenEntity = new(); //placeholder entity object for drawing cars
+        private YmapEntityDef SelectedCarGenEntity = new YmapEntityDef(); //placeholder entity object for drawing cars
 
         public DrawableBase SelectedDrawable = null;
-        public Dictionary<DrawableBase, bool> SelectionDrawableDrawFlags = new();
-        public Dictionary<DrawableModel, bool> SelectionModelDrawFlags = new();
-        public Dictionary<DrawableGeometry, bool> SelectionGeometryDrawFlags = new();
+        public Dictionary<DrawableBase, bool> SelectionDrawableDrawFlags = new Dictionary<DrawableBase, bool>();
+        public Dictionary<DrawableModel, bool> SelectionModelDrawFlags = new Dictionary<DrawableModel, bool>();
+        public Dictionary<DrawableGeometry, bool> SelectionGeometryDrawFlags = new Dictionary<DrawableGeometry, bool>();
         public bool SelectionFlagsTestAll = false; //to test all renderables for draw flags; for model form
 
 
 
 
-        public List<RenderedDrawable> RenderedDrawables = new(); //queued here for later hit tests...
-        public List<RenderedBoundComposite> RenderedBoundComps = new();
+        public List<RenderedDrawable> RenderedDrawables = new List<RenderedDrawable>(); //queued here for later hit tests...
+        public List<RenderedBoundComposite> RenderedBoundComps = new List<RenderedBoundComposite>();
         public bool RenderedDrawablesListEnable = false; //whether or not to add rendered drawables to the list
         public bool RenderedBoundCompsListEnable = false; //whether or not to add rendered bound comps to the list
 
 
-        private List<YtdFile> tryGetRenderableSDtxds = new();
-        private List<YtdFile> tryGetRenderableHDtxds = new();
+        private List<YtdFile> tryGetRenderableSDtxds = new List<YtdFile>();
+        private List<YtdFile> tryGetRenderableHDtxds = new List<YtdFile>();
 
 
 
@@ -468,11 +468,11 @@ namespace CodeWalker.Rendering
         {
             Vector3 lightdir = Vector3.Zero;//will be updated before each frame from X and Y vars
             Color4 lightdircolour = Color4.White;
-            Color4 lightdirambcolour = new(0.5f, 0.5f, 0.5f, 1.0f);
-            Color4 lightnaturalupcolour = new(0.0f);
-            Color4 lightnaturaldowncolour = new(0.0f);
-            Color4 lightartificialupcolour = new(0.0f);
-            Color4 lightartificialdowncolour = new(0.0f);
+            Color4 lightdirambcolour = new Color4(0.5f, 0.5f, 0.5f, 1.0f);
+            Color4 lightnaturalupcolour = new Color4(0.0f);
+            Color4 lightnaturaldowncolour = new Color4(0.0f);
+            Color4 lightartificialupcolour = new Color4(0.0f);
+            Color4 lightartificialdowncolour = new Color4(0.0f);
             bool hdr = (shaders != null) ? shaders.hdr : false;
             float hdrint = 1.0f;
             Vector3 sundir = Vector3.Up;
@@ -509,8 +509,8 @@ namespace CodeWalker.Rendering
                 float nightval = (((timeofday > 12.0f) ? (timeofday - 7.0f) : (timeofday + 17.0f)) / 9.0f);
                 float daycyc = (float)Math.PI * dayval;
                 float nightcyc = (float)Math.PI * nightval;
-                Vector3 sdir = new((float)Math.Sin(daycyc), -(float)Math.Cos(daycyc), 0.0f);
-                Vector3 mdir = new(-(float)Math.Sin(nightcyc), 0.0f, -(float)Math.Cos(nightcyc));
+                Vector3 sdir = new Vector3((float)Math.Sin(daycyc), -(float)Math.Cos(daycyc), 0.0f);
+                Vector3 mdir = new Vector3(-(float)Math.Sin(nightcyc), 0.0f, -(float)Math.Cos(nightcyc));
                 Quaternion saxis = Quaternion.RotationYawPitchRoll(0.0f, sunroll, 0.0f);
                 Quaternion maxis = Quaternion.RotationYawPitchRoll(0.0f, -moonroll, 0.0f);
                 sundir = Vector3.Normalize(saxis.Multiply(sdir));
@@ -567,8 +567,8 @@ namespace CodeWalker.Rendering
 
                     if (!hdr)
                     {
-                        Color4 maxdirc = new(1.0f);
-                        Color4 maxambc = new(0.5f);
+                        Color4 maxdirc = new Color4(1.0f);
+                        Color4 maxambc = new Color4(0.5f);
                         lightdircolour = Color4.Min(lightdircolour, maxdirc);
                         lightdirambcolour = Color4.Min(lightdirambcolour, maxambc);
                         lightnaturalupcolour = Color4.Min(lightnaturalupcolour, maxambc);
@@ -658,7 +658,7 @@ namespace CodeWalker.Rendering
             foreach (var marker in batch)
             {
                 icon = marker.Icon;
-                Vector2 texs = new(icon.TexWidth, icon.TexHeight);
+                Vector2 texs = new Vector2(icon.TexWidth, icon.TexHeight);
                 Vector2 size = texs * marker.Distance;
                 Vector2 offset = (new Vector2(texs.X, -texs.Y) - new Vector2(icon.Center.X, -icon.Center.Y) * 2.0f) * marker.Distance;
                 shader.SetMarkerVars(context, marker.CamRelPos, size, offset);
@@ -996,7 +996,7 @@ namespace CodeWalker.Rendering
 
         public void RenderSelectionBox(Vector3 p1, Vector3 p2, Vector3 a2, Vector3 a3, uint col)
         {
-            VertexTypePC v = new();
+            VertexTypePC v = new VertexTypePC();
             v.Colour = col;
             var c1 = p1 - a2 - a3;
             var c2 = p1 - a2 + a3;
@@ -1109,9 +1109,9 @@ namespace CodeWalker.Rendering
             var lastid = endid - 1;
             var vc = ynv.Vertices.Count;
             var startind = ynv.Indices[startid];
-            VertexTypePC v0 = new();
-            VertexTypePC v1 = new();
-            VertexTypePC v2 = new();
+            VertexTypePC v0 = new VertexTypePC();
+            VertexTypePC v1 = new VertexTypePC();
+            VertexTypePC v2 = new VertexTypePC();
             v0.Position = ynv.Vertices[startind];
             v0.Colour = colourval;
             v1.Colour = colourval;
@@ -1147,9 +1147,9 @@ namespace CodeWalker.Rendering
             var startind = ynv.Indices[startid];
 
             ////draw poly outline
-            VertexTypePC v = new();
+            VertexTypePC v = new VertexTypePC();
             v.Colour = colourval;
-            VertexTypePC v0 = new();
+            VertexTypePC v0 = new VertexTypePC();
             for (int id = startid; id < endid; id++)
             {
                 var ind = ynv.Indices[id];
@@ -1174,9 +1174,9 @@ namespace CodeWalker.Rendering
 
 
             ////draw poly triangles
-            //VertexTypePC v0 = new();
-            //VertexTypePC v1 = new();
-            //VertexTypePC v2 = new();
+            //VertexTypePC v0 = new VertexTypePC();
+            //VertexTypePC v1 = new VertexTypePC();
+            //VertexTypePC v2 = new VertexTypePC();
             //v0.Position = ynv.Vertices[startind];
             //v0.Colour = colourval;
             //v1.Colour = colourval;
@@ -1205,7 +1205,7 @@ namespace CodeWalker.Rendering
             var bgeom = poly?.Owner;
             if (bgeom == null) return;
 
-            VertexTypePC v = new();
+            VertexTypePC v = new VertexTypePC();
             v.Colour = colourval;
 
             var ori = Quaternion.Identity;
@@ -1440,7 +1440,7 @@ namespace CodeWalker.Rendering
 
         private void RenderSkeleton(Renderable renderable, YmapEntityDef entity)
         {
-            RenderSkeletonItem item = new();
+            RenderSkeletonItem item = new RenderSkeletonItem();
             item.Renderable = renderable;
             item.Entity = entity;
             renderskeletonlist.Add(item);
@@ -1454,9 +1454,9 @@ namespace CodeWalker.Rendering
             const uint cred = 4278190335;// (uint)new Color4(1.0f, 0.0f, 0.0f, 1.0f).ToRgba();
             const uint cgrn = 4278255360;// (uint)new Color4(0.0f, 1.0f, 0.0f, 1.0f).ToRgba();
             const uint cblu = 4294901760;// (uint)new Color4(0.0f, 0.0f, 1.0f, 1.0f).ToRgba();
-            VertexTypePC vr = new();
-            VertexTypePC vg = new();
-            VertexTypePC vb = new();
+            VertexTypePC vr = new VertexTypePC();
+            VertexTypePC vg = new VertexTypePC();
+            VertexTypePC vb = new VertexTypePC();
             vr.Colour = cred;
             vg.Colour = cgrn;
             vb.Colour = cblu;
@@ -1617,7 +1617,7 @@ namespace CodeWalker.Rendering
                 shaders.SetDepthStencilMode(context, DepthStencilMode.DisableAll);
                 shaders.SetRasterizerMode(context, RasterizerMode.Solid);
 
-                RenderableInst rinst = new();
+                RenderableInst rinst = new RenderableInst();
                 rinst.Position = Vector3.Zero;
                 rinst.CamRel = Vector3.Zero;
                 rinst.Distance = 0.0f;
@@ -1709,7 +1709,7 @@ namespace CodeWalker.Rendering
                     { continue; }
 
 
-                    RenderableInst rinst = new();
+                    RenderableInst rinst = new RenderableInst();
                     rinst.Position = frag.Position;// Vector3.Zero;
                     rinst.CamRel = Vector3.Zero;// - camera.Position;
                     rinst.Distance = rinst.CamRel.Length();
@@ -2102,7 +2102,7 @@ namespace CodeWalker.Rendering
                     Renderable rndbl = TryGetRenderable(arch, drawable);
                     if ((rndbl != null) && rndbl.IsLoaded && (rndbl.AllTexturesLoaded || !waitforchildrentoload))
                     {
-                        RenderableEntity rent = new();
+                        RenderableEntity rent = new RenderableEntity();
                         rent.Entity = ent;
                         rent.Renderable = rndbl;
                         renderworldrenderables.Add(rent);
@@ -2700,7 +2700,7 @@ namespace CodeWalker.Rendering
 
                 instb.CamRel = instb.Position - camera.Position;//to gracefully handle batch size changes
 
-                RenderableInstanceBatchInst binst = new();
+                RenderableInstanceBatchInst binst = new RenderableInstanceBatchInst();
                 binst.Batch = instb;
                 binst.Renderable = rndbl;
 
@@ -3111,7 +3111,7 @@ namespace CodeWalker.Rendering
             {
                 if ((bsrad < renderboundsmaxrad) && (dist < renderboundsmaxdist))
                 {
-                    MapSphere ms = new();
+                    MapSphere ms = new MapSphere();
                     ms.CamRelPos = bscent;
                     ms.Radius = bsrad;
                     BoundingSpheres.Add(ms);
@@ -3121,7 +3121,7 @@ namespace CodeWalker.Rendering
             {
                 if ((dist < renderboundsmaxdist))
                 {
-                    MapBox mb = new();
+                    MapBox mb = new MapBox();
                     mb.CamRelPos = camrel;
                     mb.BBMin = arche.BBMin;
                     mb.BBMax = arche.BBMax;
@@ -3348,7 +3348,7 @@ namespace CodeWalker.Rendering
             bool retval = true;// false;
             if ((rndbl.AllTexturesLoaded || !waitforchildrentoload))
             {
-                RenderableGeometryInst rginst = new();
+                RenderableGeometryInst rginst = new RenderableGeometryInst();
                 rginst.Inst.Renderable = rndbl;
                 rginst.Inst.CamRel = camrel;
                 rginst.Inst.Position = position;
@@ -3609,7 +3609,7 @@ namespace CodeWalker.Rendering
             RenderableBoundComposite rndbc = renderableCache.GetRenderableBoundComp(bounds);
             if ((rndbc != null) && rndbc.IsLoaded)
             {
-                RenderableBoundGeometryInst rbginst = new();
+                RenderableBoundGeometryInst rbginst = new RenderableBoundGeometryInst();
                 rbginst.Inst.Renderable = rndbc;
                 if (rndbc.Geometries != null)
                 {
@@ -4027,15 +4027,15 @@ namespace CodeWalker.Rendering
         public Camera Camera = null;
         public Vector3 Position = Vector3.Zero;
 
-        public Dictionary<MetaHash, YmapFile> CurrentYmaps = new();
-        private List<MetaHash> RemoveYmaps = new();
-        public Dictionary<YmapEntityDef, YmapEntityDef> RootEntities = new();
-        public List<YmapEntityDef> VisibleLeaves = new();
+        public Dictionary<MetaHash, YmapFile> CurrentYmaps = new Dictionary<MetaHash, YmapFile>();
+        private List<MetaHash> RemoveYmaps = new List<MetaHash>();
+        public Dictionary<YmapEntityDef, YmapEntityDef> RootEntities = new Dictionary<YmapEntityDef, YmapEntityDef>();
+        public List<YmapEntityDef> VisibleLeaves = new List<YmapEntityDef>();
 
-        public Dictionary<uint, YmapLODLight> LodLightsDict = new();
-        public HashSet<YmapEntityDef.LightInstance> VisibleLights = new();
-        public HashSet<YmapEntityDef.LightInstance> VisibleLightsPrev = new();
-        public HashSet<YmapLODLights> UpdateLodLights = new();
+        public Dictionary<uint, YmapLODLight> LodLightsDict = new Dictionary<uint, YmapLODLight>();
+        public HashSet<YmapEntityDef.LightInstance> VisibleLights = new HashSet<YmapEntityDef.LightInstance>();
+        public HashSet<YmapEntityDef.LightInstance> VisibleLightsPrev = new HashSet<YmapEntityDef.LightInstance>();
+        public HashSet<YmapLODLights> UpdateLodLights = new HashSet<YmapLODLights>();
 
         public void Update(Dictionary<MetaHash, YmapFile> ymaps, Camera camera, float elapsed)
         {

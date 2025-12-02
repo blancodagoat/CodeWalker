@@ -51,7 +51,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new(resentry, data);
+            ResourceDataReader rd = new ResourceDataReader(resentry, data);
 
 
             Bounds = rd.ReadBlock<Bounds>();
@@ -105,7 +105,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YbnFile ybn)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             var name = "BoundsFile";
@@ -134,14 +134,14 @@ namespace CodeWalker.GameFiles
 
         public static YbnFile GetYbn(string xml)
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYbn(doc);
         }
 
         public static YbnFile GetYbn(XmlDocument doc)
         {
-            YbnFile r = new();
+            YbnFile r = new YbnFile();
 
             var node = doc.DocumentElement;
             var bnode = node?.SelectSingleNode("Bounds");

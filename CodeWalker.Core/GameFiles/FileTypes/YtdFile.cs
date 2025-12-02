@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 
@@ -32,20 +31,6 @@ namespace CodeWalker.GameFiles
 
             Loaded = true;
         }
-
-        public async Task LoadAsync(byte[] data, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            //direct load from a raw, compressed ytd file - async version
-
-            await Task.Run(() =>
-            {
-                progress?.Report(0.5f);
-                RpfFile.LoadResourceFile(this, data, (uint)GetVersion(RpfManager.IsGen9));
-                progress?.Report(1.0f);
-            }, cancellationToken).ConfigureAwait(false);
-
-            Loaded = true;
-        }
         public void Load(byte[] data, RpfFileEntry entry)
         {
             Name = entry.Name;
@@ -58,7 +43,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new(resentry, data);
+            ResourceDataReader rd = new ResourceDataReader(resentry, data);
             
             if (rd.IsGen9)
             {
@@ -85,43 +70,6 @@ namespace CodeWalker.GameFiles
 
             //var analyzer = new ResourceAnalyzer(rd);
 
-        }
-
-        public async Task LoadAsync(byte[] data, RpfFileEntry entry, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
-        {
-            Name = entry.Name;
-            RpfFileEntry = entry;
-
-            RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
-            if (resentry == null)
-            {
-                throw new Exception("File entry wasn't a resource! (is it binary data?)");
-            }
-
-            await Task.Run(() =>
-            {
-                progress?.Report(0.3f);
-                
-                ResourceDataReader rd = new(resentry, data);
-                
-                if (rd.IsGen9)
-                {
-                    switch (resentry.Version)
-                    {
-                        case 5:
-                            break;
-                        case 13:
-                            rd.IsGen9 = false;
-                            break;
-                        default:
-                            break;
-                    }
-                }
-
-                progress?.Report(0.7f);
-                TextureDict = rd.ReadBlock<TextureDictionary>();
-                progress?.Report(1.0f);
-            }, cancellationToken).ConfigureAwait(false);
         }
 
 
@@ -153,7 +101,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YtdFile ytd, string outputFolder = "")
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if (ytd?.TextureDict != null)
@@ -171,14 +119,14 @@ namespace CodeWalker.GameFiles
 
         public static YtdFile GetYtd(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYtd(doc, inputFolder);
         }
 
         public static YtdFile GetYtd(XmlDocument doc, string inputFolder = "")
         {
-            YtdFile r = new();
+            YtdFile r = new YtdFile();
 
             var ddsfolder = inputFolder;
 

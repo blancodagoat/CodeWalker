@@ -890,7 +890,7 @@ namespace CodeWalker.GameFiles
         {
             bool ignoreLastFrame = true;//if last frame is equivalent to the first one, eg rollercoaster small light "globes" don't
 
-            FramePosition p = new();
+            FramePosition p = new FramePosition();
             var nframes = (ignoreLastFrame) ? (Frames - 1) : Frames;
 
             var curPos = (t / Duration) * nframes;
@@ -1958,9 +1958,9 @@ namespace CodeWalker.GameFiles
         public byte ChunkSize { get; set; } //stride of channel frame items - starts at 0 and will be set to 64 if need be
         public ushort FrameLength { get; set; } = 0; //stride of frame data item, calculated when ending frames
 
-        MemoryStream ChannelListStream = new();
-        MemoryStream ChannelItemStream = new();
-        MemoryStream MainStream = new();
+        MemoryStream ChannelListStream = new MemoryStream();
+        MemoryStream ChannelItemStream = new MemoryStream();
+        MemoryStream MainStream = new MemoryStream();
         BinaryWriter ChannelListWriter = null;
         BinaryWriter ChannelItemWriter = null;
         BinaryWriter MainWriter = null;
@@ -2256,7 +2256,7 @@ namespace CodeWalker.GameFiles
         }
         public void ReadXml(XmlNode node)
         {
-            //AnimationBoneId b = new();
+            //AnimationBoneId b = new AnimationBoneId();
             //b.BoneId = (ushort)Xml.GetChildUIntAttribute(node, "BoneId", "value");
             //BoneId = b;
 
@@ -3519,7 +3519,7 @@ namespace CodeWalker.GameFiles
         {
             if (Properties?.data_items != null)
             {
-                List<ClipProperty> pl = new();
+                List<ClipProperty> pl = new List<ClipProperty>();
                 foreach (var pme in Properties.data_items)
                 {
                     ClipPropertyMapEntry cpme = pme;
@@ -3751,7 +3751,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             if ((Attributes != null) && (Attributes.data_items != null))
             {
                 foreach (var item in Attributes.data_items)
@@ -4355,7 +4355,7 @@ namespace CodeWalker.GameFiles
 
             if ((Tags != null) && (Tags.data_items != null))
             {
-                List<ClipTag> tl = new();
+                List<ClipTag> tl = new List<ClipTag>();
                 foreach (var te in Tags.data_items)
                 {
                     if (te.Tags != this)

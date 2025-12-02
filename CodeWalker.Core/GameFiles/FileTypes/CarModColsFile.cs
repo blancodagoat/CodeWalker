@@ -33,7 +33,7 @@ namespace CodeWalker.GameFiles
 
 
             //always PSO .ymt
-            MemoryStream ms = new(data);
+            MemoryStream ms = new MemoryStream(data);
             if (PsoFile.IsPSO(ms))
             {
                 Pso = new PsoFile();
@@ -42,7 +42,7 @@ namespace CodeWalker.GameFiles
             }
 
 
-            XmlDocument xdoc = new();
+            XmlDocument xdoc = new XmlDocument();
             if (!string.IsNullOrEmpty(Xml))
             {
                 try

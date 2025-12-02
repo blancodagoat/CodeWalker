@@ -19,7 +19,7 @@ namespace CodeWalker.WinForms
 
         public const int WM_VSCROLL = 0x115;
 
-        List<TextBoxScrollSyncFix> peers = new();
+        List<TextBoxScrollSyncFix> peers = new List<TextBoxScrollSyncFix>();
 
         public void AddPeer(TextBoxScrollSyncFix peer)
         {

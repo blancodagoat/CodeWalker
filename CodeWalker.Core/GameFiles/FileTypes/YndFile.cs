@@ -84,7 +84,7 @@ namespace CodeWalker.GameFiles
                 throw new Exception("File entry wasn't a resource! (is it binary data?)");
             }
 
-            ResourceDataReader rd = new(resentry, data);
+            ResourceDataReader rd = new ResourceDataReader(resentry, data);
 
 
             NodeDictionary = rd.ReadBlock<NodeDictionary>();
@@ -131,10 +131,10 @@ namespace CodeWalker.GameFiles
         public void BuildStructs()
         {
 
-            List<NodeLink> newlinks = new();
-            List<NodeJunction> newjuncs = new();
-            List<NodeJunctionRef> newjuncrefs = new();
-            List<byte> newjuncheightmaps = new();
+            List<NodeLink> newlinks = new List<NodeLink>();
+            List<NodeJunction> newjuncs = new List<NodeJunction>();
+            List<NodeJunctionRef> newjuncrefs = new List<NodeJunctionRef>();
+            List<byte> newjuncheightmaps = new List<byte>();
 
             if (Nodes != null)
             {
@@ -259,8 +259,8 @@ namespace CodeWalker.GameFiles
         public YndNode AddNode()
         {
             int cnt = Nodes?.Length ?? 0;
-            YndNode yn = new();
-            Node n = new();
+            YndNode yn = new YndNode();
+            Node n = new Node();
             n.AreaID = (ushort)AreaID;
             n.NodeID = (ushort)(Nodes?.Length ?? 0);
             yn.Init(this, n);
@@ -413,8 +413,8 @@ namespace CodeWalker.GameFiles
 
         public void UpdateBoundingBox()
         {
-            Vector3 corner = new(-8192, -8192, -2048);
-            Vector3 cellsize = new(512, 512, 4096);
+            Vector3 corner = new Vector3(-8192, -8192, -2048);
+            Vector3 cellsize = new Vector3(512, 512, 4096);
 
             BBMin = corner + (cellsize * new Vector3(CellX, CellY, 0));
             BBMax = BBMin + cellsize;
@@ -453,11 +453,11 @@ namespace CodeWalker.GameFiles
                 vc = Links.Length * 6;
             }
 
-            List<EditorVertex> verts = new(vc);
-            EditorVertex v0 = new();
-            EditorVertex v1 = new();
-            EditorVertex v2 = new();
-            EditorVertex v3 = new();
+            List<EditorVertex> verts = new List<EditorVertex>(vc);
+            EditorVertex v0 = new EditorVertex();
+            EditorVertex v1 = new EditorVertex();
+            EditorVertex v2 = new EditorVertex();
+            EditorVertex v3 = new EditorVertex();
             if ((Links != null) && (Nodes != null))
             {
                 foreach (var node in Nodes)
@@ -537,11 +537,11 @@ namespace CodeWalker.GameFiles
             }
 
             //build triangles for the junctions bytes display....
-            List<EditorVertex> verts = new();
-            EditorVertex v0 = new();
-            EditorVertex v1 = new();
-            EditorVertex v2 = new();
-            EditorVertex v3 = new();
+            List<EditorVertex> verts = new List<EditorVertex>();
+            EditorVertex v0 = new EditorVertex();
+            EditorVertex v1 = new EditorVertex();
+            EditorVertex v2 = new EditorVertex();
+            EditorVertex v3 = new EditorVertex();
 
             foreach (var node in selectedNodes)
             {
@@ -557,11 +557,11 @@ namespace CodeWalker.GameFiles
                 float posx = j.PositionX / 4.0f;
                 float posy = j.PositionY / 4.0f;
 
-                Vector3 pos = new(posx, posy, 0.0f);
+                Vector3 pos = new Vector3(posx, posy, 0.0f);
                 Vector3 siz = new Vector3(d.CountX, d.CountY, 0.0f) * 2.0f;
-                //Vector3 siz = new(jx, jy, 0.0f);
+                //Vector3 siz = new Vector3(jx, jy, 0.0f);
                 Vector3 cnr = pos;// - siz * 0.5f;
-                                  //Vector3 inc = new(1.0f/jx)
+                                  //Vector3 inc = new Vector3(1.0f/jx)
 
                 cnr.Z = minz;// + 2.0f;
 
@@ -895,7 +895,7 @@ namespace CodeWalker.GameFiles
         {
             Ynd = ynd;
             RawData = node;
-            Vector3 p = new();
+            Vector3 p = new Vector3();
             p.X = node.PositionX / 4.0f;
             p.Y = node.PositionY / 4.0f;
             p.Z = node.PositionZ / 32.0f;
@@ -1025,7 +1025,7 @@ namespace CodeWalker.GameFiles
                 return existing;
             }
 
-            YndLink l = new();
+            YndLink l = new YndLink();
             l._RawData.AreaID = AreaID;
             l.Node1 = this;
             if (tonode != null)
@@ -1084,7 +1084,7 @@ namespace CodeWalker.GameFiles
 
         public bool RemoveLink(YndLink l)
         {
-            List<YndLink> newlinks = new();
+            List<YndLink> newlinks = new List<YndLink>();
             int cnt = Links?.Length ?? 0;
             bool r = false;
             for (int i = 0; i < cnt; i++)
@@ -1206,7 +1206,7 @@ namespace CodeWalker.GameFiles
 
         public void RemoveYndLinksForNode(Space space, out YndFile[] affectedFiles)
         {
-            List<YndFile> files = new();
+            List<YndFile> files = new List<YndFile>();
 
             foreach (var yndFile in space.GetYndFilesThatDependOnYndFile(Ynd))
             {
@@ -1649,7 +1649,7 @@ namespace CodeWalker.GameFiles
 
         public string GetDataString()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             if (Rows != null)
             {
                 foreach (var row in Rows)
@@ -1676,7 +1676,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             for (int i = 0; i < Values.Length; i++)
             {
                 if (i > 0) sb.Append(" ");
@@ -1748,8 +1748,8 @@ namespace CodeWalker.GameFiles
             else axis = 2; //z seems best
 
 
-            List<BasePathNode> l1 = new();
-            List<BasePathNode> l2 = new();
+            List<BasePathNode> l1 = new List<BasePathNode>();
+            List<BasePathNode> l2 = new List<BasePathNode>();
             foreach (var node in Nodes)
             {
                 bool s = false;
@@ -1841,7 +1841,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YndFile ynd)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if ((ynd != null) && (ynd.NodeDictionary != null))
@@ -1866,14 +1866,14 @@ namespace CodeWalker.GameFiles
 
         public static YndFile GetYnd(string xml)
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYnd(doc);
         }
 
         public static YndFile GetYnd(XmlDocument doc)
         {
-            YndFile ynd = new();
+            YndFile ynd = new YndFile();
             ynd.NodeDictionary = new NodeDictionary();
             ynd.NodeDictionary.ReadXml(doc.DocumentElement);
             ynd.InitNodesFromDictionary();

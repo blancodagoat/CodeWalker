@@ -198,7 +198,7 @@ namespace CodeWalker.GameFiles
 
     public static class JenkIndex
     {
-        public static Dictionary<uint, string> Index = new();
+        public static Dictionary<uint, string> Index = new Dictionary<uint, string>();
         private static object syncRoot = new object();
 
         public static void Clear()

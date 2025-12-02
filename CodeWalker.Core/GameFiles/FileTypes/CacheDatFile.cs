@@ -31,10 +31,10 @@ namespace CodeWalker.GameFiles
         {
             FileEntry = entry;
 
-            MemoryStream ms = new(data);
-            BinaryReader br = new(ms);
+            MemoryStream ms = new MemoryStream(data);
+            BinaryReader br = new BinaryReader(ms);
 
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             for (int i = 0; (i < 100) && (i < data.Length); i++)
             {
                 //read version string.
@@ -49,7 +49,7 @@ namespace CodeWalker.GameFiles
             uint structcount = 0;
             uint modlen;
             bool indates = false;
-            List<string> lines = new();
+            List<string> lines = new List<string>();
             var dates = new List<CacheFileDate>();
             var allMapNodes = new List<MapDataStoreNode>();
             var allCInteriorProxies = new List<CInteriorProxy>();
@@ -206,8 +206,8 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MemoryStream s = new();
-            DataWriter w = new(s, Endianess.LittleEndian);
+            MemoryStream s = new MemoryStream();
+            DataWriter w = new DataWriter(s, Endianess.LittleEndian);
 
             w.Write("[VERSION]\n" + Version + "\n");
             while (w.Position < 100) w.Write((byte)0);
@@ -301,7 +301,7 @@ namespace CodeWalker.GameFiles
 
         public string GetXmlOLD()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(MetaXmlBase.XmlHeader);
             sb.AppendLine(string.Format("<CacheDatFile version=\"{0}\">", Version));
             sb.AppendLine(" <fileDates>");
@@ -964,7 +964,7 @@ namespace CodeWalker.GameFiles
         {
             get
             {
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 if (Unk02 != null)
                 {
                     for (int i = 0; i < Unk02.Length; i++)
@@ -1030,7 +1030,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(CacheDatFile cdf)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if (cdf != null)
@@ -1056,14 +1056,14 @@ namespace CodeWalker.GameFiles
 
         public static CacheDatFile GetCacheDat(string xml)
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetCacheDat(doc);
         }
 
         public static CacheDatFile GetCacheDat(XmlDocument doc)
         {
-            CacheDatFile cdf = new();
+            CacheDatFile cdf = new CacheDatFile();
             cdf.ReadXml(doc.DocumentElement);
             return cdf;
         }

@@ -6,18 +6,19 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CodeWalker.Gen9Converter;
-
-static class Program
+namespace CodeWalker.Gen9Converter
 {
-    /// <summary>
-    /// The main entry point for the application.
-    /// </summary>
-    [STAThread]
-    static void Main()
+    static class Program
     {
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new ConvertAssetsForm());
+        /// <summary>
+        /// The main entry point for the application.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new ConvertAssetsForm());
+        }
     }
 }

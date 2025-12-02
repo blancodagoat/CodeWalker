@@ -207,9 +207,9 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(b4, 0, b, bp, b4.Length); bp += b4.Length; // 16
 
             byte[] db = null;
-            using (MemoryStream dms = new())
+            using (MemoryStream dms = new MemoryStream())
             {
-                using (DeflateStream ds = new(dms, CompressionMode.Compress))
+                using (DeflateStream ds = new DeflateStream(dms, CompressionMode.Compress))
                 {
                     ds.Write(b, 0, b.Length);
                     ds.Close();
@@ -225,7 +225,7 @@ namespace CodeWalker.GameFiles
             db = GTACrypto.EncryptAESData(db, PC_AES_KEY);
 
 
-            Random rnd = new((int)JenkHash.GenHash(PC_AES_KEY));
+            Random rnd = new Random((int)JenkHash.GenHash(PC_AES_KEY));
             int dbl = db.Length;
             byte[] rb1 = new byte[dbl];
             byte[] rb2 = new byte[dbl];
@@ -261,7 +261,7 @@ namespace CodeWalker.GameFiles
             //GenerateMagicData();
 
 
-            Random rnd = new((int)JenkHash.GenHash(PC_AES_KEY));
+            Random rnd = new Random((int)JenkHash.GenHash(PC_AES_KEY));
             byte[] m = Resources.magic;
             int dbl = m.Length;
             byte[] rb1 = new byte[dbl];
@@ -281,11 +281,11 @@ namespace CodeWalker.GameFiles
             db = GTACrypto.DecryptAESData(db, PC_AES_KEY);
 
             byte[] b = null;
-            using (MemoryStream dms = new(db))
+            using (MemoryStream dms = new MemoryStream(db))
             {
-                using (DeflateStream ds = new(dms, CompressionMode.Decompress))
+                using (DeflateStream ds = new DeflateStream(dms, CompressionMode.Decompress))
                 {
-                    using (MemoryStream outstr = new())
+                    using (MemoryStream outstr = new MemoryStream())
                     {
                         ds.CopyTo(outstr);
                         b = outstr.GetBuffer();

@@ -96,7 +96,7 @@ namespace CodeWalker.Forms
                 FxcParser.ParseShader(s);
                 if (!string.IsNullOrEmpty(s.LastError))
                 {
-                    StringBuilder sb = new();
+                    StringBuilder sb = new StringBuilder();
                     sb.Append("Error: ");
                     sb.AppendLine(s.LastError);
                     sb.AppendLine();
@@ -120,7 +120,7 @@ namespace CodeWalker.Forms
             else
             {
                 TechniquePanel.Enabled = true;
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 sb.AppendLine("technique " + t.Name);
                 sb.AppendLine("{");
                 if (t.Passes != null)

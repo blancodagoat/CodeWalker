@@ -228,11 +228,11 @@ namespace CodeWalker.GameFiles
             NodesCountVehicle = Xml.GetChildUIntAttribute(node, "VehicleNodeCount", "value");
             NodesCountPed = Xml.GetChildUIntAttribute(node, "PedNodeCount", "value");
 
-            List<Node> nodelist = new();
-            List<NodeLink> linklist = new();
-            List<NodeJunction> junclist = new();
-            List<byte> jhmblist = new();
-            List<NodeJunctionRef> jreflist = new();
+            List<Node> nodelist = new List<Node>();
+            List<NodeLink> linklist = new List<NodeLink>();
+            List<NodeJunction> junclist = new List<NodeJunction>();
+            List<byte> jhmblist = new List<byte>();
+            List<NodeJunctionRef> jreflist = new List<NodeJunctionRef>();
 
             var nodesnode = node.SelectSingleNode("Nodes");
             if (nodesnode != null)
@@ -240,7 +240,7 @@ namespace CodeWalker.GameFiles
                 var nodeitems = nodesnode.SelectNodes("Item");
                 foreach (XmlNode nodeitem in nodeitems)
                 {
-                    XmlNodeWrapper n = new(linklist);
+                    XmlNodeWrapper n = new XmlNodeWrapper(linklist);
                     n.ReadXml(nodeitem);
                     nodelist.Add(n.Node);
                 }
@@ -252,7 +252,7 @@ namespace CodeWalker.GameFiles
                 var juncitems = juncsnode.SelectNodes("Item");
                 foreach (XmlNode juncitem in juncitems)
                 {
-                    XmlJunctionWrapper j = new(jhmblist);
+                    XmlJunctionWrapper j = new XmlJunctionWrapper(jhmblist);
                     j.ReadXml(juncitem);
                     junclist.Add(j.Junction);
                 }
@@ -264,7 +264,7 @@ namespace CodeWalker.GameFiles
                 var jrefitems = jrefsnode.SelectNodes("Item");
                 foreach (XmlNode jrefitem in jrefitems)
                 {
-                    NodeJunctionRef jref = new();
+                    NodeJunctionRef jref = new NodeJunctionRef();
                     jref.ReadXml(jrefitem);
                     jreflist.Add(jref);
                 }
@@ -376,7 +376,7 @@ namespace CodeWalker.GameFiles
 
         public void WriteXml(StringBuilder sb, int indent, NodeLink[] allLinks)
         {
-            Vector3 p = new();
+            Vector3 p = new Vector3();
             p.X = PositionX / 4.0f;
             p.Y = PositionY / 4.0f;
             p.Z = PositionZ / 32.0f;
@@ -430,7 +430,7 @@ namespace CodeWalker.GameFiles
                 var linkitems = linksnode.SelectNodes("Item");
                 foreach (XmlNode linkitem in linkitems)
                 {
-                    NodeLink link = new();
+                    NodeLink link = new NodeLink();
                     link.ReadXml(linkitem);
                     allLinksList.Add(link);
                     linkCount++;
@@ -491,7 +491,7 @@ namespace CodeWalker.GameFiles
 
         public void WriteXml(StringBuilder sb, int indent, byte[] allHeightmapData)
         {
-            Vector2 p = new();
+            Vector2 p = new Vector2();
             p.X = PositionX / 4.0f;
             p.Y = PositionY / 4.0f;
             float minz = MinZ / 32.0f;

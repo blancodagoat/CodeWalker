@@ -61,7 +61,7 @@ namespace CodeWalker.Tools
 
                     UpdateStatus("Converting " + fname + "...");
 
-                    FbxConverter fc = new();
+                    FbxConverter fc = new FbxConverter();
 
                     var ydr = fc.ConvertToYdr(fname, idata);
 

@@ -13,15 +13,15 @@ namespace CodeWalker.GameFiles
 
         public PsoBuilderPointer RootPointer { get; set; }
 
-        List<string> STRFStrings = new();
-        List<string> STRSStrings = new();
+        List<string> STRFStrings = new List<string>();
+        List<string> STRSStrings = new List<string>();
 
 
-        Dictionary<MetaName, PsoStructureInfo> StructureInfos = new();
-        Dictionary<MetaName, PsoEnumInfo> EnumInfos = new();
+        Dictionary<MetaName, PsoStructureInfo> StructureInfos = new Dictionary<MetaName, PsoStructureInfo>();
+        Dictionary<MetaName, PsoEnumInfo> EnumInfos = new Dictionary<MetaName, PsoEnumInfo>();
 
 
-        List<PsoBuilderBlock> Blocks = new();
+        List<PsoBuilderBlock> Blocks = new List<PsoBuilderBlock>();
         int MaxBlockLength = 0x100000; //TODO: figure what this should be!
 
         public PsoBuilderBlock EnsureBlock(MetaName type)
@@ -36,7 +36,7 @@ namespace CodeWalker.GameFiles
                     }
                 }
             }
-            PsoBuilderBlock b = new();
+            PsoBuilderBlock b = new PsoBuilderBlock();
             b.StructureNameHash = type;
             b.Index = Blocks.Count;
             Blocks.Add(b);
@@ -62,7 +62,7 @@ namespace CodeWalker.GameFiles
             //    data = newdata; //make sure item size is multiple of 16... so pointers don't need sub offsets!
             //}
             int idx = block.AddItem(data);
-            PsoBuilderPointer r = new();
+            PsoBuilderPointer r = new PsoBuilderPointer();
             r.BlockID = block.Index + 1;
             r.Offset = (idx * data.Length);
             r.Length = data.Length;
@@ -89,7 +89,7 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(data, 0, newdata, 0, datalen);
             int offs = block.TotalSize;
             int idx = block.AddItem(newdata);
-            PsoBuilderPointer r = new();
+            PsoBuilderPointer r = new PsoBuilderPointer();
             r.BlockID = block.Index + 1;
             r.Offset = offs; //(idx * data.Length);;
             r.Length = length;
@@ -148,7 +148,7 @@ namespace CodeWalker.GameFiles
         {
             if ((arr == null) || (arr.Length == 0)) return new Array_StructurePointer();
             var ptr = AddItemArray((MetaName)MetaTypeName.PsoPOINTER, arr);
-            Array_StructurePointer sp = new();
+            Array_StructurePointer sp = new Array_StructurePointer();
             sp.Count1 = (ushort)arr.Length;
             sp.Count2 = sp.Count1;
             sp.Pointer = ptr.Pointer;
@@ -172,7 +172,7 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(data, 0, newdata, 0, datalen);
             int offs = block.TotalSize;
             int idx = block.AddItem(newdata);
-            PsoBuilderPointer r = new();
+            PsoBuilderPointer r = new PsoBuilderPointer();
             r.BlockID = block.Index + 1;
             r.Offset = offs;// (idx * data.Length);
             r.Length = datalen; //actual length of string.
@@ -380,7 +380,7 @@ namespace CodeWalker.GameFiles
 
         public PsoFile GetPso()
         {
-            PsoFile pso = new();
+            PsoFile pso = new PsoFile();
             pso.SchemaSection = new PsoSchemaSection();
 
             var schEntries = new List<PsoElementInfo>();
@@ -474,7 +474,7 @@ namespace CodeWalker.GameFiles
         //        Buffer.BlockCopy(bdata, 0, data, offset, bdata.Length);
         //        offset += bdata.Length;
         //    }
-        //    MetaDataBlock db = new();
+        //    MetaDataBlock db = new MetaDataBlock();
         //    db.StructureNameHash = StructureNameHash;
         //    db.DataLength = TotalSize;
         //    db.Data = data;

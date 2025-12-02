@@ -24,8 +24,8 @@ namespace CodeWalker.Rendering
         public UnitDisc(Device device, int segmentCount, bool invert = false)
         {
             SegmentCount = segmentCount;
-            List<Vector3> verts = new();
-            List<uint> inds = new();
+            List<Vector3> verts = new List<Vector3>();
+            List<uint> inds = new List<uint>();
             verts.Add(Vector3.Zero);
             float incr = (float)Math.PI * 2.0f / segmentCount;
             for (int i = 0; i < segmentCount; i++)

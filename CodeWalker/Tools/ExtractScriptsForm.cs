@@ -109,7 +109,7 @@ namespace CodeWalker.Tools
                         return;
                     }
 
-                    FileInfo dmpfi = new(dmppath);
+                    FileInfo dmpfi = new FileInfo(dmppath);
 
                     UpdateDumpStatus(string.Format("Scanning {0} for keys...", dmpfi.Name));
 
@@ -178,7 +178,7 @@ namespace CodeWalker.Tools
                 string[] allfiles = Directory.GetFiles(searchpath, "*.rpf", SearchOption.AllDirectories);
                 foreach (string rpfpath in allfiles)
                 {
-                    RpfFile rf = new(rpfpath, rpfpath.Replace(replpath, ""));
+                    RpfFile rf = new RpfFile(rpfpath, rpfpath.Replace(replpath, ""));
                     UpdateExtractStatus("Searching " + rf.Name + "...");
                     rf.ExtractScripts(outputpath, UpdateExtractStatus);
                 }

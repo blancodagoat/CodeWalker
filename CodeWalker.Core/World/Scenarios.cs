@@ -42,8 +42,8 @@ namespace CodeWalker.World
 
 
 
-            //Vector2I maxgrid = new(0, 0);
-            //List<Vector2I> griddims = new();
+            //Vector2I maxgrid = new Vector2I(0, 0);
+            //List<Vector2I> griddims = new List<Vector2I>();
             //int maxcells = 0;
 
             var rpfman = gameFileCache.RpfMan;
@@ -306,7 +306,7 @@ namespace CodeWalker.World
                     }
 
 
-                    List<MCScenarioChainingEdge> chainedges = new();
+                    List<MCScenarioChainingEdge> chainedges = new List<MCScenarioChainingEdge>();
 
                     if ((r.Paths.Chains != null) && (r.Paths.Edges != null))
                     {
@@ -434,7 +434,7 @@ namespace CodeWalker.World
         public void BuildVertices()
         {
 
-            List<EditorVertex> pathverts = new();
+            List<EditorVertex> pathverts = new List<EditorVertex>();
 
             uint cred = (uint)Color.Red.ToRgba();
             uint cblu = (uint)Color.Blue.ToRgba();
@@ -444,8 +444,8 @@ namespace CodeWalker.World
             if ((Ymt != null) && (Ymt.CScenarioPointRegion != null))
             {
                 var r = Ymt.CScenarioPointRegion;
-                EditorVertex pv1 = new();
-                EditorVertex pv2 = new();
+                EditorVertex pv1 = new EditorVertex();
+                EditorVertex pv2 = new EditorVertex();
 
                 if ((r.Paths != null) && (r.Paths.Nodes != null))
                 {
@@ -533,7 +533,7 @@ namespace CodeWalker.World
 
 
 
-            List<Vector4> nodes = new(Nodes.Count);
+            List<Vector4> nodes = new List<Vector4>(Nodes.Count);
             foreach (var node in Nodes)
             {
                 nodes.Add(new Vector4(node.Position, 1.0f));
@@ -789,7 +789,7 @@ namespace CodeWalker.World
                         }
                         if (exEdge != null)
                         {
-                            MCScenarioChainingEdge newEdge = new(rgn, exEdge);
+                            MCScenarioChainingEdge newEdge = new MCScenarioChainingEdge(rgn, exEdge);
                             newEdge.NodeFrom = copy.ChainingNode;
                             newEdge.NodeIndexFrom = (ushort)copy.ChainingNode.NodeIndex;
                             newEdge.NodeTo = n.ChainingNode;
@@ -874,7 +874,7 @@ namespace CodeWalker.World
             if (paths == null) return false;
 
 
-            Dictionary<MCScenarioChainingNode, int> ndict = new();
+            Dictionary<MCScenarioChainingNode, int> ndict = new Dictionary<MCScenarioChainingNode, int>();
 
             var edges = chain.Edges;
             if (edges != null)
@@ -893,7 +893,7 @@ namespace CodeWalker.World
             paths.RemoveChain(chain);
 
 
-            List<ScenarioNode> delnodes = new();
+            List<ScenarioNode> delnodes = new List<ScenarioNode>();
             foreach (var node in Nodes)
             {
                 if ((node.ChainingNode != null) && (ndict.ContainsKey(node.ChainingNode)))
@@ -925,7 +925,7 @@ namespace CodeWalker.World
 
 
 
-            Dictionary<MCScenarioPoint, int> ndict = new();
+            Dictionary<MCScenarioPoint, int> ndict = new Dictionary<MCScenarioPoint, int>();
             if (cluster?.Points?.MyPoints != null)
             {
                 foreach (var point in cluster.Points.MyPoints)
@@ -933,7 +933,7 @@ namespace CodeWalker.World
                     ndict[point] = 1;
                 }
             }
-            List<ScenarioNode> delnodes = new();
+            List<ScenarioNode> delnodes = new List<ScenarioNode>();
             foreach (var node in Nodes)
             {
                 if ((node.ClusterMyPoint != null) && (ndict.ContainsKey(node.ClusterMyPoint)))
@@ -990,7 +990,7 @@ namespace CodeWalker.World
 
 
 
-            Dictionary<MCExtensionDefSpawnPoint, int> ndict = new();
+            Dictionary<MCExtensionDefSpawnPoint, int> ndict = new Dictionary<MCExtensionDefSpawnPoint, int>();
             if (entity.ScenarioPoints != null)
             {
                 foreach (var point in entity.ScenarioPoints)
@@ -998,7 +998,7 @@ namespace CodeWalker.World
                     ndict[point] = 1;
                 }
             }
-            List<ScenarioNode> delnodes = new();
+            List<ScenarioNode> delnodes = new List<ScenarioNode>();
             foreach (var node in Nodes)
             {
                 if ((node.EntityPoint != null) && (ndict.ContainsKey(node.EntityPoint)))
@@ -1030,7 +1030,7 @@ namespace CodeWalker.World
             RebuildLookUps();
             RebuildChains();
 
-            MetaBuilder mb = new();
+            MetaBuilder mb = new MetaBuilder();
 
             var ptr = Region.Save(mb);
 
@@ -1051,8 +1051,8 @@ namespace CodeWalker.World
             //find the grid extents, then sort points into the cell buckets.
             //output cell end point indexes to the accel grid data.
 
-            Vector3 vmin = new(float.MaxValue);
-            Vector3 vmax = new(float.MinValue);
+            Vector3 vmin = new Vector3(float.MaxValue);
+            Vector3 vmax = new Vector3(float.MinValue);
             var points = Region.Points?.MyPoints;
             if ((points != null) && (points.Length > 0))
             {
@@ -1072,10 +1072,10 @@ namespace CodeWalker.World
             //need to first find the correct cell size - aim for a maximum of 999 cells
             //start at 32x32 size, increment until cell count is within the limit.
             float cellsize = 32;
-            Vector2 gmin = new(vmin.X / cellsize, vmin.Y / cellsize);
-            Vector2 gmax = new(vmax.X / cellsize, vmax.Y / cellsize);
-            Vector2I imin = new(gmin);
-            Vector2I imax = new(gmax);
+            Vector2 gmin = new Vector2(vmin.X / cellsize, vmin.Y / cellsize);
+            Vector2 gmax = new Vector2(vmax.X / cellsize, vmax.Y / cellsize);
+            Vector2I imin = new Vector2I(gmin);
+            Vector2I imax = new Vector2I(gmax);
             Vector2I irng = new Vector2I(1, 1) + imax - imin;
             int cellcount = irng.X * irng.Y;
             while (cellcount > 999)
@@ -1097,7 +1097,7 @@ namespace CodeWalker.World
                 foreach (var point in points)
                 {
                     var pos = point.Position;
-                    Vector2 gpos = new(pos.X / cellsize, pos.Y / cellsize);
+                    Vector2 gpos = new Vector2(pos.X / cellsize, pos.Y / cellsize);
                     Vector2I ipos = new Vector2I(gpos) - imin;
                     if (ipos.X < 0)
                     { ipos.X = 0; }
@@ -1125,8 +1125,8 @@ namespace CodeWalker.World
                 }
             }
 
-            List<MCScenarioPoint> newpoints = new();
-            List<ushort> newids = new();
+            List<MCScenarioPoint> newpoints = new List<MCScenarioPoint>();
+            List<ushort> newids = new List<ushort>();
             foreach (var cell in cells)
             {
                 bool flag = false;
@@ -1184,12 +1184,12 @@ namespace CodeWalker.World
             //find all unique hashes from the points, and assign new indices on points.
 
             //var d = Region.LookUps.Data;
-            Dictionary<MetaHash, int> typeNames = new(); //scenario type hashes used by points
-            Dictionary<MetaHash, int> pedModelSetNames = new(); //ped names
-            Dictionary<MetaHash, int> vehicleModelSetNames = new(); //vehicle names
-            Dictionary<MetaHash, int> interiorNames = new();
-            Dictionary<MetaHash, int> groupNames = new();  //scenario group names?
-            Dictionary<MetaHash, int> imapNames = new(); //ymap names
+            Dictionary<MetaHash, int> typeNames = new Dictionary<MetaHash, int>(); //scenario type hashes used by points
+            Dictionary<MetaHash, int> pedModelSetNames = new Dictionary<MetaHash, int>(); //ped names
+            Dictionary<MetaHash, int> vehicleModelSetNames = new Dictionary<MetaHash, int>(); //vehicle names
+            Dictionary<MetaHash, int> interiorNames = new Dictionary<MetaHash, int>();
+            Dictionary<MetaHash, int> groupNames = new Dictionary<MetaHash, int>();  //scenario group names?
+            Dictionary<MetaHash, int> imapNames = new Dictionary<MetaHash, int>(); //ymap names
             var nonehash = JenkHash.GenHash("none");
             //typeNames[nonehash] = 0;
             pedModelSetNames[nonehash] = 0;
@@ -1691,7 +1691,7 @@ namespace CodeWalker.World
 
         private Dictionary<uint, ScenarioType> LoadTypes(GameFileCache gfc, string filename)
         {
-            Dictionary<uint, ScenarioType> types = new();
+            Dictionary<uint, ScenarioType> types = new Dictionary<uint, ScenarioType>();
 
             var xml = LoadXml(gfc, filename);
 
@@ -1750,7 +1750,7 @@ namespace CodeWalker.World
 
         private Dictionary<uint, ScenarioTypeGroup> LoadTypeGroups(GameFileCache gfc, string filename)
         {
-            Dictionary<uint, ScenarioTypeGroup> types = new();
+            Dictionary<uint, ScenarioTypeGroup> types = new Dictionary<uint, ScenarioTypeGroup>();
 
             var xml = LoadXml(gfc, filename);
 
@@ -1764,7 +1764,7 @@ namespace CodeWalker.World
 
             foreach (XmlNode item in items)
             {
-                ScenarioTypeGroup group = new();
+                ScenarioTypeGroup group = new ScenarioTypeGroup();
 
                 group.Load(item);
                 if (!string.IsNullOrEmpty(group.NameLower))
@@ -1784,7 +1784,7 @@ namespace CodeWalker.World
 
         private Dictionary<uint, AmbientModelSet> LoadModelSets(GameFileCache gfc, string filename)
         {
-            Dictionary<uint, AmbientModelSet> sets = new();
+            Dictionary<uint, AmbientModelSet> sets = new Dictionary<uint, AmbientModelSet>();
 
             var xml = LoadXml(gfc, filename);
 
@@ -1806,7 +1806,7 @@ namespace CodeWalker.World
 
             foreach (XmlNode item in items)
             {
-                AmbientModelSet set = new();
+                AmbientModelSet set = new AmbientModelSet();
                 set.Load(item);
                 if (!string.IsNullOrEmpty(set.NameLower))
                 {
@@ -1821,7 +1821,7 @@ namespace CodeWalker.World
 
         private Dictionary<uint, ConditionalAnimsGroup> LoadAnimGroups(GameFileCache gfc, string filename)
         {
-            Dictionary<uint, ConditionalAnimsGroup> groups = new();
+            Dictionary<uint, ConditionalAnimsGroup> groups = new Dictionary<uint, ConditionalAnimsGroup>();
 
             var xml = LoadXml(gfc, filename);
 
@@ -1835,7 +1835,7 @@ namespace CodeWalker.World
 
             foreach (XmlNode item in items)
             {
-                ConditionalAnimsGroup group = new();
+                ConditionalAnimsGroup group = new ConditionalAnimsGroup();
                 group.Load(item);
                 if (!string.IsNullOrEmpty(group.NameLower))
                 {
@@ -2125,7 +2125,7 @@ namespace CodeWalker.World
             var modellist = new List<AmbientModel>();
             foreach (XmlNode item in models)
             {
-                AmbientModel model = new();
+                AmbientModel model = new AmbientModel();
                 model.Load(item);
                 modellist.Add(model);
             }

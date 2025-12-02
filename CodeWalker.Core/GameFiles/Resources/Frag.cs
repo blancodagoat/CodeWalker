@@ -4434,7 +4434,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            UintStringBuilder usb = new();
+            UintStringBuilder usb = new UintStringBuilder();
             usb.Add(Unknown_00h);
             usb.Add(Unknown_04h);
             usb.Add(Unknown_08h);
@@ -4452,7 +4452,7 @@ namespace CodeWalker.GameFiles
 
     public class UintStringBuilder
     {
-        public StringBuilder sb = new();
+        public StringBuilder sb = new StringBuilder();
 
         public void Add(uint u)
         {

@@ -52,8 +52,8 @@ namespace CodeWalker.GameFiles
             Name = entry.Name;
             Hash = entry.ShortNameHash;
 
-            MemoryStream ms = new(data);
-            BinaryReader br = new(ms);
+            MemoryStream ms = new MemoryStream(data);
+            BinaryReader br = new BinaryReader(ms);
 
             uint magic_rgxe = br.ReadUInt32();
             if (magic_rgxe != 1702389618) //"rgxe"
@@ -69,7 +69,7 @@ namespace CodeWalker.GameFiles
                 var pparams = new List<FxcPresetParam>();
                 for (int i = 0; i < ppCount; i++)
                 {
-                    FxcPresetParam pparam = new();
+                    FxcPresetParam pparam = new FxcPresetParam();
                     pparam.Read(br);
                     pparams.Add(pparam);
                 }
@@ -82,7 +82,7 @@ namespace CodeWalker.GameFiles
             for (int i = 0; i < 6; i++)
             {
 
-                FxcShaderGroup group = new();
+                FxcShaderGroup group = new FxcShaderGroup();
                 group.Read(br, i);
                 groups.Add(group);
                 if (group.Shaders != null)
@@ -102,7 +102,7 @@ namespace CodeWalker.GameFiles
 
 
 
-            List<FxcVariable> globalVars = new();
+            List<FxcVariable> globalVars = new List<FxcVariable>();
             CBufferDict = new Dictionary<uint, FxcCBuffer>();
 
 
@@ -112,7 +112,7 @@ namespace CodeWalker.GameFiles
                 var cbuffers1 = new List<FxcCBuffer>();
                 for (int i = 0; i < cbCount1; i++) //cbuffers? includes?
                 {
-                    FxcCBuffer cbuf = new();
+                    FxcCBuffer cbuf = new FxcCBuffer();
                     cbuf.Read(br);
                     cbuffers1.Add(cbuf);
                     CBufferDict[cbuf.NameHash] = cbuf;
@@ -126,7 +126,7 @@ namespace CodeWalker.GameFiles
                 var vars1 = new List<FxcVariable>(); //cbuffer contents/vars
                 for (int i = 0; i < varCount1; i++)
                 {
-                    FxcVariable vari = new();
+                    FxcVariable vari = new FxcVariable();
                     vari.Read(br);
                     vars1.Add(vari);
                     if (CBufferDict.TryGetValue(vari.CBufferName, out var cbtmp))
@@ -147,7 +147,7 @@ namespace CodeWalker.GameFiles
                 var cbuffers2 = new List<FxcCBuffer>(); //more cbuffers..
                 for (int i = 0; i < cbCount2; i++)
                 {
-                    FxcCBuffer cbuf = new();
+                    FxcCBuffer cbuf = new FxcCBuffer();
                     cbuf.Read(br);
                     cbuffers2.Add(cbuf);
                     CBufferDict[cbuf.NameHash] = cbuf;
@@ -161,7 +161,7 @@ namespace CodeWalker.GameFiles
                 var vars2 = new List<FxcVariable>();
                 for (int i = 0; i < varCount2; i++) //textures/samplers
                 {
-                    FxcVariable vari = new();
+                    FxcVariable vari = new FxcVariable();
                     vari.Read(br);
                     vars2.Add(vari);
                     if (CBufferDict.TryGetValue(vari.CBufferName, out var cbtmp))
@@ -182,7 +182,7 @@ namespace CodeWalker.GameFiles
                 var techniques = new List<FxcTechnique>();
                 for (int i = 0; i < techCount; i++)
                 {
-                    FxcTechnique tech = new();
+                    FxcTechnique tech = new FxcTechnique();
                     tech.Read(br);
                     tech.GetNamesFromIndices(this);
                     techniques.Add(tech);
@@ -396,7 +396,7 @@ namespace CodeWalker.GameFiles
 
         public string GetMetaString()
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine("Name: " + Name);
             sb.AppendLine("Hash: " + Hash.ToString());
             sb.AppendLine("Vertex type: " + ((uint)VertexType).ToString());
@@ -694,7 +694,7 @@ namespace CodeWalker.GameFiles
             byte sc = br.ReadByte();
             if (sc > 0)
             {
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 r = new string[sc];
                 for (int i = 0; i < sc; i++)
                 {
@@ -819,7 +819,7 @@ namespace CodeWalker.GameFiles
                 Shaders = new FxcShader[ShaderCount-1];
                 for (int i = 1; i < ShaderCount; i++)
                 {
-                    FxcShader shader = new();
+                    FxcShader shader = new FxcShader();
                     shader.Read(br, gindex);
                     Shaders[i-1] = shader;
                 }
@@ -919,7 +919,7 @@ namespace CodeWalker.GameFiles
                 var buffers = new List<FxcShaderBufferRef>();
                 for (int e = 0; e < bufferCount; e++)
                 {
-                    FxcShaderBufferRef ext = new();
+                    FxcShaderBufferRef ext = new FxcShaderBufferRef();
                     ext.Read(br);
                     buffers.Add(ext);
                 }
@@ -1320,10 +1320,10 @@ namespace CodeWalker.GameFiles
             ParamCount = br.ReadByte(); //1
             if (ParamCount > 0)
             {
-                List<FxcVariableParam> parms = new();
+                List<FxcVariableParam> parms = new List<FxcVariableParam>();
                 for (int i = 0; i < ParamCount; i++)
                 {
-                    FxcVariableParam parm = new();
+                    FxcVariableParam parm = new FxcVariableParam();
                     parm.Read(br);
                     parms.Add(parm);
                 }
@@ -1589,7 +1589,7 @@ namespace CodeWalker.GameFiles
                 Passes = new FxcPass[PassCount];
                 for (int i = 0; i < PassCount; i++)
                 {
-                    FxcPass p = new();
+                    FxcPass p = new FxcPass();
                     p.Read(br);
                     Passes[i] = p;
                 }
@@ -1676,7 +1676,7 @@ namespace CodeWalker.GameFiles
                 Params = new FxcPassParam[ParamCount];
                 for (int i = 0; i < ParamCount; i++)
                 {
-                    FxcPassParam p = new();
+                    FxcPassParam p = new FxcPassParam();
                     p.Read(br);
                     Params[i] = p;
                 }
@@ -1856,7 +1856,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(FxcFile fxc, string outputFolder = "")
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if ((fxc != null) && (fxc.Shaders != null))
@@ -1877,14 +1877,14 @@ namespace CodeWalker.GameFiles
 
         public static FxcFile GetFxc(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetFxc(doc, inputFolder);
         }
 
         public static FxcFile GetFxc(XmlDocument doc, string inputFolder = "")
         {
-            FxcFile fxc = new();
+            FxcFile fxc = new FxcFile();
             fxc.ReadXml(doc.DocumentElement, inputFolder);
             return fxc;
         }

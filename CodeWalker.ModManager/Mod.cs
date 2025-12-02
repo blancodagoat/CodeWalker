@@ -17,8 +17,8 @@ namespace CodeWalker.ModManager
         public ModType Type;
         public ModStatus Status;
         public int LoadOrder = -1;
-        public List<ModFile> Files = new();
-        public List<string> LogItems = new();
+        public List<ModFile> Files = new List<ModFile>();
+        public List<string> LogItems = new List<string>();
         public object IconObject;//loaded Image object for use by the form
         public string TypeStatusString => $"{Type} : {Status}";//, {(Enabled ? "Enabled" : "Disabled")}";
 

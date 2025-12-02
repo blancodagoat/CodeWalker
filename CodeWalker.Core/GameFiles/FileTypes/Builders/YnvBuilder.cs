@@ -37,7 +37,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
 
 
-        public List<YnvPoly> PolyList = new();
+        public List<YnvPoly> PolyList = new List<YnvPoly>();
         public string VehicleName = string.Empty;
         private SpaceNavGrid NavGrid = null;
         private List<YnvFile> YnvFiles = null;
@@ -47,7 +47,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             if ((verts == null) || (verts.Length < 3))
             { return null; }
 
-            YnvPoly poly = new();
+            YnvPoly poly = new YnvPoly();
             poly.AreaID = 0x3FFF;
             poly.Index = PolyList.Count;
             poly.Vertices = verts;

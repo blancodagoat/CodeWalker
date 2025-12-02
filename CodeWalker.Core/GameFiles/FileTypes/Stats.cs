@@ -10,7 +10,7 @@ namespace CodeWalker.GameFiles
 
     public static class StatsNames
     {
-        public static Dictionary<uint, string> Index = new();
+        public static Dictionary<uint, string> Index = new Dictionary<uint, string>();
         private static object syncRoot = new object();
 
         public static volatile bool FullIndexBuilt = false;

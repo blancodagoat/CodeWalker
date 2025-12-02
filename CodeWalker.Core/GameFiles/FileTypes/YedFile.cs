@@ -79,7 +79,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YedFile yed, string outputFolder = "")
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if (yed?.ExpressionDictionary != null)
@@ -97,14 +97,14 @@ namespace CodeWalker.GameFiles
 
         public static YedFile GetYed(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYed(doc, inputFolder);
         }
 
         public static YedFile GetYed(XmlDocument doc, string inputFolder = "")
         {
-            YedFile r = new();
+            YedFile r = new YedFile();
 
             var node = doc.DocumentElement;
             if (node != null)

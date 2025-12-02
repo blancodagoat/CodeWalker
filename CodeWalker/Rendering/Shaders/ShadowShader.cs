@@ -77,7 +77,7 @@ namespace CodeWalker.Rendering
         bool defaultBoneMatricesBound = false;
 
 
-        private Dictionary<VertexType, InputLayout> layouts = new();
+        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
 
         public ShadowShader(Device device)
         {

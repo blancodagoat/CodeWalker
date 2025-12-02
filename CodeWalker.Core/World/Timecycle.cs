@@ -53,7 +53,7 @@ namespace CodeWalker.World
             Samples.Clear();
             for (int i = 0; i < samples.Count; i++)
             {
-                TimecycleSample tcs = new();
+                TimecycleSample tcs = new TimecycleSample();
                 tcs.Init(samples[i]);
                 Samples.Add(tcs);
             }

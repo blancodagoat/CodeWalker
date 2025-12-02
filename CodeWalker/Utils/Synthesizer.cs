@@ -25,7 +25,7 @@ namespace CodeWalker.Utils
         
         private Dat10Synth.Instruction[] instructions;
         private bool stop;
-        private Random rnd = new();
+        private Random rnd = new Random();
 
         private XAudio2 xAudio2;
         private MasteringVoice masteringVoice;

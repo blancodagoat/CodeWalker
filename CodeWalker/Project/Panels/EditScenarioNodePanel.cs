@@ -628,7 +628,7 @@ namespace CodeWalker.Project.Panels
             var paths = CurrentScenario?.CScenarioPointRegion?.Paths;
             if (paths == null) return;
 
-            MCScenarioChainingEdge edge = new();
+            MCScenarioChainingEdge edge = new MCScenarioChainingEdge();
             if (CurrentScenarioChainEdge != null)
             {
                 edge.Data = CurrentScenarioChainEdge.Data;

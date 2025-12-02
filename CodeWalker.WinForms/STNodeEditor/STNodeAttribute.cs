@@ -54,7 +54,7 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private static char[] m_ch_splitter = new char[] { '/', '\\' };
-        private static Regex m_reg = new(@"^https?://", RegexOptions.IgnoreCase);
+        private static Regex m_reg = new Regex(@"^https?://", RegexOptions.IgnoreCase);
         /// <summary>
         /// Constructs an STNode property
         /// </summary>
@@ -91,7 +91,7 @@ namespace ST.Library.UI.NodeEditor
                 this._Link = "http://" + strLink;
         }
 
-        private static Dictionary<Type, MethodInfo> m_dic = new();
+        private static Dictionary<Type, MethodInfo> m_dic = new Dictionary<Type, MethodInfo>();
         /// <summary>
         /// Get type helper function
         /// </summary>

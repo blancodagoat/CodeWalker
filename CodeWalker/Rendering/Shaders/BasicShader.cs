@@ -180,7 +180,7 @@ namespace CodeWalker.Rendering
         Matrix3_s[] defaultBoneMatrices;
         bool defaultBoneMatricesBound = false;
 
-        private Dictionary<VertexType, InputLayout> layouts = new();
+        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
 
         public BasicShader(Device device)
         {

@@ -89,7 +89,7 @@ namespace CodeWalker.GameFiles
                     efmdxmlpath = gfc.GetDlcPatchedPath(efmdxmlpath);
                     XmlDocument efmdxml = rpfman.GetFileXml(efmdxmlpath);
 
-                    DlcExtraFolderMountFile efmf = new();
+                    DlcExtraFolderMountFile efmf = new DlcExtraFolderMountFile();
                     efmf.Load(efmdxml);
 
                     ExtraMounts[dfn] = efmf;
@@ -100,7 +100,7 @@ namespace CodeWalker.GameFiles
                     etudxmlpath = gfc.GetDlcPatchedPath(etudxmlpath);
                     XmlDocument etudxml = rpfman.GetFileXml(etudxmlpath);
 
-                    DlcExtraTitleUpdateFile etuf = new();
+                    DlcExtraTitleUpdateFile etuf = new DlcExtraTitleUpdateFile();
                     etuf.Load(etudxml);
 
                     ExtraTitleUpdates = etuf;

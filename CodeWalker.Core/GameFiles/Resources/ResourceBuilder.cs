@@ -30,7 +30,7 @@ namespace CodeWalker.GameFiles
         {
             public bool IsSystemSet = false;
             public ResourceBuilderBlock RootBlock = null;
-            public LinkedList<ResourceBuilderBlock> BlockList = new();
+            public LinkedList<ResourceBuilderBlock> BlockList = new LinkedList<ResourceBuilderBlock>();
             public Dictionary<ResourceBuilderBlock, LinkedListNode<ResourceBuilderBlock>> BlockDict = new Dictionary<ResourceBuilderBlock, LinkedListNode<ResourceBuilderBlock>>();
 
             public int Count => BlockList.Count;
@@ -660,9 +660,9 @@ namespace CodeWalker.GameFiles
 
         public static byte[] Compress(byte[] data)
         {
-            using (MemoryStream ms = new())
+            using (MemoryStream ms = new MemoryStream())
             {
-                DeflateStream ds = new(ms, CompressionMode.Compress, true);
+                DeflateStream ds = new DeflateStream(ms, CompressionMode.Compress, true);
                 ds.Write(data, 0, data.Length);
                 ds.Close();
                 byte[] deflated = ms.GetBuffer();
@@ -673,10 +673,10 @@ namespace CodeWalker.GameFiles
         }
         public static byte[] Decompress(byte[] data)
         {
-            using (MemoryStream ms = new(data))
+            using (MemoryStream ms = new MemoryStream(data))
             {
-                DeflateStream ds = new(ms, CompressionMode.Decompress);
-                MemoryStream outstr = new();
+                DeflateStream ds = new DeflateStream(ms, CompressionMode.Decompress);
+                MemoryStream outstr = new MemoryStream();
                 ds.CopyTo(outstr);
                 byte[] deflated = outstr.GetBuffer();
                 byte[] outbuf = new byte[outstr.Length]; //need to copy to the right size buffer...

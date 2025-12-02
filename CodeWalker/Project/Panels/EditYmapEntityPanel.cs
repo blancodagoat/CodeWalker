@@ -432,7 +432,7 @@ namespace CodeWalker.Project.Panels
             {
                 if (CurrentEntity.Scale.X != sxy)
                 {
-                    Vector3 newscale = new(sxy, sxy, CurrentEntity.Scale.Z);
+                    Vector3 newscale = new Vector3(sxy, sxy, CurrentEntity.Scale.Z);
                     CurrentEntity.SetScale(newscale);
                     ProjectItemChanged();
                     var wf = ProjectForm.WorldForm;
@@ -457,7 +457,7 @@ namespace CodeWalker.Project.Panels
             {
                 if (CurrentEntity.Scale.Z != sz)
                 {
-                    Vector3 newscale = new(CurrentEntity.Scale.X, CurrentEntity.Scale.Y, sz);
+                    Vector3 newscale = new Vector3(CurrentEntity.Scale.X, CurrentEntity.Scale.Y, sz);
                     CurrentEntity.SetScale(newscale);
                     ProjectItemChanged();
                     var wf = ProjectForm.WorldForm;

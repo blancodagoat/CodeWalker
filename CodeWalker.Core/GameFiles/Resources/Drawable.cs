@@ -1954,7 +1954,7 @@ namespace CodeWalker.GameFiles
             {
                 var bone = Bones.Items[i];
                 Matrix b = bone.SkinTransform;
-                Matrix3_s bt = new();
+                Matrix3_s bt = new Matrix3_s();
                 bt.Row1 = b.Column1;
                 bt.Row2 = b.Column2;
                 bt.Row3 = b.Column3;
@@ -5734,8 +5734,8 @@ namespace CodeWalker.GameFiles
         {
             get
             {
-                Vector3 tx = new();
-                Vector3 ty = new();
+                Vector3 tx = new Vector3();
+                Vector3 ty = new Vector3();
 
                 switch (Type)
                 {

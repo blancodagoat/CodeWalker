@@ -40,7 +40,7 @@ namespace ST.Library.UI.NodeEditor
             m_sf.FormatFlags = StringFormatFlags.NoWrap;
         }
 
-        private List<object> m_lst_item = new();
+        private List<object> m_lst_item = new List<object>();
 
         protected override void OnLoad(EventArgs e) {
             base.OnLoad(e);
@@ -67,8 +67,8 @@ namespace ST.Library.UI.NodeEditor
             base.OnPaint(e);
             Graphics g = e.Graphics;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-            Rectangle rect_back = new(0, 0, this.Width, m_nItemHeight);
-            Rectangle rect_font = new(10, 0, this.Width - 13, m_nItemHeight);
+            Rectangle rect_back = new Rectangle(0, 0, this.Width, m_nItemHeight);
+            Rectangle rect_font = new Rectangle(10, 0, this.Width - 13, m_nItemHeight);
             int nIndex = 0;
             string strVal = m_descriptor.GetStringFromValue();
             foreach (var v in m_lst_item) {

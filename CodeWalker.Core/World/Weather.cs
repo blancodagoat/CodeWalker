@@ -159,8 +159,8 @@ namespace CodeWalker.World
                 float nvr = NextWeatherRegion.GetCurrentValue(rname, csi, csb);
                 float nvg = NextWeatherRegion.GetCurrentValue(gname, csi, csb);
                 float nvb = NextWeatherRegion.GetCurrentValue(bname, csi, csb);
-                Vector3 cv = new(cvr, cvg, cvb);
-                Vector3 nv = new(nvr, nvg, nvb);
+                Vector3 cv = new Vector3(cvr, cvg, cvb);
+                Vector3 nv = new Vector3(nvr, nvg, nvb);
                 return cv * (1.0f - CurrentWeatherChangeBlend) + nv * CurrentWeatherChangeBlend;
             }
             else if (CurrentWeatherRegion != null)
@@ -187,8 +187,8 @@ namespace CodeWalker.World
                 float nvg = NextWeatherRegion.GetCurrentValue(gname, csi, csb);
                 float nvb = NextWeatherRegion.GetCurrentValue(bname, csi, csb);
                 float nva = NextWeatherRegion.GetCurrentValue(aname, csi, csb);
-                Vector4 cv = new(cvr, cvg, cvb, cva);
-                Vector4 nv = new(nvr, nvg, nvb, nva);
+                Vector4 cv = new Vector4(cvr, cvg, cvb, cva);
+                Vector4 nv = new Vector4(nvr, nvg, nvb, nva);
                 return cv * (1.0f - CurrentWeatherChangeBlend) + nv * CurrentWeatherChangeBlend;
             }
             else if (CurrentWeatherRegion != null)
@@ -404,7 +404,7 @@ namespace CodeWalker.World
             foreach (XmlNode child in node.ChildNodes)
             {
                 if (child.NodeType != XmlNodeType.Element) continue;
-                WeatherCycleKeyframeRegion r = new();
+                WeatherCycleKeyframeRegion r = new WeatherCycleKeyframeRegion();
                 r.Init(child);
                 Regions[r.Name] = r;
             }
@@ -430,7 +430,7 @@ namespace CodeWalker.World
                 if (child.NodeType != XmlNodeType.Element) continue;
                 if (child != null)
                 {
-                    WeatherCycleKeyframeDataEntry d = new();
+                    WeatherCycleKeyframeDataEntry d = new WeatherCycleKeyframeDataEntry();
                     d.Init(child);
                     Data[d.Name] = d;
                 }

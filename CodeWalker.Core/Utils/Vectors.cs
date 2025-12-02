@@ -54,21 +54,6 @@ namespace CodeWalker
             return new Vector3(Math.Abs(v.X), Math.Abs(v.Y), Math.Abs(v.Z));
         }
 
-        /// <summary>
-        /// SIMD-optimized absolute value for Vector3 arrays.
-        /// </summary>
-        public static void AbsArray(ReadOnlySpan<Vector3> source, Span<Vector3> destination)
-        {
-            if (source.Length != destination.Length)
-                throw new ArgumentException("Source and destination spans must have the same length");
-
-            for (int i = 0; i < source.Length; i++)
-            {
-                var v = source[i];
-                destination[i] = new Vector3(Math.Abs(v.X), Math.Abs(v.Y), Math.Abs(v.Z));
-            }
-        }
-
         public static int CompareTo(this Vector3 a, Vector3 b)
         {
             int c;

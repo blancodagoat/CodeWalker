@@ -53,7 +53,7 @@ namespace CodeWalker.World
         public Vector3 ForwardVec;
 
         public Quaternion CameraOrientation = Quaternion.LookAtLH(Vector3.Zero, Vector3.Up, Vector3.ForwardLH);
-        public Entity CameraEntity = new();
+        public Entity CameraEntity = new Entity();
 
         public bool OnGround = false;
 
@@ -87,7 +87,7 @@ namespace CodeWalker.World
 
             float jmpamt = (ControlJump ? jmpvel : 0);
             Vector3 curvel = Velocity;
-            Vector3 controlvel = new(ControlMovement * movspd, jmpamt);
+            Vector3 controlvel = new Vector3(ControlMovement * movspd, jmpamt);
             Vector3 targetvel = controlvel + new Vector3(0, 0, curvel.Z);
             Vector3 newvel = curvel + (targetvel - curvel) * velspd * elapsed;
             Velocity = newvel;
@@ -100,14 +100,14 @@ namespace CodeWalker.World
                 Vector3 targetpos = Position + disp;
                 float displ = disp.Length();
 
-                //////BoundingSphere sph = new(targetpos + Center, Radius);
+                //////BoundingSphere sph = new BoundingSphere(targetpos + Center, Radius);
                 //////r.SphereHit = SphereIntersect(sph);
 
                 if ((disp.Z > -0.25f))/* && (displ < Radius * 2.0f)*/
                 {
-                    Vector3 raydir = new(0.0f, 0.0f, -1.0f);
-                    Vector3 rayoff = new(0.0f, 0.0f, 0.0f);
-                    Ray ray = new(targetpos + Center + rayoff, raydir);
+                    Vector3 raydir = new Vector3(0.0f, 0.0f, -1.0f);
+                    Vector3 rayoff = new Vector3(0.0f, 0.0f, 0.0f);
+                    Ray ray = new Ray(targetpos + Center + rayoff, raydir);
                     var rayhit = Space.RayIntersect(ray, 1.0f);
                     if (rayhit.Hit)
                     {

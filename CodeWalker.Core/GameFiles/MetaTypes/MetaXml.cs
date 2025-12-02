@@ -347,7 +347,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(Meta meta)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if (meta != null)
@@ -405,7 +405,7 @@ namespace CodeWalker.GameFiles
             }
 
             var cind = indent + 1;
-            MetaStructureEntryInfo_s arrEntry = new();
+            MetaStructureEntryInfo_s arrEntry = new MetaStructureEntryInfo_s();
             for (int i = 0; i < structInfo.Entries.Length; i++)
             {
                 var entry = structInfo.Entries[i];
@@ -763,7 +763,7 @@ namespace CodeWalker.GameFiles
 
             if (isFlags)
             {
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 foreach (var ev in eInfo.Entries)
                 {
                     var v = ev.EntryValue;
@@ -796,8 +796,8 @@ namespace CodeWalker.GameFiles
         {
             public Meta Meta { get; set; }
 
-            Dictionary<MetaName, MetaStructureInfo> structInfos = new();
-            Dictionary<MetaName, MetaEnumInfo> enumInfos = new();
+            Dictionary<MetaName, MetaStructureInfo> structInfos = new Dictionary<MetaName, MetaStructureInfo>();
+            Dictionary<MetaName, MetaEnumInfo> enumInfos = new Dictionary<MetaName, MetaEnumInfo>();
 
             public MetaCont(Meta meta)
             {
@@ -841,7 +841,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(PsoFile pso)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if ((pso != null) && (pso.DataSection != null) && (pso.DataMapSection != null))
@@ -1167,7 +1167,7 @@ namespace CodeWalker.GameFiles
             var abOffset = aOffset + block.Offset;
             var aBlockId = blockId;
             uint aCount = (entry.ReferenceKey >> 16) & 0x0000FFFF;
-            Array_Structure arrStruc = new();
+            Array_Structure arrStruc = new Array_Structure();
             arrStruc.PointerDataId = (uint)aBlockId;
             arrStruc.PointerDataOffset = (uint)aOffset;
             arrStruc.Count1 = arrStruc.Count2 = (ushort)aCount;
@@ -1663,8 +1663,8 @@ namespace CodeWalker.GameFiles
         {
             public PsoFile Pso { get; set; }
 
-            public Dictionary<MetaName, PsoEnumInfo> EnumDict = new();
-            public Dictionary<MetaName, PsoStructureInfo> StructDict = new();
+            public Dictionary<MetaName, PsoEnumInfo> EnumDict = new Dictionary<MetaName, PsoEnumInfo>();
+            public Dictionary<MetaName, PsoStructureInfo> StructDict = new Dictionary<MetaName, PsoStructureInfo>();
 
 
             public PsoCont(PsoFile pso)
@@ -1738,7 +1738,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(RbfFile rbf)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             WriteNode(sb, 0, rbf.current);
@@ -2248,7 +2248,7 @@ namespace CodeWalker.GameFiles
         public static string XmlEscape(string unescaped)
         {
             if (unescaped == null) return null;
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             XmlNode node = doc.CreateElement("root");
             node.InnerText = unescaped;
             var escaped = node.InnerXml.Replace("\"", "&quot;");

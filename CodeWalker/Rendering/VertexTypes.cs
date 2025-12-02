@@ -53,7 +53,7 @@ namespace CodeWalker.Rendering
 
         public static InputElement[] GetLayout(VertexType componentsFlags, VertexDeclarationTypes componentsTypes = VertexDeclarationTypes.GTAV1)
         {
-            List<InputElement> inputElements = new();
+            List<InputElement> inputElements = new List<InputElement>();
 
             var types = (ulong)componentsTypes;
             var flags = (uint)componentsFlags;

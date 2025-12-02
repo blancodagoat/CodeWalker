@@ -9,8 +9,6 @@
     <Copyright>dexyfex</Copyright>
     <Company>dexyfex software</Company>
     <Authors>dexyfex</Authors>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">

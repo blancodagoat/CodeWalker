@@ -10,8 +10,6 @@
     <Company>dexyfex software</Company>
     <Authors>dexyfex</Authors>
     <AssemblyName>CodeWalker RPF Explorer</AssemblyName>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">

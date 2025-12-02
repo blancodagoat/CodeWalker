@@ -13,7 +13,7 @@ namespace CodeWalker.World
         public volatile bool Inited = false;
         public GameFileCache GameFileCache;
 
-        public Dictionary<RelFile, AudioPlacement[]> PlacementsDict = new();
+        public Dictionary<RelFile, AudioPlacement[]> PlacementsDict = new Dictionary<RelFile, AudioPlacement[]>();
 
 
         public void Init(GameFileCache gameFileCache, Action<string> updateStatus)
@@ -23,7 +23,7 @@ namespace CodeWalker.World
             GameFileCache = gameFileCache;
 
 
-            List<AudioPlacement> placements = new();
+            List<AudioPlacement> placements = new List<AudioPlacement>();
 
             foreach (var relfile in GameFileCache.AudioDatRelFiles)
             {
@@ -73,7 +73,7 @@ namespace CodeWalker.World
                 AudioPlacement[] fileplacements = null;
                 if (!PlacementsDict.TryGetValue(relfile, out fileplacements))
                 {
-                    List<AudioPlacement> newplacements = new();
+                    List<AudioPlacement> newplacements = new List<AudioPlacement>();
                     CreatePlacements(relfile, newplacements);
                     fileplacements = newplacements.ToArray();
                     PlacementsDict[relfile] = fileplacements;

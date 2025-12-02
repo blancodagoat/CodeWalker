@@ -64,7 +64,7 @@ namespace CodeWalker.GameFiles
     {
         public static string GetXml(YfdFile yfd)
         {
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine(XmlHeader);
 
             if (yfd?.FrameFilterDictionary != null)
@@ -81,14 +81,14 @@ namespace CodeWalker.GameFiles
     {
         public static YfdFile GetYfd(string xml)
         {
-            XmlDocument doc = new();
+            XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
             return GetYfd(doc);
         }
 
         public static YfdFile GetYfd(XmlDocument doc)
         {
-            YfdFile yfd = new();
+            YfdFile yfd = new YfdFile();
             yfd.FrameFilterDictionary = new FrameFilterDictionary();
             yfd.FrameFilterDictionary.ReadXml(doc.DocumentElement);
             return yfd;

@@ -4,8 +4,6 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -13,9 +13,9 @@ namespace CodeWalker.World
     {
         public volatile bool Inited = false;
         public GameFileCache GameFileCache;
-        public List<WaterQuad> WaterQuads = new();
-        public List<WaterCalmingQuad> CalmingQuads = new();
-        public List<WaterWaveQuad> WaveQuads = new();
+        public List<WaterQuad> WaterQuads = new List<WaterQuad>();
+        public List<WaterCalmingQuad> CalmingQuads = new List<WaterCalmingQuad>();
+        public List<WaterWaveQuad> WaveQuads = new List<WaterWaveQuad>();
 
         public void Init(GameFileCache gameFileCache, Action<string> updateStatus)
         {
@@ -74,7 +74,7 @@ namespace CodeWalker.World
 
         public List<T> GetVisibleQuads<T>(Camera camera, IEnumerable<T> allQuads) where T : BaseWaterQuad
         {
-            List<T> quads = new();
+            List<T> quads = new List<T>();
 
             if (!Inited) return quads;
 

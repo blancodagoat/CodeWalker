@@ -16,7 +16,7 @@ namespace CodeWalker.ModManager
     public partial class ModManagerForm : Form
     {
         public SettingsFile Settings;
-        public List<Mod> Mods = new();
+        public List<Mod> Mods = new List<Mod>();
         public Mod SelectedMod = null;
 
         public ModManagerForm()

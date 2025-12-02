@@ -33,7 +33,7 @@ namespace CodeWalker.GameFiles
         {
             FileEntry = entry;
 
-            MemoryStream ms = new(data);
+            MemoryStream ms = new MemoryStream(data);
 
             if (PsoFile.IsPSO(ms))
             {
@@ -41,7 +41,7 @@ namespace CodeWalker.GameFiles
                 Pso.Load(ms);
 
                 var xml = PsoXml.GetXml(Pso);
-                XmlDocument doc = new();
+                XmlDocument doc = new XmlDocument();
                 doc.LoadXml(xml);
                 var node = doc.DocumentElement;
 

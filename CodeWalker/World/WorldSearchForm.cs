@@ -18,8 +18,8 @@ namespace CodeWalker.World
 
         private volatile bool AbortOperation = false;
 
-        private List<Archetype> ArchetypeResults = new();
-        private List<YmapEntityDef> EntityResults = new();
+        private List<Archetype> ArchetypeResults = new List<Archetype>();
+        private List<YmapEntityDef> EntityResults = new List<YmapEntityDef>();
 
         public WorldSearchForm(WorldForm worldForm)
         {
@@ -197,7 +197,7 @@ namespace CodeWalker.World
 
             string fname = SaveFileDialog.FileName;
 
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine("Name, AssetName, YtypFile");
             foreach (var arch in ArchetypeResults)
             {
@@ -267,7 +267,7 @@ namespace CodeWalker.World
 
         private void EntitySearchTextBox_TextChanged(object sender, EventArgs e)
         {
-            //JenkHash h = new(EntitySearchTextBox.Text, JenkHashInputEncoding.UTF8);
+            //JenkHash h = new JenkHash(EntitySearchTextBox.Text, JenkHashInputEncoding.UTF8);
             //EntitySearchHashLabel.Text = "Hash: " + h.HashUint.ToString() + " (" + h.HashHex + ")";
         }
 
@@ -440,7 +440,7 @@ namespace CodeWalker.World
 
             string fname = SaveFileDialog.FileName;
 
-            StringBuilder sb = new();
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine("ArchetypeName, PositionX, PositionY, PositionZ, RotationX, RotationY, RotationZ, RotationW, YmapFile");
             foreach (var ent in EntityResults)
             {

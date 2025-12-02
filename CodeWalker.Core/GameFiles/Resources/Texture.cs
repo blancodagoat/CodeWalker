@@ -1082,16 +1082,6 @@ namespace CodeWalker.GameFiles
         public byte[] FullData { get; set; }
 
         /// <summary>
-        /// Gets the texture data as a ReadOnlyMemory for zero-copy access
-        /// </summary>
-        public ReadOnlyMemory<byte> GetDataMemory() => FullData;
-
-        /// <summary>
-        /// Gets the texture data as a ReadOnlySpan for zero-copy access
-        /// </summary>
-        public ReadOnlySpan<byte> GetDataSpan() => FullData;
-
-        /// <summary>
         /// Reads the data-block from a stream.
         /// </summary>
         public override void Read(ResourceDataReader reader, params object[] parameters)

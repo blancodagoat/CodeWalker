@@ -11,7 +11,7 @@ namespace ST.Library.UI.NodeEditor
     {
         #region Properties
 
-        public static readonly STNodeOption Empty = new();
+        public static readonly STNodeOption Empty = new STNodeOption();
 
         private STNode _Owner;
         /// <summary>
@@ -266,7 +266,7 @@ namespace ST.Library.UI.NodeEditor
         protected virtual bool ConnectingOption(STNodeOption op) {
             if (this._Owner == null) return false;
             if (this._Owner.Owner == null) return false;
-            STNodeEditorOptionEventArgs e = new(op, this, ConnectionStatus.Connecting);
+            STNodeEditorOptionEventArgs e = new STNodeEditorOptionEventArgs(op, this, ConnectionStatus.Connecting);
             this._Owner.Owner.OnOptionConnecting(e);
             this.OnConnecting(new STNodeOptionEventArgs(true, op, ConnectionStatus.Connecting));
             op.OnConnecting(new STNodeOptionEventArgs(false, this, ConnectionStatus.Connecting));
@@ -280,7 +280,7 @@ namespace ST.Library.UI.NodeEditor
         protected virtual bool DisConnectingOption(STNodeOption op) {
             if (this._Owner == null) return false;
             if (this._Owner.Owner == null) return false;
-            STNodeEditorOptionEventArgs e = new(op, this, ConnectionStatus.DisConnecting);
+            STNodeEditorOptionEventArgs e = new STNodeEditorOptionEventArgs(op, this, ConnectionStatus.DisConnecting);
             this._Owner.Owner.OnOptionDisConnecting(e);
             this.OnDisConnecting(new STNodeOptionEventArgs(true, op, ConnectionStatus.DisConnecting));
             op.OnDisConnecting(new STNodeOptionEventArgs(false, this, ConnectionStatus.DisConnecting));
@@ -377,7 +377,7 @@ namespace ST.Library.UI.NodeEditor
             if (this._DataType == null) return null;
             if (!this._IsInput)
                 return m_hs_connected.ToList();
-            List<STNodeOption> lst = new();
+            List<STNodeOption> lst = new List<STNodeOption>();
             if (this._Owner == null) return null;
             if (this._Owner.Owner == null) return null;
             foreach (var v in this._Owner.Owner.GetConnectionInfo()) {

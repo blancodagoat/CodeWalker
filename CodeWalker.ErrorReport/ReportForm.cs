@@ -17,7 +17,7 @@ namespace CodeWalker.ErrorReport
         {
             ErrorTextBox.Clear();
 
-            EventLog appLog = new("Application");
+            EventLog appLog = new EventLog("Application");
             bool found = false;
 
             for (int i = appLog.Entries.Count - 1; i >= 0; i--)

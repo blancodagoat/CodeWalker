@@ -107,7 +107,7 @@ namespace CodeWalker.Tools
                         return;
                     }
 
-                    FileInfo dmpfi = new(exepath);
+                    FileInfo dmpfi = new FileInfo(exepath);
 
                     UpdateStatus(string.Format("Scanning {0} for keys...", dmpfi.Name));
 

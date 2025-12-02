@@ -191,7 +191,7 @@ namespace CodeWalker.Tools
 
                         try
                         {
-                            FileInfo finf = new(filename);
+                            FileInfo finf = new FileInfo(filename);
                             
                             // skip very large files to avoid memory issues
                             if (finf.Length > 100 * 1024 * 1024) // 100MB limit
@@ -432,7 +432,7 @@ namespace CodeWalker.Tools
             return matches;
         }
 
-        private List<RpfSearchResult> RpfSearchResults = new();
+        private List<RpfSearchResult> RpfSearchResults = new List<RpfSearchResult>();
         private RpfEntry RpfSelectedEntry = null;
         private int RpfSelectedOffset = -1;
         private int RpfSelectedLength = 0;
@@ -726,7 +726,7 @@ namespace CodeWalker.Tools
             {
                 string fpath = SaveFileDialog.FileName;
 
-                StringBuilder sb = new();
+                StringBuilder sb = new StringBuilder();
                 sb.AppendLine("CodeWalker Search Results for \"" + RpfSearchTextBox.Text + "\"");
                 sb.AppendLine("[File path], [Byte offset]");
                 if (RpfSearchResults != null)
@@ -873,9 +873,9 @@ namespace CodeWalker.Tools
             {
                 int charsperln = int.Parse(DataHexLineCombo.Text);
                 int lines = (data.Length / charsperln) + (((data.Length % charsperln) > 0) ? 1 : 0);
-                StringBuilder hexb = new();
-                StringBuilder texb = new();
-                StringBuilder finb = new();
+                StringBuilder hexb = new StringBuilder();
+                StringBuilder texb = new StringBuilder();
+                StringBuilder finb = new StringBuilder();
 
                 if (offset > 0)
                 {

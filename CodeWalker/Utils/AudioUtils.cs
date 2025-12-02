@@ -33,7 +33,7 @@ namespace CodeWalker.Utils
         public enum PlayerState { Stopped, Playing, Paused };
         public PlayerState State { get; private set; } = PlayerState.Stopped;
 
-        private Stopwatch playtimer = new();
+        private Stopwatch playtimer = new Stopwatch();
         private int playBeginMs;
         private float trackLength;
         public bool trackFinished;

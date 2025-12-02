@@ -96,7 +96,7 @@ namespace CodeWalker.Forms
             {
                 foreach (var kvp in dict)
                 {
-                    MetaHash mhash = new(kvp.Key);
+                    MetaHash mhash = new MetaHash(kvp.Key);
                     var drawable = kvp.Value;
 
                     var dnode = ModelsTreeView.Nodes.Add(mhash.ToString());

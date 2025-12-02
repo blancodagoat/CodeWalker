@@ -9,8 +9,6 @@
     <Company>dexyfex software</Company>
     <Authors>dexyfex</Authors>
     <AssemblyName>CodeWalker Vehicle Viewer</AssemblyName>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
