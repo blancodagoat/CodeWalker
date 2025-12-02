@@ -4,105 +4,88 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CodeWalker.GameFiles
+namespace CodeWalker.GameFiles;
+
+public abstract class GameFile : Cacheable<GameFileCacheKey>
 {
-    public abstract class GameFile : Cacheable<GameFileCacheKey>
+    public volatile bool Loaded = false;
+    public volatile bool LoadQueued = false;
+    public RpfFileEntry? RpfFileEntry { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty; //used by the project form.
+    public GameFileType Type { get; set; }
+
+
+
+    public GameFile(RpfFileEntry? entry, GameFileType type)
     {
-        public volatile bool Loaded = false;
-        public volatile bool LoadQueued = false;
-        public RpfFileEntry RpfFileEntry { get; set; }
-        public string Name { get; set; }
-        public string FilePath { get; set; } //used by the project form.
-        public GameFileType Type { get; set; }
-
-
-
-        public GameFile(RpfFileEntry entry, GameFileType type)
+        RpfFileEntry = entry;
+        Type = type;
+        MemoryUsage = (entry != null) ? entry.GetFileSize() : 0;
+        
+        switch (entry)
         {
-            RpfFileEntry = entry;
-            Type = type;
-            MemoryUsage = (entry != null) ? entry.GetFileSize() : 0;
-            if (entry is RpfResourceFileEntry)
-            {
-                var resent = entry as RpfResourceFileEntry;
+            case RpfResourceFileEntry resent:
                 var newuse = resent.SystemSize + resent.GraphicsSize;
                 MemoryUsage = newuse;
-            }
-            else if (entry is RpfBinaryFileEntry)
-            {
-                var binent = entry as RpfBinaryFileEntry;
-                var newuse = binent.FileUncompressedSize;
-                if (newuse > MemoryUsage)
+                break;
+            case RpfBinaryFileEntry binent:
+                var binuse = binent.FileUncompressedSize;
+                if (binuse > MemoryUsage)
                 {
-                    MemoryUsage = newuse;
+                    MemoryUsage = binuse;
                 }
-            }
-            else
-            {
-            }
+                break;
         }
-
-        public override string ToString()
-        {
-            return (string.IsNullOrEmpty(Name)) ? JenkIndex.GetString(Key.Hash) : Name;
-        }
-
-
     }
 
-
-    public enum GameFileType : int
+    public override string ToString()
     {
-        Ydd = 0,
-        Ydr = 1,
-        Yft = 2,
-        Ymap = 3,
-        Ymf = 4,
-        Ymt = 5,
-        Ytd = 6,
-        Ytyp = 7,
-        Ybn = 8,
-        Ycd = 9,
-        Ypt = 10,
-        Ynd = 11,
-        Ynv = 12,
-        Rel = 13,
-        Ywr = 14,
-        Yvr = 15,
-        Gtxd = 16,
-        Vehicles = 17,
-        CarCols = 18,
-        CarModCols = 19,
-        CarVariations = 20,
-        VehicleLayouts = 21,
-        Peds = 22,
-        Ped = 23,
-        Yed = 24,
-        Yld = 25,
-        Yfd = 26,
-        Heightmap = 27,
-        Watermap = 28,
-        Mrf = 29,
-        DistantLights = 30,
-        Ypdb = 31,
+        return (string.IsNullOrEmpty(Name)) ? JenkIndex.GetString(Key.Hash) : Name;
     }
-
-
-
-
-
-    public struct GameFileCacheKey
-    {
-        public uint Hash { get; set; }
-        public GameFileType Type { get; set; }
-
-        public GameFileCacheKey(uint hash, GameFileType type)
-        {
-            Hash = hash;
-            Type = type;
-        }
-    }
-
 
 
 }
+
+
+public enum GameFileType : int
+{
+    Ydd = 0,
+    Ydr = 1,
+    Yft = 2,
+    Ymap = 3,
+    Ymf = 4,
+    Ymt = 5,
+    Ytd = 6,
+    Ytyp = 7,
+    Ybn = 8,
+    Ycd = 9,
+    Ypt = 10,
+    Ynd = 11,
+    Ynv = 12,
+    Rel = 13,
+    Ywr = 14,
+    Yvr = 15,
+    Gtxd = 16,
+    Vehicles = 17,
+    CarCols = 18,
+    CarModCols = 19,
+    CarVariations = 20,
+    VehicleLayouts = 21,
+    Peds = 22,
+    Ped = 23,
+    Yed = 24,
+    Yld = 25,
+    Yfd = 26,
+    Heightmap = 27,
+    Watermap = 28,
+    Mrf = 29,
+    DistantLights = 30,
+    Ypdb = 31,
+}
+
+
+
+
+
+public readonly record struct GameFileCacheKey(uint Hash, GameFileType Type);

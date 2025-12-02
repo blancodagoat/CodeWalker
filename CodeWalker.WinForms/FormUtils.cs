@@ -193,7 +193,7 @@ namespace CodeWalker
         /// <param name="value">The value to be set</param>
         public static void SetItemState(ListView list, int itemIndex, int mask, int value)
         {
-            LVITEM lvItem = new LVITEM();
+            LVITEM lvItem = new();
             lvItem.stateMask = mask;
             lvItem.state = value;
             SendMessageLVItem(list.Handle, LVM_SETITEMSTATE, itemIndex, ref lvItem);
@@ -212,7 +212,7 @@ namespace CodeWalker
 
         public static Point GetCaretPosition(this TextBox textBox)
         {
-            Point point = new Point(0, 0);
+            Point point = new(0, 0);
 
             if (textBox.Focused)
             {
@@ -405,7 +405,7 @@ namespace CodeWalker
         //handy utility to get a string from the user...
         public static string ShowDialog(IWin32Window owner, string text, string caption, string defaultvalue = "")
         {
-            Form prompt = new Form()
+            Form prompt = new()
             {
                 Width = 450,
                 Height = 150,

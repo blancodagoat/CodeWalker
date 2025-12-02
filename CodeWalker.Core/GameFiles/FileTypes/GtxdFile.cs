@@ -38,7 +38,7 @@ namespace CodeWalker.GameFiles
 
             if (entry.NameLower.EndsWith(".ymt"))
             {
-                MemoryStream ms = new MemoryStream(data);
+                MemoryStream ms = new(data);
                 if (RbfFile.IsRBF(ms))
                 {
                     Rbf = new RbfFile();
@@ -74,7 +74,7 @@ namespace CodeWalker.GameFiles
         {
 
             TxdRelationships = new Dictionary<string, string>();
-            //StringBuilder sblist = new StringBuilder();
+            //StringBuilder sblist = new();
             foreach (var child in rbfstruct.Children)
             {
                 var childstruct = child as RbfStructure;
@@ -136,7 +136,7 @@ namespace CodeWalker.GameFiles
 
         private void LoadTxdRelationships(string xml)
         {
-            XmlDocument xmldoc = new XmlDocument();
+            XmlDocument xmldoc = new();
             xmldoc.LoadXml(xml); //maybe better load xml.ToLower() and use "cmapparenttxds/txdrelationships/item" as xpath?
             XmlNodeList items = xmldoc.SelectNodes("CMapParentTxds/txdRelationships/Item | CMapParentTxds/txdRelationships/item");
 

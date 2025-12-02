@@ -12,9 +12,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CodeWalker
-{
-    public partial class MenuForm : Form
+namespace CodeWalker;
+
+public partial class MenuForm : Form
     {
         private volatile bool worldFormOpen = false;
         private WorldForm worldForm = null;
@@ -35,43 +35,43 @@ namespace CodeWalker
 
         private void RPFExplorerButton_Click(object sender, EventArgs e)
         {
-            ExploreForm f = new ExploreForm();
+            ExploreForm f = new();
             f.Show(this);
         }
 
         private void RPFBrowserButton_Click(object sender, EventArgs e)
         {
-            BrowseForm f = new BrowseForm();
+            BrowseForm f = new();
             f.Show(this);
         }
 
         private void ExtractScriptsButton_Click(object sender, EventArgs e)
         {
-            ExtractScriptsForm f = new ExtractScriptsForm();
+            ExtractScriptsForm f = new();
             f.Show(this);
         }
 
         private void ExtractTexturesButton_Click(object sender, EventArgs e)
         {
-            ExtractTexForm f = new ExtractTexForm();
+            ExtractTexForm f = new();
             f.Show(this);
         }
 
         private void ExtractRawFilesButton_Click(object sender, EventArgs e)
         {
-            ExtractRawForm f = new ExtractRawForm();
+            ExtractRawForm f = new();
             f.Show(this);
         }
 
         private void ExtractShadersButton_Click(object sender, EventArgs e)
         {
-            ExtractShadersForm f = new ExtractShadersForm();
+            ExtractShadersForm f = new();
             f.Show(this);
         }
 
         private void BinarySearchButton_Click(object sender, EventArgs e)
         {
-            BinarySearchForm f = new BinarySearchForm();
+            BinarySearchForm f = new();
             f.Show(this);
         }
 
@@ -87,11 +87,11 @@ namespace CodeWalker
                 return;
             }
 
-            Thread thread = new Thread(new ThreadStart(() => {
+            Thread thread = new(new ThreadStart(() => {
                 try
                 {
                     worldFormOpen = true;
-                    using (WorldForm f = new WorldForm())
+                    using (WorldForm f = new())
                     {
                         worldForm = f;
                         f.ShowDialog();
@@ -114,32 +114,31 @@ namespace CodeWalker
 
         private void AboutButton_Click(object sender, EventArgs e)
         {
-            AboutForm f = new AboutForm();
+            AboutForm f = new();
             f.Show(this);
         }
 
         private void JenkGenButton_Click(object sender, EventArgs e)
         {
-            JenkGenForm f = new JenkGenForm();
+            JenkGenForm f = new();
             f.Show(this);
         }
 
         private void JenkIndButton_Click(object sender, EventArgs e)
         {
-            JenkIndForm f = new JenkIndForm();
+            JenkIndForm f = new();
             f.Show(this);
         }
 
         private void ExtractKeysButton_Click(object sender, EventArgs e)
         {
-            ExtractKeysForm f = new ExtractKeysForm();
+            ExtractKeysForm f = new();
             f.Show(this);
         }
 
         private void ProjectButton_Click(object sender, EventArgs e)
         {
-            Project.ProjectForm f = new Project.ProjectForm(null);
+            Project.ProjectForm f = new(null);
             f.Show(this);
         }
     }
-}

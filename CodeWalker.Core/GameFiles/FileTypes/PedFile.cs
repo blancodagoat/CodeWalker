@@ -48,7 +48,7 @@ namespace CodeWalker.GameFiles
             }
 
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             Meta = rd.ReadBlock<Meta>();
 
@@ -91,7 +91,7 @@ namespace CodeWalker.GameFiles
         private void NonMetaLoad(byte[] data)
         {
             //non meta not supported yet! but see what's in there...
-            MemoryStream ms = new MemoryStream(data);
+            MemoryStream ms = new(data);
             if (RbfFile.IsRBF(ms))
             {
                 Rbf = new RbfFile();

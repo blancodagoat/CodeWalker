@@ -353,7 +353,7 @@ namespace CodeWalker.GameFiles
 
         public static Meta GetMeta(XmlDocument doc)
         {
-            MetaBuilder mb = new MetaBuilder();
+            MetaBuilder mb = new();
 
             Traverse(doc.DocumentElement, mb, 0, true);
 
@@ -390,7 +390,7 @@ namespace CodeWalker.GameFiles
 
                 Array.Clear(data, 0, infos.StructureSize);
 
-                MetaStructureEntryInfo_s arrEntry = new MetaStructureEntryInfo_s();
+                MetaStructureEntryInfo_s arrEntry = new();
 
                 if (isRoot)
                 {

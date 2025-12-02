@@ -86,7 +86,7 @@ namespace CodeWalker
 
         public void Parse(string s)
         {
-            Vector3 p = new Vector3(0.0f);
+            Vector3 p = new(0.0f);
             string[] ss = s.Split(',');
             if (ss.Length > 1)
             {

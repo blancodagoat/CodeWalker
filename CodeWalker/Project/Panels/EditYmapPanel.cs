@@ -185,7 +185,7 @@ namespace CodeWalker.Project.Panels
             }
             else
             {
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new();
                 foreach (var hash in Ymap.physicsDictionaries)
                 {
                     sb.AppendLine(hash.ToString());
@@ -205,7 +205,7 @@ namespace CodeWalker.Project.Panels
             if (populatingui) return;
             if (Ymap == null) return;
 
-            List<MetaHash> hashes = new List<MetaHash>();
+            List<MetaHash> hashes = new();
 
             var strs = YmapPhysicsDictionariesTextBox.Text.Split('\n');
             foreach (var str in strs)

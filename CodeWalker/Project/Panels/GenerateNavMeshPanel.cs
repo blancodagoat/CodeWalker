@@ -117,7 +117,7 @@ namespace CodeWalker.Project.Panels
                 //int vertexCountTot = vertexCountX * vertexCountY;
                 vgrid.BeginGrid(vertexCountX, vertexCountY);
 
-                Ray ray = new Ray(Vector3.Zero, new Vector3(0, 0, -1));//for casting with
+                Ray ray = new(Vector3.Zero, new Vector3(0, 0, -1));//for casting with
 
                 UpdateStatus("Loading YBNs...");
 
@@ -798,7 +798,7 @@ namespace CodeWalker.Project.Panels
                     var fpath = path + ynv.Name + ".ynv";
                     //File.WriteAllBytes(fpath, bytes);
 
-                    YnvFile nynv = new YnvFile();
+                    YnvFile nynv = new();
                     nynv.RpfFileEntry = new RpfResourceFileEntry();
                     nynv.RpfFileEntry.Name = ynv.Name + ".ynv";
                     nynv.FilePath = fpath;
@@ -975,7 +975,7 @@ namespace CodeWalker.Project.Panels
 
         private class VertexGrid
         {
-            public List<GenVertex> VertexList = new List<GenVertex>();
+            public List<GenVertex> VertexList = new();
             public GenVertex[] Vertices;
             public int[,] VertexOffsets;
             public int[,] VertexCounts;
@@ -983,10 +983,10 @@ namespace CodeWalker.Project.Panels
             public int VertexCountY;
             public int CurVertexCount;
 
-            private List<int> CornersB = new List<int>();
-            private List<int> CornersT = new List<int>();
-            private List<Vector3> VerticesB = new List<Vector3>();
-            private List<Vector3> VerticesT = new List<Vector3>();
+            private List<int> CornersB = new();
+            private List<int> CornersT = new();
+            private List<Vector3> VerticesB = new();
+            private List<Vector3> VerticesT = new();
 
             public void BeginGrid(int vertexCountX, int vertexCountY)
             {
@@ -1102,7 +1102,7 @@ namespace CodeWalker.Project.Panels
 
             public List<GenPoly> GenPolys()
             {
-                List<GenPoly> polys = new List<GenPoly>();
+                List<GenPoly> polys = new();
 
                 //find new polygon edges and assign grid vertices
                 for (int vx = 0; vx < VertexCountX; vx++)
@@ -1123,7 +1123,7 @@ namespace CodeWalker.Project.Panels
 
 
 
-                            GenPoly poly = new GenPoly(); //start a new poly
+                            GenPoly poly = new(); //start a new poly
                             poly.Index = polys.Count;
                             poly.Normal = Vertices[i].Normal;
                             poly.Material = Vertices[i].Material;
@@ -1131,7 +1131,7 @@ namespace CodeWalker.Project.Panels
                             //polys.Add(poly);
                             //poly.AddGenVert(i);
                             //Vertices[i].PolyID = poly.Index;
-                            Plane vplane = new Plane(Vertices[i].Position, Vertices[i].Normal);
+                            Plane vplane = new(Vertices[i].Position, Vertices[i].Normal);
                             float plthresh = 0.25f; //threshold for plane dist test
 
                             int dpx = FindPolyEdgeDist(ref vplane, plthresh, i, 0);
@@ -1622,7 +1622,7 @@ namespace CodeWalker.Project.Panels
 
             public List<GenPoly> GenPolys2()
             {
-                List<GenPoly> polys = new List<GenPoly>();
+                List<GenPoly> polys = new();
 
                 //do marching squares on the grid, assuming each vertex starts a cell
 

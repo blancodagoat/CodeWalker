@@ -30,7 +30,7 @@ namespace CodeWalker.Forms
         private bool LoadingXml = false;
         private bool DelayHighlight = false;
 
-        private AudioPlayer Player = new AudioPlayer();
+        private AudioPlayer Player = new();
 
         private bool PositionScrolled = false;
 

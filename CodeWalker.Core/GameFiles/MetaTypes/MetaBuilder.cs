@@ -10,7 +10,7 @@ namespace CodeWalker.GameFiles
     public class MetaBuilder
     {
 
-        List<MetaBuilderBlock> Blocks = new List<MetaBuilderBlock>();
+        List<MetaBuilderBlock> Blocks = new();
 
         int MaxBlockLength = 0x4000; //TODO: figure what this should be!
 
@@ -31,7 +31,7 @@ namespace CodeWalker.GameFiles
         }
         public MetaBuilderBlock AddBlock(MetaName type)
         {
-            MetaBuilderBlock b = new MetaBuilderBlock();
+            MetaBuilderBlock b = new();
             b.StructureNameHash = type;
             b.Index = Blocks.Count;
             Blocks.Add(b);
@@ -56,7 +56,7 @@ namespace CodeWalker.GameFiles
                 data = newdata; //make sure item size is multiple of 16... so pointers don't need sub offsets!
             }
             int idx = block.AddItem(data);
-            MetaBuilderPointer r = new MetaBuilderPointer();
+            MetaBuilderPointer r = new();
             r.BlockID = block.Index + 1;
             r.Offset = (idx * data.Length);
             r.Length = data.Length;
@@ -83,7 +83,7 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(data, 0, newdata, 0, datalen);
             int offs = block.TotalSize;
             int idx = block.AddItem(newdata);
-            MetaBuilderPointer r = new MetaBuilderPointer();
+            MetaBuilderPointer r = new();
             r.BlockID = block.Index + 1;
             r.Offset = offs; //(idx * data.Length);;
             r.Length = length;
@@ -100,7 +100,7 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(data, 0, newdata, 0, datalen);
             int offs = block.TotalSize;
             int idx = block.AddItem(newdata);
-            MetaBuilderPointer r = new MetaBuilderPointer();
+            MetaBuilderPointer r = new();
             r.BlockID = block.Index + 1;
             r.Offset = offs;// (idx * data.Length);
             r.Length = datalen; //actual length of string. (not incl null terminator)
@@ -206,7 +206,7 @@ namespace CodeWalker.GameFiles
         {
             if ((arr == null) || (arr.Length == 0)) return new Array_StructurePointer();
             var ptr = AddItemArray((MetaName)MetaTypeName.POINTER, arr);
-            Array_StructurePointer sp = new Array_StructurePointer();
+            Array_StructurePointer sp = new();
             sp.Count1 = (ushort)arr.Length;
             sp.Count2 = sp.Count1;
             sp.Pointer = ptr.Pointer;
@@ -225,7 +225,7 @@ namespace CodeWalker.GameFiles
             }
             return AddPointerArray(ptrs);
 
-            //Array_StructurePointer sp = new Array_StructurePointer();
+            //Array_StructurePointer sp = new();
             //sp.Count1 = (ushort)items.Length;
             //sp.Count2 = sp.Count1;
             //for (int i = 0; i < items.Length; i++)
@@ -254,7 +254,7 @@ namespace CodeWalker.GameFiles
             }
             return AddPointerArray(ptrs);
 
-            //Array_StructurePointer sp = new Array_StructurePointer();
+            //Array_StructurePointer sp = new();
             //sp.Count1 = (ushort)items.Length;
             //sp.Count2 = sp.Count1;
             //for (int i = 0; i < items.Length; i++)
@@ -283,7 +283,7 @@ namespace CodeWalker.GameFiles
                 var meptr = item.Save(this);
                 if (i == 0)
                 {
-                    MetaBuilderPointer mbp = new MetaBuilderPointer();
+                    MetaBuilderPointer mbp = new();
                     mbp.BlockID = meptr.BlockID;
                     mbp.Offset = meptr.Offset;
                     sa.Pointer = mbp.Pointer;
@@ -319,8 +319,8 @@ namespace CodeWalker.GameFiles
 
 
 
-        Dictionary<MetaName, MetaStructureInfo> StructureInfos = new Dictionary<MetaName, MetaStructureInfo>();
-        Dictionary<MetaName, MetaEnumInfo> EnumInfos = new Dictionary<MetaName, MetaEnumInfo>();
+        Dictionary<MetaName, MetaStructureInfo> StructureInfos = new();
+        Dictionary<MetaName, MetaEnumInfo> EnumInfos = new();
 
         public void AddStructureInfo(MetaName name)
         {
@@ -350,7 +350,7 @@ namespace CodeWalker.GameFiles
 
         public Meta GetMeta(string metaName = "")
         {
-            Meta m = new Meta();
+            Meta m = new();
             m.FileVFT = 0x405bc808;
             m.FileUnknown = 1;
             m.Unknown_10h = 0x50524430;
@@ -441,7 +441,7 @@ namespace CodeWalker.GameFiles
                 offset += bdata.Length;
             }
 
-            MetaDataBlock db = new MetaDataBlock();
+            MetaDataBlock db = new();
             db.StructureNameHash = StructureNameHash;
             db.DataLength = TotalSize;
             db.Data = data;

@@ -138,7 +138,7 @@ namespace CodeWalker.Forms
 
             metaFormat = MetaFormat.AudioRel;
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             if (rel != null)
             {
                 if (rel.NameTable != null)

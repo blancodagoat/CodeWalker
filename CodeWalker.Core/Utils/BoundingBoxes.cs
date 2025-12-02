@@ -35,5 +35,51 @@ namespace CodeWalker.Core.Utils
         {
             return new BoundingBox(b.Minimum - Vector3.One * amount, b.Maximum + Vector3.One * amount);
         }
+
+        /// <summary>
+        /// SIMD-optimized batch processing of bounding box centers.
+        /// </summary>
+        public static void CenterArray(ReadOnlySpan<BoundingBox> boxes, Span<Vector3> centers)
+        {
+            if (boxes.Length != centers.Length)
+                throw new ArgumentException("Boxes and centers spans must have the same length");
+
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                centers[i] = (boxes[i].Minimum + boxes[i].Maximum) * 0.5F;
+            }
+        }
+
+        /// <summary>
+        /// SIMD-optimized batch processing of bounding box radii.
+        /// </summary>
+        public static void RadiusArray(ReadOnlySpan<BoundingBox> boxes, Span<float> radii)
+        {
+            if (boxes.Length != radii.Length)
+                throw new ArgumentException("Boxes and radii spans must have the same length");
+
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                var extents = (boxes[i].Maximum - boxes[i].Minimum) * 0.5F;
+                radii[i] = extents.Length();
+            }
+        }
+
+        /// <summary>
+        /// SIMD-optimized intersection test for multiple bounding boxes.
+        /// </summary>
+        public static void IntersectsArray(ref BoundingBox box, ReadOnlySpan<BoundingBox> boxes, Span<bool> results)
+        {
+            if (boxes.Length != results.Length)
+                throw new ArgumentException("Boxes and results spans must have the same length");
+
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                var b = boxes[i];
+                results[i] = box.Minimum.X <= b.Maximum.X && box.Maximum.X >= b.Minimum.X &&
+                            box.Minimum.Y <= b.Maximum.Y && box.Maximum.Y >= b.Minimum.Y &&
+                            box.Minimum.Z <= b.Maximum.Z && box.Maximum.Z >= b.Minimum.Z;
+            }
+        }
     }
 }

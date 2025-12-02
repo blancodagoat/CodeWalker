@@ -49,9 +49,9 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            using (MemoryStream ms = new MemoryStream(data))
+            using (MemoryStream ms = new(data))
             {
-                DataReader r = new DataReader(ms, Endianess.BigEndian);
+                DataReader r = new(ms, Endianess.BigEndian);
 
                 Read(r);
             };
@@ -60,8 +60,8 @@ namespace CodeWalker.GameFiles
         }
         public byte[] Save()
         {
-            MemoryStream s = new MemoryStream();
-            DataWriter w = new DataWriter(s);
+            MemoryStream s = new();
+            DataWriter w = new(s);
 
             Write(w);
 

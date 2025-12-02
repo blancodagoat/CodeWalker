@@ -592,7 +592,7 @@ namespace CodeWalker.GameFiles
 
         public List<T> GetFullList()
         {
-            List<T> list = new List<T>((int)ItemCount);
+            List<T> list = new((int)ItemCount);
 
             if (ListParts != null)
             {

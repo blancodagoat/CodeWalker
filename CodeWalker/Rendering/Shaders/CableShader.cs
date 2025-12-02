@@ -84,7 +84,7 @@ namespace CodeWalker.Rendering
         public bool Deferred = false;
 
 
-        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
+        private Dictionary<VertexType, InputLayout> layouts = new();
 
         public CableShader(Device device)
         {

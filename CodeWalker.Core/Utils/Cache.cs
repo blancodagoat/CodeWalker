@@ -7,15 +7,15 @@ using System.Threading.Tasks;
 
 namespace CodeWalker
 {
-    public class Cache<TKey, TVal> where TVal : Cacheable<TKey>
+    public class Cache<TKey, TVal> where TKey : notnull where TVal : Cacheable<TKey>
     {
         public long MaxMemoryUsage = 536870912; //512mb
         public long CurrentMemoryUsage = 0;
         public double CacheTime = 10.0; //seconds to keep something that's not used
         public DateTime CurrentTime = DateTime.Now;
 
-        private LinkedList<TVal> loadedList = new LinkedList<TVal>();
-        private Dictionary<TKey, LinkedListNode<TVal>> loadedListDict = new Dictionary<TKey, LinkedListNode<TVal>>();
+        private LinkedList<TVal> loadedList = new();
+        private Dictionary<TKey, LinkedListNode<TVal>> loadedListDict = new();
 
         public int Count
         {
@@ -40,9 +40,9 @@ namespace CodeWalker
             Compact();
         }
 
-        public TVal TryGet(TKey key)
+        public TVal? TryGet(TKey key)
         {
-            LinkedListNode<TVal> lln = null;
+            LinkedListNode<TVal>? lln = null;
             if (loadedListDict.TryGetValue(key, out lln))
             {
                 loadedList.Remove(lln);
@@ -77,7 +77,7 @@ namespace CodeWalker
                         Interlocked.Add(ref CurrentMemoryUsage, -oldlln.Value.MemoryUsage);
                         loadedListDict.Remove(oldlln.Value.Key);
                         loadedList.Remove(oldlln); //gc should free up memory later..
-                        oldlln.Value = null;
+                        oldlln.Value = default!;
                         oldlln = null;
                         //GC.Collect();
                         oldlln = loadedList.First;
@@ -115,7 +115,7 @@ namespace CodeWalker
 
         public void Remove(TKey key)
         {
-            LinkedListNode<TVal> n;
+            LinkedListNode<TVal>? n;
             if (loadedListDict.TryGetValue(key, out n))
             {
                 loadedListDict.Remove(key);
@@ -135,7 +135,7 @@ namespace CodeWalker
                 Interlocked.Add(ref CurrentMemoryUsage, -oldlln.Value.MemoryUsage);
                 loadedListDict.Remove(oldlln.Value.Key);
                 loadedList.Remove(oldlln); //gc should free up memory later..
-                oldlln.Value = null;
+                oldlln.Value = default!;
                 oldlln = nextln;
             }
         }
@@ -143,9 +143,9 @@ namespace CodeWalker
 
     }
 
-    public abstract class Cacheable<TKey>
+    public abstract class Cacheable<TKey> where TKey : notnull
     {
-        public TKey Key;
+        public TKey Key = default!;
         public DateTime LastUseTime;
         public long MemoryUsage;
     }

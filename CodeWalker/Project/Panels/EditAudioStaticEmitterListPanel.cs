@@ -61,7 +61,7 @@ namespace CodeWalker.Project.Panels
 
                 NameTextBox.Text = el.NameHash.ToString();
 
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new();
                 if (el.EmitterHashes != null)
                 {
                     foreach (var hash in el.EmitterHashes)

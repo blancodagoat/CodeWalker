@@ -52,7 +52,7 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MetaBuilder mb = new MetaBuilder();
+            MetaBuilder mb = new();
 
             var mdb = mb.EnsureBlock(MetaName.CMapTypes);
 
@@ -186,7 +186,7 @@ namespace CodeWalker.GameFiles
             RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
             if (resentry == null)
             {
-                MemoryStream ms = new MemoryStream(data);
+                MemoryStream ms = new(data);
                 if (RbfFile.IsRBF(ms))
                 {
                     Rbf = new RbfFile();
@@ -208,7 +208,7 @@ namespace CodeWalker.GameFiles
 
 
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             Meta = rd.ReadBlock<Meta>();
 
@@ -216,7 +216,7 @@ namespace CodeWalker.GameFiles
             _CMapTypes = MetaTypes.GetTypedData<CMapTypes>(Meta, MetaName.CMapTypes);
 
 
-            List<Archetype> allarchs = new List<Archetype>();
+            List<Archetype> allarchs = new();
 
             var ptrs = MetaTypes.GetPointerArray(Meta, _CMapTypes.archetypes);
             if (ptrs != null)

@@ -52,8 +52,8 @@ namespace CodeWalker.GameFiles
 
         // this is a dictionary that contains all the resource blocks
         // which were read from this resource reader
-        public Dictionary<long, IResourceBlock> blockPool = new Dictionary<long, IResourceBlock>();
-        public Dictionary<long, object> arrayPool = new Dictionary<long, object>();
+        public Dictionary<long, IResourceBlock> blockPool = new();
+        public Dictionary<long, object> arrayPool = new();
 
         /// <summary>
         /// Gets the length of the underlying stream.

@@ -110,12 +110,12 @@ namespace CodeWalker.Tools
 
 
 
-                RpfManager rpfman = new RpfManager();
+                RpfManager rpfman = new();
                 rpfman.Init(searchpath, gen9, UpdateExtractStatus, UpdateExtractStatus);
 
 
                 UpdateExtractStatus("Beginning shader extraction...");
-                StringBuilder errsb = new StringBuilder();
+                StringBuilder errsb = new();
                 foreach (RpfFile rpf in rpfman.AllRpfs)
                 {
                     foreach (RpfEntry entry in rpf.AllEntries)

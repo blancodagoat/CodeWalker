@@ -69,7 +69,7 @@ namespace CodeWalker.Project.Panels
                 WallaTextBox.Text = ci.InteriorWallaSoundSet.ToString();
                 TunnelTextBox.Text = ci.InteriorReflections.ToString();
 
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new();
                 if (ci.Rooms != null)
                 {
                     foreach (var hash in ci.Rooms)

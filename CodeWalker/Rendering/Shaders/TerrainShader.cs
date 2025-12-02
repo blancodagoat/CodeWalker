@@ -96,7 +96,7 @@ namespace CodeWalker.Rendering
         public ShaderParamNames RenderTextureSampler = ShaderParamNames.DiffuseSampler;
         public bool Deferred = false;
 
-        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
+        private Dictionary<VertexType, InputLayout> layouts = new();
 
 
         public TerrainShader(Device device)

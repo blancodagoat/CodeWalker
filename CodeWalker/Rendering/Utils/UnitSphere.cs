@@ -44,10 +44,10 @@ namespace CodeWalker.Rendering
 
 
 
-            List<Vector3> verts = new List<Vector3>();
-            Dictionary<Vector3, int> vdict = new Dictionary<Vector3, int>();
-            List<SphTri> curtris = new List<SphTri>();
-            List<SphTri> nxttris = new List<SphTri>();
+            List<Vector3> verts = new();
+            Dictionary<Vector3, int> vdict = new();
+            List<SphTri> curtris = new();
+            List<SphTri> nxttris = new();
 
             verts.Add(new Vector3(-1.0f, 0.0f, 0.0f));
             verts.Add(new Vector3(1.0f, 0.0f, 0.0f));
@@ -111,13 +111,13 @@ namespace CodeWalker.Rendering
             }
 
 
-            List<Vector4> vdata = new List<Vector4>();
+            List<Vector4> vdata = new();
             foreach (var vert in verts)
             {
                 vdata.Add(new Vector4(vert, 1.0f));
             }
 
-            List<uint> idata = new List<uint>();
+            List<uint> idata = new();
             foreach (var tri in curtris)
             {
                 idata.Add((uint)tri.v1);

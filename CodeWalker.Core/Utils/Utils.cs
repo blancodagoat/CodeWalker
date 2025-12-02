@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SharpDX;
 using Color = SharpDX.Color;
@@ -33,6 +34,12 @@ namespace CodeWalker
         {
             var path = GetFilePath(appRelativePath);
             return File.ReadAllBytes(path);
+        }
+
+        public static async Task<byte[]> ReadAllBytesAsync(string appRelativePath, CancellationToken cancellationToken = default)
+        {
+            var path = GetFilePath(appRelativePath);
+            return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
         }
 
     }
@@ -116,12 +123,8 @@ namespace CodeWalker
             { return string.Empty; } //file not found..
             if ((bytes.Length > 3) && (bytes[0] == 0xEF) && (bytes[1] == 0xBB) && (bytes[2] == 0xBF))
             {
-                byte[] newb = new byte[bytes.Length - 3];
-                for (int i = 3; i < bytes.Length; i++)
-                {
-                    newb[i - 3] = bytes[i];
-                }
-                bytes = newb; //trim starting byte order mark
+                // Use AsSpan to avoid allocation when trimming BOM
+                return Encoding.UTF8.GetString(bytes.AsSpan(3));
             }
             return Encoding.UTF8.GetString(bytes);
         }
@@ -161,7 +164,7 @@ namespace CodeWalker
         }
         public static string GetVector2XmlString(Vector2 v)
         {
-            return string.Format("x=\"{0}\" y=\"{1}\"", ToString(v.X), ToString(v.Y));
+            return $"x=\"{ToString(v.X)}\" y=\"{ToString(v.Y)}\"";
         }
         public static string GetVector3String(Vector3 v, string d = ", ")
         {
@@ -174,7 +177,7 @@ namespace CodeWalker
         }
         public static string GetVector3XmlString(Vector3 v)
         {
-            return string.Format("x=\"{0}\" y=\"{1}\" z=\"{2}\"", ToString(v.X), ToString(v.Y), ToString(v.Z));
+            return $"x=\"{ToString(v.X)}\" y=\"{ToString(v.Y)}\" z=\"{ToString(v.Z)}\"";
         }
         public static string GetVector4String(Vector4 v, string d = ", ")
         {
@@ -182,20 +185,20 @@ namespace CodeWalker
         }
         public static string GetVector4XmlString(Vector4 v)
         {
-            return string.Format("x=\"{0}\" y=\"{1}\" z=\"{2}\" w=\"{3}\"", ToString(v.X), ToString(v.Y), ToString(v.Z), ToString(v.W));
+            return $"x=\"{ToString(v.X)}\" y=\"{ToString(v.Y)}\" z=\"{ToString(v.Z)}\" w=\"{ToString(v.W)}\"";
         }
         public static string GetQuaternionXmlString(Quaternion q)
         {
-            return string.Format("x=\"{0}\" y=\"{1}\" z=\"{2}\" w=\"{3}\"", ToString(q.X), ToString(q.Y), ToString(q.Z), ToString(q.W));
+            return $"x=\"{ToString(q.X)}\" y=\"{ToString(q.Y)}\" z=\"{ToString(q.Z)}\" w=\"{ToString(q.W)}\"";
         }
         public static string GetHalf2String(Half2 v, string d = ", ")
         {
-            var f = Half.ConvertToFloat(new[] { v.X, v.Y });
+            var f = SharpDX.Half.ConvertToFloat(new[] { v.X, v.Y });
             return ToString(f[0]) + d + ToString(f[1]);
         }
         public static string GetHalf4String(Half4 v, string d = ", ")
         {
-            var f = Half.ConvertToFloat(new[] { v.X, v.Y, v.Z, v.W });
+            var f = SharpDX.Half.ConvertToFloat(new[] { v.X, v.Y, v.Z, v.W });
             return ToString(f[0]) + d + ToString(f[1]) + d + ToString(f[2]) + d + ToString(f[3]);
         }
         public static string GetColourString(Color v, string d = ", ")
@@ -207,7 +210,7 @@ namespace CodeWalker
 
         public static Vector2 ParseVector2String(string s)
         {
-            Vector2 p = new Vector2(0.0f);
+            Vector2 p = new(0.0f);
             string[] ss = s.Split(',');
             if (ss.Length > 0)
             {
@@ -221,7 +224,7 @@ namespace CodeWalker
         }
         public static Vector3 ParseVector3String(string s)
         {
-            Vector3 p = new Vector3(0.0f);
+            Vector3 p = new(0.0f);
             string[] ss = s.Split(',');
             if (ss.Length > 0)
             {
@@ -239,7 +242,7 @@ namespace CodeWalker
         }
         public static Vector4 ParseVector4String(string s)
         {
-            Vector4 p = new Vector4(0.0f);
+            Vector4 p = new(0.0f);
             string[] ss = s.Split(',');
             if (ss.Length > 0)
             {

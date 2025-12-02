@@ -96,7 +96,7 @@ namespace CodeWalker.Rendering
         SamplerState texsampleranis;
         SamplerState texsamplerflow;
 
-        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
+        private Dictionary<VertexType, InputLayout> layouts = new();
 
 
         public bool AnisotropicFilter = false;
@@ -280,8 +280,8 @@ namespace CodeWalker.Rendering
             float gFlowW = s2;
 
 
-            Vector2 fogtexMin = new Vector2(-4000.0f, -4000.0f); //aka water quads min/max
-            Vector2 fogtexMax = new Vector2(4500.0f, 8000.0f);
+            Vector2 fogtexMin = new(-4000.0f, -4000.0f); //aka water quads min/max
+            Vector2 fogtexMax = new(4500.0f, 8000.0f);
             Vector2 fogtexInv = 1.0f / (fogtexMax - fogtexMin);
 
 

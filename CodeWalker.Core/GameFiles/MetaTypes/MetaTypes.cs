@@ -18,8 +18,8 @@ namespace CodeWalker.GameFiles
     public static class MetaTypes
     {
 
-        public static Dictionary<uint, MetaEnumInfo> EnumDict = new Dictionary<uint, MetaEnumInfo>();
-        public static Dictionary<uint, MetaStructureInfo> StructDict = new Dictionary<uint, MetaStructureInfo>();
+        public static Dictionary<uint, MetaEnumInfo> EnumDict = new();
+        public static Dictionary<uint, MetaStructureInfo> StructDict = new();
 
         public static void Clear()
         {
@@ -115,8 +115,8 @@ namespace CodeWalker.GameFiles
 
         public static string GetTypesString()
         {
-            StringBuilder sbe = new StringBuilder();
-            StringBuilder sbs = new StringBuilder();
+            StringBuilder sbe = new();
+            StringBuilder sbs = new();
 
             sbe.AppendLine("//Enum infos");
             sbs.AppendLine("//Struct infos");
@@ -206,7 +206,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetTypesInitString(Meta meta)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             foreach (var si in meta.StructureInfos)
             {
@@ -225,7 +225,7 @@ namespace CodeWalker.GameFiles
         }
         public static string GetTypesInitString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             foreach (var si in StructDict.Values)
             {
@@ -1825,8 +1825,8 @@ namespace CodeWalker.GameFiles
                 return null; //couldn't find the strings data section.
             }
 
-            List<string> strings = new List<string>();
-            StringBuilder sb = new StringBuilder();
+            List<string> strings = new();
+            StringBuilder sb = new();
             var currentblock = startblock;
             int currentblockind = startblockind;
             while (currentblock != null)
@@ -4406,7 +4406,7 @@ namespace CodeWalker.GameFiles
 
         public void AddCluster(MCScenarioPointCluster cluster)
         {
-            List<MCScenarioPointCluster> newclusters = new List<MCScenarioPointCluster>();
+            List<MCScenarioPointCluster> newclusters = new();
             if (Clusters != null)
             {
                 newclusters.AddRange(Clusters);
@@ -4418,7 +4418,7 @@ namespace CodeWalker.GameFiles
         }
         public void AddEntity(MCScenarioEntityOverride ent)
         {
-            List<MCScenarioEntityOverride> newents = new List<MCScenarioEntityOverride>();
+            List<MCScenarioEntityOverride> newents = new();
             if (EntityOverrides != null)
             {
                 newents.AddRange(EntityOverrides);
@@ -4434,7 +4434,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (Clusters != null)
             {
-                List<MCScenarioPointCluster> newclusters = new List<MCScenarioPointCluster>();
+                List<MCScenarioPointCluster> newclusters = new();
                 foreach (var nc in Clusters)
                 {
                     if (nc == cluster)
@@ -4459,7 +4459,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (EntityOverrides != null)
             {
-                List<MCScenarioEntityOverride> newents = new List<MCScenarioEntityOverride>();
+                List<MCScenarioEntityOverride> newents = new();
                 foreach (var nc in EntityOverrides)
                 {
                     if (nc == ent)
@@ -4596,7 +4596,7 @@ namespace CodeWalker.GameFiles
 
         public void AddMyPoint(MCScenarioPoint p)
         {
-            List<MCScenarioPoint> newpoints = new List<MCScenarioPoint>();
+            List<MCScenarioPoint> newpoints = new();
             if (MyPoints != null)
             {
                 newpoints.AddRange(MyPoints);
@@ -4608,7 +4608,7 @@ namespace CodeWalker.GameFiles
         }
         public void AddLoadSavePoint(MCExtensionDefSpawnPoint p)
         {
-            List<MCExtensionDefSpawnPoint> newpoints = new List<MCExtensionDefSpawnPoint>();
+            List<MCExtensionDefSpawnPoint> newpoints = new();
             if (LoadSavePoints != null)
             {
                 newpoints.AddRange(LoadSavePoints);
@@ -4623,7 +4623,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (MyPoints != null)
             {
-                List<MCScenarioPoint> newpoints = new List<MCScenarioPoint>();
+                List<MCScenarioPoint> newpoints = new();
                 foreach (var mp in MyPoints)
                 {
                     if (mp == p)
@@ -4652,7 +4652,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (LoadSavePoints != null)
             {
-                List<MCExtensionDefSpawnPoint> newpoints = new List<MCExtensionDefSpawnPoint>();
+                List<MCExtensionDefSpawnPoint> newpoints = new();
                 foreach (var mp in LoadSavePoints)
                 {
                     if (mp == p)
@@ -4925,7 +4925,7 @@ namespace CodeWalker.GameFiles
 
         public void AddScenarioPoint(MCExtensionDefSpawnPoint p)
         {
-            List<MCExtensionDefSpawnPoint> newpoints = new List<MCExtensionDefSpawnPoint>();
+            List<MCExtensionDefSpawnPoint> newpoints = new();
             if (ScenarioPoints != null)
             {
                 newpoints.AddRange(ScenarioPoints);
@@ -4939,7 +4939,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (ScenarioPoints != null)
             {
-                List<MCExtensionDefSpawnPoint> newpoints = new List<MCExtensionDefSpawnPoint>();
+                List<MCExtensionDefSpawnPoint> newpoints = new();
                 foreach (var mp in ScenarioPoints)
                 {
                     if (mp == p)
@@ -5116,7 +5116,7 @@ namespace CodeWalker.GameFiles
 
         public void AddNode(MCScenarioChainingNode node)
         {
-            List<MCScenarioChainingNode> newnodes = new List<MCScenarioChainingNode>();
+            List<MCScenarioChainingNode> newnodes = new();
             if (Nodes != null)
             {
                 newnodes.AddRange(Nodes);
@@ -5129,7 +5129,7 @@ namespace CodeWalker.GameFiles
         }
         public void AddEdge(MCScenarioChainingEdge edge)
         {
-            List<MCScenarioChainingEdge> newedges = new List<MCScenarioChainingEdge>();
+            List<MCScenarioChainingEdge> newedges = new();
             if (Edges != null)
             {
                 newedges.AddRange(Edges);
@@ -5141,7 +5141,7 @@ namespace CodeWalker.GameFiles
         }
         public void AddChain(MCScenarioChain chain)
         {
-            List<MCScenarioChain> newchains = new List<MCScenarioChain>();
+            List<MCScenarioChain> newchains = new();
             if (Chains != null)
             {
                 newchains.AddRange(Chains);
@@ -5158,7 +5158,7 @@ namespace CodeWalker.GameFiles
             if (Edges != null)
             {
                 //first remove any edges referencing this node...
-                List<MCScenarioChainingEdge> remedges = new List<MCScenarioChainingEdge>();
+                List<MCScenarioChainingEdge> remedges = new();
                 foreach (var edge in Edges)
                 {
                     if ((edge.NodeFrom == n) || (edge.NodeTo == n))
@@ -5174,7 +5174,7 @@ namespace CodeWalker.GameFiles
 
             if (Nodes != null)
             {
-                List<MCScenarioChainingNode> newnodes = new List<MCScenarioChainingNode>();
+                List<MCScenarioChainingNode> newnodes = new();
                 foreach (var nn in Nodes)
                 {
                     if (nn == n)
@@ -5206,7 +5206,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (Edges != null)
             {
-                List<MCScenarioChainingEdge> newedges = new List<MCScenarioChainingEdge>();
+                List<MCScenarioChainingEdge> newedges = new();
                 foreach (var ne in Edges)
                 {
                     if (ne == e)
@@ -5248,7 +5248,7 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (Chains != null)
             {
-                List<MCScenarioChain> newchains = new List<MCScenarioChain>();
+                List<MCScenarioChain> newchains = new();
                 foreach (var nc in Chains)
                 {
                     if (nc == c)
@@ -5490,8 +5490,8 @@ namespace CodeWalker.GameFiles
 
         public void AddEdge(MCScenarioChainingEdge edge)
         {
-            List<MCScenarioChainingEdge> newedges = new List<MCScenarioChainingEdge>();
-            List<ushort> newedgeids = new List<ushort>();
+            List<MCScenarioChainingEdge> newedges = new();
+            List<ushort> newedgeids = new();
             if (Edges != null)
             {
                 newedges.AddRange(Edges);
@@ -5511,8 +5511,8 @@ namespace CodeWalker.GameFiles
             bool r = false;
             if (Edges != null)
             {
-                List<MCScenarioChainingEdge> newedges = new List<MCScenarioChainingEdge>();
-                List<ushort> newedgeids = new List<ushort>();
+                List<MCScenarioChainingEdge> newedges = new();
+                List<ushort> newedgeids = new();
                 foreach (var ne in Edges)
                 {
                     if (ne == e)

@@ -15,11 +15,11 @@ namespace CodeWalker.GameFiles
 
         public void Load(byte[] data, RpfFileEntry entry)
         {
-            //MemoryStream ms = new MemoryStream(data);
+            //MemoryStream ms = new(data);
 
             FileEntry = entry;
 
-            MemoryStream ms = new MemoryStream(data);
+            MemoryStream ms = new(data);
 
             if (PsoFile.IsPSO(ms))
             {

@@ -15,7 +15,7 @@ namespace CodeWalker.Tools
 {
     public partial class JenkIndForm : Form
     {
-        Dictionary<uint, string> extraStrings = new Dictionary<uint, string>();
+        Dictionary<uint, string> extraStrings = new();
 
 
 

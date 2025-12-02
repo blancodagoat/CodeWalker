@@ -19,7 +19,7 @@ namespace CodeWalker.World
         public YdrFile Ydr { get; set; } = null;
         public Drawable Drawable { get; set; } = null;
 
-        public YmapEntityDef RenderEntity = new YmapEntityDef(); //placeholder entity object for rendering
+        public YmapEntityDef RenderEntity = new(); //placeholder entity object for rendering
 
         public Vector3 Position { get; set; } = Vector3.Zero;
         public Quaternion Rotation { get; set; } = Quaternion.Identity;

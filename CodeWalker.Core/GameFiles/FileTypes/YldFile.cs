@@ -88,7 +88,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(YldFile yld, string outputFolder = "")
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if (yld?.ClothDictionary != null)
@@ -106,14 +106,14 @@ namespace CodeWalker.GameFiles
 
         public static YldFile GetYld(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetYld(doc, inputFolder);
         }
 
         public static YldFile GetYld(XmlDocument doc, string inputFolder = "")
         {
-            YldFile r = new YldFile();
+            YldFile r = new();
 
             var ddsfolder = inputFolder;
 

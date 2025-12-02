@@ -32,13 +32,13 @@ namespace CodeWalker
         volatile bool pauserendering = false;
         //volatile bool initialised = false;
 
-        Stopwatch frametimer = new Stopwatch();
+        Stopwatch frametimer = new();
         Camera camera;
         Timecycle timecycle;
         Weather weather;
         Clouds clouds;
 
-        Entity camEntity = new Entity();
+        Entity camEntity = new();
 
 
         bool MouseLButtonDown = false;
@@ -52,7 +52,7 @@ namespace CodeWalker
         public GameFileCache GameFileCache { get; } = GameFileCacheFactory.Create();
 
 
-        InputManager Input = new InputManager();
+        InputManager Input = new();
 
 
         bool initedOk = false;
@@ -68,14 +68,14 @@ namespace CodeWalker
         bool enableGrid = false;
         float gridSize = 1.0f;
         int gridCount = 40;
-        List<VertexTypePC> gridVerts = new List<VertexTypePC>();
+        List<VertexTypePC> gridVerts = new();
         object gridSyncRoot = new object();
 
 
 
 
 
-        Ped SelectedPed = new Ped();
+        Ped SelectedPed = new();
 
 
         ComboBox[] ComponentComboBoxes = null;
@@ -660,7 +660,7 @@ namespace CodeWalker
                 var ycds = GameFileCache.YcdDict.Values.ToList();
                 ycds.Sort((a, b) => { return a.Name.CompareTo(b.Name); });
                 ClipDictComboBox.AutoCompleteCustomSource.Clear();
-                List<string> ycdlist = new List<string>();
+                List<string> ycdlist = new();
                 foreach (var ycde in ycds)
                 {
                     ycdlist.Add(ycde.GetShortName());
@@ -868,7 +868,7 @@ namespace CodeWalker
                 return;
             }
 
-            List<string> items = new List<string>();
+            List<string> items = new();
             foreach (var cme in ycd.ClipMapEntries)
             {
                 if (cme.Clip != null)
@@ -1532,7 +1532,7 @@ namespace CodeWalker
 
             //if (td != null)
             //{
-            //    YtdForm f = new YtdForm();
+            //    YtdForm f = new();
             //    f.Show();
             //    f.LoadTexDict(td, fileName);
             //    //f.LoadYtd(ytd);

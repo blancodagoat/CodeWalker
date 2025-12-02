@@ -20,7 +20,7 @@ namespace CodeWalker.Project.Panels
         public ProjectFile CurrentProjectFile { get; set; }
 
         private bool inDoubleClick = false; //used in disabling double-click to expand tree nodes
-        private List<TreeNode> SelectedNodes = new List<TreeNode>();
+        private List<TreeNode> SelectedNodes = new();
 
         public ProjectExplorerPanel(ProjectForm projectForm)
         {

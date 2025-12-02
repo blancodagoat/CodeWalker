@@ -22,7 +22,7 @@ namespace CodeWalker.Project
 
         public void Init(string xmlstr)
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xmlstr);
 
             XmlElement root = doc.DocumentElement;
@@ -62,7 +62,7 @@ namespace CodeWalker.Project
 
             foreach (XmlNode node in placements)
             {
-                MenyooXmlPlacement pl = new MenyooXmlPlacement();
+                MenyooXmlPlacement pl = new();
                 pl.Init(node);
 
                 Placements.Add(pl);
@@ -141,7 +141,7 @@ namespace CodeWalker.Project
                 {
                     foreach (XmlNode objpropn in objprops.ChildNodes)
                     {
-                        MenyooXmlProperty pr = new MenyooXmlProperty();
+                        MenyooXmlProperty pr = new();
                         pr.Name = objpropn.Name;
                         pr.Value = objpropn.InnerText;
                         ObjectProperties.Add(pr);
@@ -154,7 +154,7 @@ namespace CodeWalker.Project
                 {
                     foreach (XmlNode vehpropn in vehprops.ChildNodes)
                     {
-                        MenyooXmlProperty pr = new MenyooXmlProperty();
+                        MenyooXmlProperty pr = new();
                         pr.Name = vehpropn.Name;
                         pr.Value = vehpropn.InnerText;
                         VehicleProperties.Add(pr);

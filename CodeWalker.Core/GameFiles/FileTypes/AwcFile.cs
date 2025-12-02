@@ -146,9 +146,9 @@ namespace CodeWalker.GameFiles
                     break;
             }
 
-            using (MemoryStream ms = new MemoryStream(data))
+            using (MemoryStream ms = new(data))
             {
-                DataReader r = new DataReader(ms, endianess);
+                DataReader r = new(ms, endianess);
 
                 Read(r);
             }
@@ -156,8 +156,8 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            MemoryStream s = new MemoryStream();
-            DataWriter w = new DataWriter(s);
+            MemoryStream s = new();
+            DataWriter w = new(s);
 
             Write(w);
 
@@ -1548,8 +1548,8 @@ namespace CodeWalker.GameFiles
             //}
 
 
-            MemoryStream stream = new MemoryStream();
-            BinaryWriter w = new BinaryWriter(stream);
+            MemoryStream stream = new();
+            BinaryWriter w = new(stream);
             int wavLength = 36 + dataPCM.Length;
             if (addextrafmt)
             {
@@ -1994,7 +1994,7 @@ namespace CodeWalker.GameFiles
 
             var data = Data;
 
-            RpfResourceFileEntry resentry = new RpfResourceFileEntry();
+            RpfResourceFileEntry resentry = new();
             uint rsc7 = BitConverter.ToUInt32(data, 0);
             int version = BitConverter.ToInt32(data, 4);
             resentry.SystemFlags = BitConverter.ToUInt32(data, 8);
@@ -2011,7 +2011,7 @@ namespace CodeWalker.GameFiles
             Buffer.BlockCopy(data, 16, newdata, 0, newlen);
             data = newdata;
 
-            ResourceDataReader rd = new ResourceDataReader(resentry, data);
+            ResourceDataReader rd = new(resentry, data);
 
             ClipDict = rd.ReadBlock<ClipDictionary>();
 
@@ -2096,7 +2096,7 @@ namespace CodeWalker.GameFiles
         public override string ToString()
         {
             if (Data == null) return "";
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             for (int i = 0; i < Data.Length; i++)
             {
                 if (sb.Length > 0) sb.Append(' ');
@@ -3123,7 +3123,7 @@ namespace CodeWalker.GameFiles
 
         public static string GetXml(AwcFile awc, string outputFolder = "")
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine(XmlHeader);
 
             if (awc != null)
@@ -3141,7 +3141,7 @@ namespace CodeWalker.GameFiles
 
         public static AwcFile AwcYft(string xml, string inputFolder = "")
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.LoadXml(xml);
             return GetAwc(doc, inputFolder);
         }

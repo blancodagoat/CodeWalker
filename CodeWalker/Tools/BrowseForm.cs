@@ -23,10 +23,10 @@ namespace CodeWalker.Tools
         private volatile bool AbortOperation = false;
 
         private int TotalFileCount = 0;
-        private List<RpfFile> ScannedFiles = new List<RpfFile>();
-        private List<RpfFile> RootFiles = new List<RpfFile>();
+        private List<RpfFile> ScannedFiles = new();
+        private List<RpfFile> RootFiles = new();
 
-        private List<SearchResult> SearchResults = new List<SearchResult>();
+        private List<SearchResult> SearchResults = new();
         private RpfEntry SelectedEntry = null;
         private int SelectedOffset = -1;
         private int SelectedLength = 0;
@@ -135,7 +135,7 @@ namespace CodeWalker.Tools
                         return;
                     }
 
-                    RpfFile rf = new RpfFile(rpfpath, rpfpath.Replace(replpath, ""));
+                    RpfFile rf = new(rpfpath, rpfpath.Replace(replpath, ""));
 
                     UpdateStatus("Scanning " + rf.Name + "...");
 
@@ -370,43 +370,43 @@ namespace CodeWalker.Tools
 
             if (rfe.NameLower.EndsWith(".ymap"))
             {
-                YmapFile ymap = new YmapFile(rfe);
+                YmapFile ymap = new(rfe);
                 ymap.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ymap;
             }
             else if (rfe.NameLower.EndsWith(".ytyp"))
             {
-                YtypFile ytyp = new YtypFile();
+                YtypFile ytyp = new();
                 ytyp.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ytyp;
             }
             else if (rfe.NameLower.EndsWith(".ymf"))
             {
-                YmfFile ymf = new YmfFile();
+                YmfFile ymf = new();
                 ymf.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ymf;
             }
             else if (rfe.NameLower.EndsWith(".ymt"))
             {
-                YmtFile ymt = new YmtFile();
+                YmtFile ymt = new();
                 ymt.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ymt;
             }
             else if (rfe.NameLower.EndsWith(".ybn"))
             {
-                YbnFile ybn = new YbnFile();
+                YbnFile ybn = new();
                 ybn.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ybn;
             }
             else if (rfe.NameLower.EndsWith(".fxc"))
             {
-                FxcFile fxc = new FxcFile();
+                FxcFile fxc = new();
                 fxc.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = fxc;
             }
             else if (rfe.NameLower.EndsWith(".yft"))
             {
-                YftFile yft = new YftFile();
+                YftFile yft = new();
                 yft.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = yft;
 
@@ -418,7 +418,7 @@ namespace CodeWalker.Tools
             }
             else if (rfe.NameLower.EndsWith(".ydr"))
             {
-                YdrFile ydr = new YdrFile();
+                YdrFile ydr = new();
                 ydr.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ydr;
 
@@ -430,14 +430,14 @@ namespace CodeWalker.Tools
             }
             else if (rfe.NameLower.EndsWith(".ydd"))
             {
-                YddFile ydd = new YddFile();
+                YddFile ydd = new();
                 ydd.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ydd;
                 //todo: show embedded texdicts in ydd's? is this possible?
             }
             else if (rfe.NameLower.EndsWith(".ytd"))
             {
-                YtdFile ytd = new YtdFile();
+                YtdFile ytd = new();
                 ytd.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ytd;
                 ShowTextures(ytd.TextureDict);
@@ -445,43 +445,43 @@ namespace CodeWalker.Tools
             }
             else if (rfe.NameLower.EndsWith(".ycd"))
             {
-                YcdFile ycd = new YcdFile();
+                YcdFile ycd = new();
                 ycd.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ycd;
             }
             else if (rfe.NameLower.EndsWith(".ynd"))
             {
-                YndFile ynd = new YndFile();
+                YndFile ynd = new();
                 ynd.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ynd;
             }
             else if (rfe.NameLower.EndsWith(".ynv"))
             {
-                YnvFile ynv = new YnvFile();
+                YnvFile ynv = new();
                 ynv.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = ynv;
             }
             else if (rfe.NameLower.EndsWith("_cache_y.dat"))
             {
-                CacheDatFile cdf = new CacheDatFile();
+                CacheDatFile cdf = new();
                 cdf.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = cdf;
             }
             else if (rfe.NameLower.EndsWith(".rel"))
             {
-                RelFile rel = new RelFile(rfe);
+                RelFile rel = new(rfe);
                 rel.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = rel;
             }
             else if (rfe.NameLower.EndsWith(".gxt2"))
             {
-                Gxt2File gxt2 = new Gxt2File();
+                Gxt2File gxt2 = new();
                 gxt2.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = gxt2;
             }
             else if (rfe.NameLower.EndsWith(".pso"))
             {
-                JPsoFile pso = new JPsoFile();
+                JPsoFile pso = new();
                 pso.Load(data, rfe);
                 DetailsPropertyGrid.SelectedObject = pso;
             }
@@ -520,9 +520,9 @@ namespace CodeWalker.Tools
             {
                 int charsperln = int.Parse(DataHexLineCombo.Text);
                 int lines = (data.Length / charsperln) + (((data.Length % charsperln) > 0) ? 1 : 0);
-                StringBuilder hexb = new StringBuilder();
-                StringBuilder texb = new StringBuilder();
-                StringBuilder finb = new StringBuilder();
+                StringBuilder hexb = new();
+                StringBuilder texb = new();
+                StringBuilder finb = new();
 
                 if (offset > 0)
                 {
@@ -662,7 +662,7 @@ namespace CodeWalker.Tools
                 byte[] pixels = DDSIO.GetPixels(tex, cmip);
                 int w = tex.Width >> cmip;
                 int h = tex.Height >> cmip;
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new(w, h, PixelFormat.Format32bppArgb);
 
                 if (pixels != null)
                 {
@@ -713,7 +713,7 @@ namespace CodeWalker.Tools
 
                 UpdateStatus("Starting test...");
 
-                StringBuilder sbout = new StringBuilder();
+                StringBuilder sbout = new();
                 int errcount = 0;
                 int curfile = 1;
                 int totrpfs = ScannedFiles.Count;
@@ -1179,7 +1179,7 @@ namespace CodeWalker.Tools
             {
                 string fpath = SaveFileDialog.FileName;
 
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new();
                 sb.AppendLine("CodeWalker Search Results for \"" + SearchTextBox.Text + "\"");
                 sb.AppendLine("[File path], [Byte offset]");
                 if (SearchResults != null)

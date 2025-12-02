@@ -14,7 +14,7 @@ namespace CodeWalker.GameFiles
 
         public static PsoFile GetPso(XmlDocument doc)
         {
-            PsoBuilder pb = new PsoBuilder();
+            PsoBuilder pb = new();
 
             Traverse(doc.DocumentElement, pb, 0, true);
 
@@ -385,7 +385,7 @@ namespace CodeWalker.GameFiles
 
 
 
-            List<byte[]> nodesData = new List<byte[]>();
+            List<byte[]> nodesData = new();
 
             foreach (XmlNode cnode in node.ChildNodes)
             {

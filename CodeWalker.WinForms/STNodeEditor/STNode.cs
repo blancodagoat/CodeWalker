@@ -455,7 +455,7 @@ namespace ST.Library.UI.NodeEditor
             protected set { _LetGetOptions = value; }
         }
 
-        private static Point m_static_pt_init = new Point(10, 10);
+        private static Point m_static_pt_init = new(10, 10);
 
         public STNode() {
             this._Title = "Untitled";
@@ -517,7 +517,7 @@ namespace ST.Library.UI.NodeEditor
         }
 
         internal Dictionary<string, byte[]> OnSaveNode() {
-            Dictionary<string, byte[]> dic = new Dictionary<string, byte[]>();
+            Dictionary<string, byte[]> dic = new();
             dic.Add("Guid", this._Guid.ToByteArray());
             dic.Add("Left", BitConverter.GetBytes(this._Left));
             dic.Add("Top", BitConverter.GetBytes(this._Top));
@@ -549,7 +549,7 @@ namespace ST.Library.UI.NodeEditor
         }
 
         internal byte[] GetSaveData() {
-            List<byte> lst = new List<byte>();
+            List<byte> lst = new();
             Type t = this.GetType();
             byte[] byData = Encoding.UTF8.GetBytes(t.Module.Name + "|" + t.FullName);
             lst.Add((byte)byData.Length);
@@ -688,7 +688,7 @@ namespace ST.Library.UI.NodeEditor
             var sz = g.MeasureString(this.Mark, this.Font, this._MarkRectangle.Width);
             brush.Color = this._ForeColor;
             if (sz.Height > this._ItemHeight || sz.Width > this._MarkRectangle.Width) { //If it exceeds the drawing area, draw the part
-                Rectangle rect = new Rectangle(this._MarkRectangle.Left + 2, this._MarkRectangle.Top + 2, this._MarkRectangle.Width - 20, 16);
+                Rectangle rect = new(this._MarkRectangle.Left + 2, this._MarkRectangle.Top + 2, this._MarkRectangle.Width - 20, 16);
                 m_sf.Alignment = StringAlignment.Near;
                 g.DrawString(this._MarkLines[0], this._Font, brush, rect, m_sf);
                 m_sf.Alignment = StringAlignment.Far;
@@ -1019,7 +1019,7 @@ namespace ST.Library.UI.NodeEditor
         /// </summary>
         protected virtual void SetOptionsLocation() {
             int nIndex = 0;
-            Rectangle rect = new Rectangle(this.Left + 10, this._Top + this._TitleHeight, this._Width - 20, this._ItemHeight);
+            Rectangle rect = new(this.Left + 10, this._Top + this._TitleHeight, this._Width - 20, this._ItemHeight);
             foreach (STNodeOption op in this._InputOptions) {
                 if (op != STNodeOption.Empty) {
                     Point pt = this.OnSetOptionDotLocation(op, new Point(this.Left - op.DotSize / 2, rect.Y + (rect.Height - op.DotSize) / 2), nIndex);

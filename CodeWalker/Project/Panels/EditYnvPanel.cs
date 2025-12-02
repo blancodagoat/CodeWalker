@@ -113,7 +113,7 @@ namespace CodeWalker.Project.Panels
 
         private string GetAdjAreaIDsString(uint[] vals)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             for (int i = 0; i < vals.Length; i++)
             {
                 var adjid = vals[i];

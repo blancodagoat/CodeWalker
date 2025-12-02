@@ -61,7 +61,7 @@ namespace CodeWalker.Project.Panels
 
                 NameTextBox.Text = zl.NameHash.ToString();
 
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new();
                 if (zl.ZoneHashes != null)
                 {
                     foreach (var hash in zl.ZoneHashes)

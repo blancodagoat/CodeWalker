@@ -39,7 +39,7 @@ namespace CodeWalker.GameFiles
             {
                 string xml = TextUtil.GetUTF8Text(data);
 
-                XmlDocument xmldoc = new XmlDocument();
+                XmlDocument xmldoc = new();
                 xmldoc.LoadXml(xml);
 
 
@@ -62,7 +62,7 @@ namespace CodeWalker.GameFiles
             for (int i = 0; i < items.Count; i++)
             {
                 var node = items[i];
-                VehicleInitData d = new VehicleInitData();
+                VehicleInitData d = new();
                 d.Load(node);
                 InitDatas.Add(d);
             }
@@ -366,8 +366,8 @@ namespace CodeWalker.GameFiles
             return getFloatArrayList.ToArray();
         }
 
-        private static List<string> getStringArrayList = new List<string>(); //kinda hacky..
-        private static List<float> getFloatArrayList = new List<float>(); //kinda hacky..
+        private static List<string> getStringArrayList = new(); //kinda hacky..
+        private static List<float> getFloatArrayList = new(); //kinda hacky..
 
 
         public override string ToString()

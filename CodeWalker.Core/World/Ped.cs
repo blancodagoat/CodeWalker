@@ -41,7 +41,7 @@ namespace CodeWalker.World
         public Vector3 Position { get; set; } = Vector3.Zero;
         public Quaternion Rotation { get; set; } = Quaternion.Identity;
 
-        public YmapEntityDef RenderEntity = new YmapEntityDef(); //placeholder entity object for rendering
+        public YmapEntityDef RenderEntity = new(); //placeholder entity object for rendering
 
 
         public void Init(string name, GameFileCache gfc)

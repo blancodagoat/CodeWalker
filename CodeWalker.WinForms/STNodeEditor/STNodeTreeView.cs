@@ -188,8 +188,8 @@ namespace ST.Library.UI.NodeEditor
         private static Type m_type_node_base = typeof(STNode);
         private static char[] m_chr_splitter = new char[] { '/', '\\' };
         private STNodeTreeCollection m_items_draw;
-        private STNodeTreeCollection m_items_source = new STNodeTreeCollection("ROOT");
-        private Dictionary<Type, string> m_dic_all_type = new Dictionary<Type, string>();
+        private STNodeTreeCollection m_items_source = new("ROOT");
+        private Dictionary<Type, string> m_dic_all_type = new();
 
         private Pen m_pen;
         private SolidBrush m_brush;
@@ -210,7 +210,7 @@ namespace ST.Library.UI.NodeEditor
         private Rectangle m_rect_clear; //Clear the search button area
 
         private string m_str_search; // retrieved text
-        private TextBox m_tbx = new TextBox(); //Retrieve the textbox
+        private TextBox m_tbx = new(); //Retrieve the textbox
         /// <summary>
         /// Construct a STNode tree control
         /// </summary>
@@ -306,7 +306,7 @@ namespace ST.Library.UI.NodeEditor
             }
             try {
                 STNode node = (STNode)Activator.CreateInstance(stNodeType);
-                STNodeTreeCollection stt = new STNodeTreeCollection(node.Title);
+                STNodeTreeCollection stt = new(node.Title);
                 stt.Path = (strLibName + "/" + attr.Path).Trim('/');
                 stt.STNodeType = stNodeType;
                 items[stt.Name] = stt;
@@ -325,7 +325,7 @@ namespace ST.Library.UI.NodeEditor
         private STNodeTreeCollection AddAssemblyPrivate(string strFile) {
             strFile = System.IO.Path.GetFullPath(strFile);
             var asm = Assembly.LoadFrom(strFile);
-            STNodeTreeCollection items = new STNodeTreeCollection(System.IO.Path.GetFileNameWithoutExtension(strFile));
+            STNodeTreeCollection items = new(System.IO.Path.GetFileNameWithoutExtension(strFile));
             foreach (var v in asm.GetTypes()) {
                 if (v.IsAbstract) continue;
                 if (v.IsSubclassOf(m_type_node_base)) this.AddSTNode(v, items, items.Name, false);
@@ -424,7 +424,7 @@ namespace ST.Library.UI.NodeEditor
                 this.Invalidate();
             } else if (m_item_hover.InfoRectangle.Contains(m_pt_offsety)) {
                 Rectangle rect = this.RectangleToScreen(m_item_hover.DisplayRectangle);
-                FrmNodePreviewPanel frm = new FrmNodePreviewPanel(m_item_hover.STNodeType,
+                FrmNodePreviewPanel frm = new(m_item_hover.STNodeType,
                     new Point(rect.Right - m_nItemHeight, rect.Top + m_nOffsetY),
                     m_nItemHeight,
                     this._InfoPanelIsLeftLayout,
@@ -432,7 +432,7 @@ namespace ST.Library.UI.NodeEditor
                 frm.BackColor = this.BackColor;
                 frm.Show(this);
             } else if (m_item_hover.STNodeType != null) {
-                DataObject d = new DataObject("STNodeType", m_item_hover.STNodeType);
+                DataObject d = new("STNodeType", m_item_hover.STNodeType);
                 this.DoDragDrop(d, DragDropEffects.Copy);
             }
         }
@@ -543,7 +543,7 @@ namespace ST.Library.UI.NodeEditor
                 m_brush.Color = this._ItemHoverColor;
                 g.FillRectangle(m_brush, items.DisplayRectangle);
             }
-            Rectangle rect = new Rectangle(45 + nLevel * 10, items.SwitchRectangle.Top, this.Width - 45 - nLevel * 10, m_nItemHeight);
+            Rectangle rect = new(45 + nLevel * 10, items.SwitchRectangle.Top, this.Width - 45 - nLevel * 10, m_nItemHeight);
             m_pen.Color = Color.FromArgb(100, 125, 125, 125);
             g.DrawLine(m_pen, 9, items.SwitchRectangle.Top + m_nItemHeight / 2, items.SwitchRectangle.Left + 19, items.SwitchRectangle.Top + m_nItemHeight / 2);
             if (nCounter != 0) {
@@ -647,7 +647,7 @@ namespace ST.Library.UI.NodeEditor
                 g.DrawRectangle(m_pen, items.InfoRectangle.X, items.InfoRectangle.Y, items.InfoRectangle.Width - 1, items.InfoRectangle.Height - 1);
             } else {
                 if (items.IsLibraryRoot) {
-                    Rectangle rect_box = new Rectangle(rect.Left - 15, rect.Top + m_nItemHeight / 2 - 5, 11, 10);
+                    Rectangle rect_box = new(rect.Left - 15, rect.Top + m_nItemHeight / 2 - 5, 11, 10);
                     g.DrawRectangle(Pens.Gray, rect_box);
                     g.DrawLine(Pens.Cyan, rect_box.X - 2, rect_box.Top, rect_box.X + 2, rect_box.Top);
                     g.DrawLine(Pens.Cyan, rect_box.X, rect_box.Y - 2, rect_box.X, rect_box.Y + 2);
@@ -820,7 +820,7 @@ namespace ST.Library.UI.NodeEditor
                 }
             }
 
-            private SortedDictionary<string, STNodeTreeCollection> m_dic = new SortedDictionary<string, STNodeTreeCollection>();
+            private SortedDictionary<string, STNodeTreeCollection> m_dic = new();
             /// <summary>
             /// Construct a tree node collection
             /// </summary>
@@ -878,7 +878,7 @@ namespace ST.Library.UI.NodeEditor
             /// </summary>
             /// <returns>Copy copy</returns>
             public STNodeTreeCollection Copy() {
-                STNodeTreeCollection items = new STNodeTreeCollection("COPY");
+                STNodeTreeCollection items = new("COPY");
                 this.Copy(this, items);
                 return items;
             }

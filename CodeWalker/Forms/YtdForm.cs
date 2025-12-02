@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -68,7 +69,7 @@ namespace CodeWalker.Forms
 
             if ((TexDict.Textures == null) || (TexDict.Textures.data_items == null)) return;
             var texs = TexDict.Textures.data_items;
-            List<Texture> texlist = new List<Texture>(texs);
+            List<Texture> texlist = new(texs);
             texlist.Sort((a, b) => { return a.Name?.CompareTo(b.Name) ?? 0; });
 
             foreach (var tex in texlist)
@@ -155,7 +156,7 @@ namespace CodeWalker.Forms
                 byte[] pixels = DDSIO.GetPixels(tex, cmip);
                 int w = tex.Width >> cmip;
                 int h = tex.Height >> cmip;
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new(w, h, PixelFormat.Format32bppArgb);
 
                 if (pixels != null)
                 {
@@ -370,6 +371,45 @@ namespace CodeWalker.Forms
             return textures;
         }
 
+        private async Task<List<Texture>> OpenDDSFilesAsync(string[] filenames, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
+        {
+            var textures = new List<Texture>();
+            int totalFiles = filenames.Length;
+            int processedFiles = 0;
+
+            foreach (var fn in filenames)
+            {
+                if (string.IsNullOrEmpty(fn)) continue;
+                if (fn.EndsWith(".dds", StringComparison.InvariantCultureIgnoreCase) == false) continue;
+                if (!File.Exists(fn)) continue;
+                
+                try
+                {
+                    var dds = await File.ReadAllBytesAsync(fn, cancellationToken).ConfigureAwait(false);
+                    var tex = await DDSIO.GetTextureAsync(dds, null, cancellationToken).ConfigureAwait(false);
+                    tex.Name = Path.GetFileNameWithoutExtension(fn);
+                    tex.NameHash = JenkHash.GenHash(tex.Name?.ToLowerInvariant());
+                    JenkIndex.Ensure(tex.Name?.ToLowerInvariant());
+
+                    textures.Add(tex);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Report error on UI thread
+                    await Task.Run(() => MessageBox.Show("Unable to load " + fn + ".\nAre you sure it's a valid .dds file?")).ConfigureAwait(false);
+                }
+
+                processedFiles++;
+                progress?.Report((float)processedFiles / totalFiles);
+            }
+
+            return textures;
+        }
+
 
         private void UpdateModelFormTextures()
         {
@@ -554,6 +594,19 @@ namespace CodeWalker.Forms
             File.WriteAllBytes(fpath, dds);
         }
 
+        private async Task SaveTextureAsAsync(CancellationToken cancellationToken = default)
+        {
+            if (CurrentTexture == null) return;
+            string fname = CurrentTexture.Name + ".dds";
+            SaveDDSFileDialog.FileName = fname;
+            if (SaveDDSFileDialog.ShowDialog() != DialogResult.OK) return;
+            string fpath = SaveDDSFileDialog.FileName;
+            
+            var progress = new Progress<float>(p => UpdateStatus($"Saving texture... {(int)(p * 100)}%"));
+            byte[] dds = await DDSIO.GetDDSFileAsync(CurrentTexture, progress, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(fpath, dds, cancellationToken).ConfigureAwait(false);
+        }
+
         private void SaveAllTextures()
         {
             if (TexDict?.Textures?.data_items == null) return;
@@ -572,6 +625,40 @@ namespace CodeWalker.Forms
                 }
                 File.WriteAllBytes(fpath, dds);
             }
+        }
+
+        private async Task SaveAllTexturesAsync(CancellationToken cancellationToken = default)
+        {
+            if (TexDict?.Textures?.data_items == null) return;
+            if (FolderBrowserDialog.ShowDialogNew() != DialogResult.OK) return;
+            var folder = FolderBrowserDialog.SelectedPath;
+            
+            int totalTextures = TexDict.Textures.data_items.Length;
+            int processedTextures = 0;
+            
+            foreach (var tex in TexDict.Textures.data_items)
+            {
+                var progress = new Progress<float>(p => 
+                {
+                    float overallProgress = (processedTextures + p) / totalTextures;
+                    UpdateStatus($"Saving textures... {(int)(overallProgress * 100)}%");
+                });
+                
+                byte[] dds = await DDSIO.GetDDSFileAsync(tex, progress, cancellationToken).ConfigureAwait(false);
+                string bpath = folder + "\\" + tex.Name;
+                string fpath = bpath + ".dds";
+                int c = 1;
+                while (File.Exists(fpath))
+                {
+                    fpath = bpath + "_Copy" + c.ToString() + ".dds";
+                    c++;
+                }
+                await File.WriteAllBytesAsync(fpath, dds, cancellationToken).ConfigureAwait(false);
+                
+                processedTextures++;
+            }
+            
+            UpdateStatus($"Saved {totalTextures} texture(s) successfully");
         }
 
 

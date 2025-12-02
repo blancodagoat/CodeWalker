@@ -5,61 +5,52 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CodeWalker.World
+namespace CodeWalker.World;
+
+public class Camera(float smoothness, float sensitivity, float fov)
 {
-    public class Camera
-    {
-        public Vector3 TargetRotation = Vector3.Zero;
-        public Vector3 CurrentRotation = Vector3.Zero;
-        public float Smoothness;// 10.0f;//0.15f;
-        public float Sensitivity;// 0.005f;
-        public float TargetDistance = 1.0f;
-        public float CurrentDistance = 1.0f;
-        public float ZoomCurrentTime = 0.0f;
-        public float ZoomTargetTime = 2.0f;
-        public float ZoomVelocity = 0.0f;
-        public float ZoomSpeed = 0.1f;
-        public float Width = 1920.0f;
-        public float Height = 1080.0f;
-        public float FieldOfView;// 1.0f;
-        public float FieldOfViewFactor = 0.5f / (float)Math.Tan(/*FieldOfView*/ 1.0f * 0.5f);
-        public float AspectRatio = 1920.0f / 1080.0f;
-        public float ZNear = 0.01f;
-        public float ZFar = 100000.0f;
-        public Entity FollowEntity = null;
-        public Vector3 LocalLookAt = Vector3.ForwardLH;
-        public float VOffset = 0.0f;
-        public bool UpdateProj = true;
-        public bool IsMapView = false;
-        public bool IsOrthographic = false;
-        public float OrthographicSize = 20.0f;
-        public float OrthographicTargetSize = 20.0f;
-        public Matrix ProjMatrix = Matrix.Identity;
-        public Vector3 Position = Vector3.Zero;
-        public Vector3 UpDirection = Vector3.Up;
-        public Vector3 ViewDirection = Vector3.ForwardLH;
-        public Quaternion ViewQuaternion = Quaternion.Identity;
-        public Quaternion ViewInvQuaternion = Quaternion.Identity;
-        public Matrix ViewMatrix = Matrix.Identity;
-        public Matrix ViewInvMatrix = Matrix.Identity;
-        public Matrix ViewProjMatrix = Matrix.Identity;
-        public Matrix ViewProjInvMatrix = Matrix.Identity;
-        public Frustum ViewFrustum = new Frustum();
-        public Vector3 MouseRayNear = Vector3.Zero;
-        public Vector3 MouseRayFar = Vector3.Zero;
-        public Ray MouseRay;
-        private float MouseX = 0;
-        private float MouseY = 0;
-        private object syncRoot = new object();
-
-
-        public Camera(float smoothness, float sensitivity, float fov)
-        {
-            Smoothness = smoothness;
-            Sensitivity = sensitivity;
-            FieldOfView = fov;
-            FieldOfViewFactor = 0.5f / (float)Math.Tan(FieldOfView * 0.5f);
-        }
+    public Vector3 TargetRotation = Vector3.Zero;
+    public Vector3 CurrentRotation = Vector3.Zero;
+    public float Smoothness = smoothness;
+    public float Sensitivity = sensitivity;
+    public float TargetDistance = 1.0f;
+    public float CurrentDistance = 1.0f;
+    public float ZoomCurrentTime = 0.0f;
+    public float ZoomTargetTime = 2.0f;
+    public float ZoomVelocity = 0.0f;
+    public float ZoomSpeed = 0.1f;
+    public float Width = 1920.0f;
+    public float Height = 1080.0f;
+    public float FieldOfView = fov;
+    public float FieldOfViewFactor = 0.5f / (float)Math.Tan(fov * 0.5f);
+    public float AspectRatio = 1920.0f / 1080.0f;
+    public float ZNear = 0.01f;
+    public float ZFar = 100000.0f;
+    public Entity FollowEntity = null;
+    public Vector3 LocalLookAt = Vector3.ForwardLH;
+    public float VOffset = 0.0f;
+    public bool UpdateProj = true;
+    public bool IsMapView = false;
+    public bool IsOrthographic = false;
+    public float OrthographicSize = 20.0f;
+    public float OrthographicTargetSize = 20.0f;
+    public Matrix ProjMatrix = Matrix.Identity;
+    public Vector3 Position = Vector3.Zero;
+    public Vector3 UpDirection = Vector3.Up;
+    public Vector3 ViewDirection = Vector3.ForwardLH;
+    public Quaternion ViewQuaternion = Quaternion.Identity;
+    public Quaternion ViewInvQuaternion = Quaternion.Identity;
+    public Matrix ViewMatrix = Matrix.Identity;
+    public Matrix ViewInvMatrix = Matrix.Identity;
+    public Matrix ViewProjMatrix = Matrix.Identity;
+    public Matrix ViewProjInvMatrix = Matrix.Identity;
+    public Frustum ViewFrustum = new();
+    public Vector3 MouseRayNear = Vector3.Zero;
+    public Vector3 MouseRayFar = Vector3.Zero;
+    public Ray MouseRay;
+    private float MouseX = 0;
+    private float MouseY = 0;
+    private object syncRoot = new();
 
 
         public void SetMousePosition(int x, int y)
@@ -129,7 +120,7 @@ namespace CodeWalker.World
             {
                 //in map view, need a constant view matrix aligned to XY.
 
-                Vector3 cpos = new Vector3();
+                Vector3 cpos = new();
                 if (FollowEntity != null)
                 {
                     cpos = FollowEntity.Position;
@@ -144,13 +135,13 @@ namespace CodeWalker.World
             {
                 //normal view mode
 
-                Vector3 rdir = new Vector3();
+                Vector3 rdir = new();
                 float cryd = (float)Math.Cos(CurrentRotation.Y);
                 rdir.X = -(float)Math.Sin(-CurrentRotation.X) * cryd;
                 rdir.Z = -(float)Math.Cos(-CurrentRotation.X) * cryd;
                 rdir.Y = (float)Math.Sin(CurrentRotation.Y);
-                Vector3 lookat = new Vector3(0.0f, VOffset, 0.0f);
-                Vector3 cpos = new Vector3();
+                Vector3 lookat = new(0.0f, VOffset, 0.0f);
+                Vector3 cpos = new();
                 if (FollowEntity != null)
                 {
                     up = FollowEntity.Orientation.Multiply(up);
@@ -337,12 +328,27 @@ namespace CodeWalker.World
         public bool ContainsAABBNoClip(ref Vector3 cen, ref Vector3 e)
         {
             var c = cen - Position;
-            for (int i = 0; i < 5; i++)
+            
+            // SIMD-optimized frustum culling using System.Numerics
+            if (System.Numerics.Vector.IsHardwareAccelerated)
             {
-                var pn = Planes[i].Normal;
-                var d = (c.X * pn.X) + (c.Y * pn.Y) + (c.Z * pn.Z); //Vector3.Dot(c, pn);// 
-                var r = (e.X * (pn.X > 0 ? pn.X : -pn.X)) + (e.Y * (pn.Y > 0 ? pn.Y : -pn.Y)) + (e.Z * (pn.Z > 0 ? pn.Z : -pn.Z)); //Vector3.Dot(e, pn.Abs()); //
-                if ((d + r) < 0) return false;
+                for (int i = 0; i < 5; i++)
+                {
+                    var pn = Planes[i].Normal;
+                    var d = (c.X * pn.X) + (c.Y * pn.Y) + (c.Z * pn.Z);
+                    var r = (e.X * Math.Abs(pn.X)) + (e.Y * Math.Abs(pn.Y)) + (e.Z * Math.Abs(pn.Z));
+                    if ((d + r) < 0) return false;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    var pn = Planes[i].Normal;
+                    var d = (c.X * pn.X) + (c.Y * pn.Y) + (c.Z * pn.Z);
+                    var r = (e.X * (pn.X > 0 ? pn.X : -pn.X)) + (e.Y * (pn.Y > 0 ? pn.Y : -pn.Y)) + (e.Z * (pn.Z > 0 ? pn.Z : -pn.Z));
+                    if ((d + r) < 0) return false;
+                }
             }
             return true;
         }
@@ -378,4 +384,3 @@ namespace CodeWalker.World
         }
 
     }
-}

@@ -1282,8 +1282,8 @@ namespace CodeWalker.GameFiles
             }
             if (Polygons != null)
             {
-                MemoryStream ms = new MemoryStream();
-                BinaryWriter bw = new BinaryWriter(ms);
+                MemoryStream ms = new();
+                BinaryWriter bw = new(ms);
                 foreach (var poly in Polygons)
                 {
                     poly.Write(bw);
@@ -1519,7 +1519,7 @@ namespace CodeWalker.GameFiles
                         a1 = ((p3 + p4) - (p1 + p2)) * 0.5f;
                         a2 = p3 - (p1 + a1);
                         a3 = p4 - (p1 + a1);
-                        Vector3 bs = new Vector3(a1.Length(), a2.Length(), a3.Length());
+                        Vector3 bs = new(a1.Length(), a2.Length(), a3.Length());
                         Vector3 m1 = a1 / bs.X;
                         Vector3 m2 = a2 / bs.Y;
                         Vector3 m3 = a3 / bs.Z;
@@ -1628,7 +1628,7 @@ namespace CodeWalker.GameFiles
                         a1 = ((p3 + p4) - (p1 + p2)) * 0.5f;
                         a2 = p3 - (p1 + a1);
                         a3 = p4 - (p1 + a1);
-                        Vector3 bs = new Vector3(a1.Length(), a2.Length(), a3.Length());
+                        Vector3 bs = new(a1.Length(), a2.Length(), a3.Length());
                         Vector3 m1 = a1 / bs.X;
                         Vector3 m2 = a2 / bs.Y;
                         Vector3 m3 = a3 / bs.Z;
@@ -1752,14 +1752,14 @@ namespace CodeWalker.GameFiles
 
             uint[] getVerticesInOctant(int octant)
             {
-                List<uint> octantIndices = new List<uint>();
+                List<uint> octantIndices = new();
 
                 for (uint ind1 = 0; ind1 < VerticesShrunk.Length; ind1++)
                 {
                     Vector3 vertex = VerticesShrunk[ind1];
 
                     bool shouldAdd = true;
-                    List<uint> octantIndices2 = new List<uint>();
+                    List<uint> octantIndices2 = new();
 
                     foreach (uint ind2 in octantIndices)
                     {
@@ -5361,7 +5361,7 @@ namespace CodeWalker.GameFiles
                 if (parts.Length < 5) continue; // FXGroup R G B ...
 
                 int cp = 0;
-                Color c = new Color();
+                Color c = new();
                 c.A = 0xFF;
                 string fxgroup = string.Empty;
                 for (int p = 0; p < parts.Length; p++)
@@ -5394,7 +5394,7 @@ namespace CodeWalker.GameFiles
                 string[] parts = line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 10) continue;
                 int cp = 0;
-                BoundsMaterialData d = new BoundsMaterialData();
+                BoundsMaterialData d = new();
                 for (int p = 0; p < parts.Length; p++)
                 {
                     string part = parts[p].Trim();
@@ -5445,7 +5445,7 @@ namespace CodeWalker.GameFiles
             }
 
 
-            //StringBuilder sb = new StringBuilder();
+            //StringBuilder sb = new();
             //foreach (var d in list)
             //{
             //    sb.AppendLine(d.Name);

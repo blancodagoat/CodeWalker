@@ -21,7 +21,7 @@ namespace CodeWalker.World
         {
             //helper method for double sided ray/plane intersection
             Vector3 pn = Vector3.Cross(ax1, ax2);
-            Plane p = new Plane(camrel, pn);
+            Plane p = new(camrel, pn);
             if (ray.Intersects(ref p, out pos))
             {
                 return true;
@@ -337,8 +337,8 @@ namespace CodeWalker.World
             float allhitrad = 0.07f * size;
 
             //test for single and double axes hits
-            BoundingBox bb = new BoundingBox();
-            BoundingBox bb2 = new BoundingBox();
+            BoundingBox bb = new();
+            BoundingBox bb2 = new();
             float hitd = float.MaxValue;
             float d, d2;
             WidgetAxis hitax = WidgetAxis.None;
@@ -754,7 +754,7 @@ namespace CodeWalker.World
             float outertri = 1.0f * size;
 
             //test for single and double axes hits
-            BoundingBox bb = new BoundingBox();
+            BoundingBox bb = new();
             float hitd = float.MaxValue;
             float d;
             Vector3 hitp;
