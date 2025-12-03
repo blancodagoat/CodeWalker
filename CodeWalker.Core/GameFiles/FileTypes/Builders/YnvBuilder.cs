@@ -1440,8 +1440,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         /// </summary>
         private bool LineOfSightTest(Vector3 from, Vector3 to)
         {
-            // Calculate midpoint and test height
-            var midpoint = (from + to) * 0.5f;
+            // Calculate direction and distance
             var direction = to - from;
             var distance = direction.Length();
 
@@ -1449,6 +1448,15 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 return true; // Too close, consider it valid
 
             direction.Normalize();
+
+            // For sloped surfaces, we need to be more lenient
+            // Calculate the expected slope between the two points
+            float heightDiff = Math.Abs(to.Z - from.Z);
+            float horizontalDist = new Vector2(to.X - from.X, to.Y - from.Y).Length();
+            float slopeAngle = horizontalDist > 0.01f ? (float)Math.Atan(heightDiff / horizontalDist) * 180f / (float)Math.PI : 0f;
+
+            // If this is a steep slope, use a more lenient test
+            bool isSteepSlope = slopeAngle > 20.0f;
 
             // Cast ray from slightly above the from position
             var testOrigin = from + new Vector3(0, 0, genParams.HeightAboveNodeBase);
@@ -1462,12 +1470,41 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             if (!result.Hit)
                 return true; // No obstacle
 
-            // Check if the hit point is significantly below the line between the two samples
-            // This allows for small bumps but blocks major obstacles
-            var expectedZ = from.Z + (to.Z - from.Z) * (result.Position.X - from.X) / (to.X - from.X + 0.001f);
-            var heightDiff = Math.Abs(result.Position.Z - expectedZ);
+            // Calculate the expected Z at the hit point along the line from->to
+            float t = 0f;
+            if (Math.Abs(to.X - from.X) > 0.001f)
+            {
+                t = (result.Position.X - from.X) / (to.X - from.X);
+            }
+            else if (Math.Abs(to.Y - from.Y) > 0.001f)
+            {
+                t = (result.Position.Y - from.Y) / (to.Y - from.Y);
+            }
+            else
+            {
+                // Vertical connection, use Z
+                t = Math.Abs(to.Z - from.Z) > 0.001f ? (result.Position.Z - from.Z) / (to.Z - from.Z) : 0.5f;
+            }
 
-            return heightDiff <= genParams.MaxHeightChangeUnderEdge;
+            t = Math.Clamp(t, 0f, 1f);
+            var expectedZ = from.Z + (to.Z - from.Z) * t;
+            var actualHeightDiff = Math.Abs(result.Position.Z - expectedZ);
+
+            // Use a more lenient threshold for steep slopes
+            float threshold = isSteepSlope ? genParams.MaxHeightChangeUnderEdge * 2.0f : genParams.MaxHeightChangeUnderEdge;
+
+            // Also check if the hit is very close to either endpoint (likely the surface we're sampling)
+            float distToFrom = (result.Position - from).Length();
+            float distToTo = (result.Position - to).Length();
+            bool nearEndpoint = distToFrom < 0.2f || distToTo < 0.2f;
+
+            if (nearEndpoint)
+            {
+                // Hit is near an endpoint, likely the surface itself - allow it
+                return true;
+            }
+
+            return actualHeightDiff <= threshold;
         }
 
         /// <summary>
