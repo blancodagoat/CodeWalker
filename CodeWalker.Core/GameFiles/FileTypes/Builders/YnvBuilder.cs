@@ -1,4 +1,4 @@
-﻿using CodeWalker.GameFiles;
+using CodeWalker.GameFiles;
 using CodeWalker.World;
 using SharpDX;
 using System;
@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CodeWalker;
 
 namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 {
@@ -41,6 +42,18 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public string VehicleName = string.Empty;
         private SpaceNavGrid NavGrid = null;
         private List<YnvFile> YnvFiles = null;
+        
+        // Navmesh generation fields
+        private NavOctree collisionOctree = null;
+        private List<NavGenTri> collisionTriangles = new();
+        private CPlacedNodeMultiMap heightSampleGrid = null;
+        private NavGenParams genParams = new();
+        private List<NavSurfaceTri> surfaceTriangles = new();
+        private List<NavSurfacePoly> surfacePolygons = new();
+        
+        // Logging
+        private System.IO.StreamWriter logWriter = null;
+        private string logFilePath = null;
 
         public YnvPoly AddPoly(Vector3[] verts)
         {
@@ -452,9 +465,45 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
         private void FinalizeYnvs(List<YnvFile> ynvs, bool vehicle)
         {
+            const int MaxVerticesPerYnv = 65535; // Maximum vertices per YNV file
+            const int MaxVerticesPerPoly = 8; // Maximum vertices per polygon
 
             foreach (var ynv in ynvs)
             {
+                // Requirement 10.4, 10.5: Check for vertex count overflow
+                int totalVertexCount = 0;
+                var polygonsToRemove = new List<YnvPoly>();
+
+                foreach (var poly in ynv.Polys)
+                {
+                    // Requirement 10.4: Check polygon vertex count
+                    if (poly.Vertices != null && poly.Vertices.Length > MaxVerticesPerPoly)
+                    {
+                        // Polygon has too many vertices, mark for removal
+                        polygonsToRemove.Add(poly);
+                        continue;
+                    }
+
+                    if (poly.Vertices != null)
+                    {
+                        totalVertexCount += poly.Vertices.Length;
+                    }
+                }
+
+                // Remove polygons with too many vertices
+                foreach (var poly in polygonsToRemove)
+                {
+                    ynv.Polys.Remove(poly);
+                }
+
+                // Requirement 10.5: Check total vertex count per YNV
+                if (totalVertexCount > MaxVerticesPerYnv)
+                {
+                    throw new InvalidOperationException(
+                        $"YNV file {ynv.Name} exceeds maximum vertex count: {totalVertexCount} > {MaxVerticesPerYnv}. " +
+                        "Consider using a smaller grid cell size or reducing polygon complexity.");
+                }
+
                 //find zmin and zmax and update AABBSize and SectorTree root
                 float zmin = float.MaxValue;
                 float zmax = float.MinValue;
@@ -475,7 +524,44 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
                 ynv.UpdateContentFlags(vehicle);
 
+                // Requirement 10.5: Validate final polygons have valid adjacency
+                foreach (var poly in ynv.Polys)
+                {
+                    if (poly.Edges != null && poly.Vertices != null)
+                    {
+                        // Check that edge count matches vertex count
+                        if (poly.Edges.Length != poly.Vertices.Length)
+                        {
+                            throw new InvalidOperationException(
+                                $"Polygon in YNV {ynv.Name} has mismatched edge/vertex count: " +
+                                $"{poly.Edges.Length} edges vs {poly.Vertices.Length} vertices");
+                        }
 
+                        // Validate each edge has valid adjacency information
+                        for (int i = 0; i < poly.Edges.Length; i++)
+                        {
+                            var edge = poly.Edges[i];
+                            if (edge == null)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Polygon in YNV {ynv.Name} has null edge at index {i}");
+                            }
+
+                            // Check that edge references are consistent
+                            if (edge.Poly1 != edge.Poly2 && edge.Poly1 != null && edge.Poly2 != null)
+                            {
+                                // Edge connects two different polygons - this shouldn't happen in finalized YNV
+                                // unless it's a cross-boundary edge
+                                if (edge.Poly1.AreaID == edge.Poly2.AreaID)
+                                {
+                                    throw new InvalidOperationException(
+                                        $"Polygon in YNV {ynv.Name} has invalid adjacency: " +
+                                        "edge connects two polygons in same area but Poly1 != Poly2");
+                                }
+                            }
+                        }
+                    }
+                }
 
                 //fix up flags on edges that cross ynv borders
                 foreach (var poly in ynv.Polys)
@@ -517,5 +603,4425 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
         }
 
+        /// <summary>
+        /// Load collision geometry from YBN files within the specified bounding box
+        /// </summary>
+        /// <param name="gameFileCache">Game file cache for loading YBN files</param>
+        /// <param name="boundsStore">Bounds store for spatial queries</param>
+        /// <param name="min">Minimum bounds (XY)</param>
+        /// <param name="max">Maximum bounds (XY)</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>True if collision geometry was loaded successfully</returns>
+        public bool LoadCollisionGeometry(GameFileCache gameFileCache, SpaceBoundsStore boundsStore, Vector2 min, Vector2 max, Action<string> statusCallback = null)
+        {
+            Log("", statusCallback);
+            Log("PHASE 1: LOADING COLLISION GEOMETRY", statusCallback);
+            Log("=".PadRight(80, '='), statusCallback);
+            
+            // Requirement 10.1: Validate input parameters
+            if (gameFileCache == null || boundsStore == null)
+            {
+                Log("Error: GameFileCache or BoundsStore is null", statusCallback);
+                return false;
+            }
+
+            collisionTriangles.Clear();
+
+            Log($"Query bounds: X=[{min.X:F1}, {max.X:F1}], Y=[{min.Y:F1}, {max.Y:F1}]", statusCallback);
+
+            var bmin = new Vector3(min, -1000f);
+            var bmax = new Vector3(max, 1000f);
+            var boundslist = boundsStore.GetItems(ref bmin, ref bmax);
+
+            // Requirement 10.1: Check if area contains collision geometry
+            if (boundslist == null || boundslist.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No collision geometry found in specified area");
+                return false;
+            }
+
+            int loadedCount = 0;
+            int failedCount = 0;
+            int timeoutCount = 0;
+            int triangleCount = 0;
+            var failedFiles = new List<string>();
+
+            // Load YBN files and extract triangles
+            statusCallback?.Invoke($"Found {boundslist.Count} YBN files in area");
+            
+            foreach (var boundsitem in boundslist)
+            {
+                try
+                {
+                    // Requirement 10.2: Try-catch around YBN loading with logging
+                    string ybnName = boundsitem.Name.ToString();
+                    
+                    // Log bounds info
+                    statusCallback?.Invoke($"Processing YBN: {ybnName} at [{boundsitem.Min.X:F1}, {boundsitem.Min.Y:F1}, {boundsitem.Min.Z:F1}] to [{boundsitem.Max.X:F1}, {boundsitem.Max.Y:F1}, {boundsitem.Max.Z:F1}]");
+                    
+                    YbnFile ybn = gameFileCache.GetYbn(boundsitem.Name);
+                    if (ybn == null)
+                    {
+                        statusCallback?.Invoke($"Warning: Could not load YBN {ybnName}");
+                        failedFiles.Add(ybnName);
+                        failedCount++;
+                        continue;
+                    }
+
+                    // Requirement 10.2: Add timeout for YBN loading (10 seconds per file)
+                    if (!ybn.Loaded)
+                    {
+                        statusCallback?.Invoke($"Loading YBN: {boundsitem.Name}...");
+                        int waitCount = 0;
+                        const int maxWaitCount = 500; // 10 second timeout (500 * 20ms)
+                        
+                        while (!ybn.Loaded && waitCount < maxWaitCount)
+                        {
+                            System.Threading.Thread.Sleep(20);
+                            waitCount++;
+                            ybn = gameFileCache.GetYbn(boundsitem.Name); // Try to queue it again
+                        }
+
+                        if (!ybn.Loaded)
+                        {
+                            statusCallback?.Invoke($"Timeout: YBN {boundsitem.Name} failed to load within 10 seconds");
+                            failedFiles.Add(ybnName);
+                            timeoutCount++;
+                            continue;
+                        }
+                    }
+
+                    // Extract triangles from bounds
+                    if (ybn.Loaded && ybn.Bounds != null)
+                    {
+                        try
+                        {
+                            // The bounds vertices are in local space relative to BoxCenter
+                            // We need to apply the bounds' transform (rotation/scale) and then translate to BoxCenter
+                            var boxCenter = ybn.Bounds.BoxCenter;
+                            var worldTransform = ybn.Bounds.Transform * Matrix.Translation(boxCenter);
+                            
+                            var tris = ExtractTrianglesFromBounds(ybn.Bounds, worldTransform);
+                            
+                            if (tris.Count > 0)
+                            {
+                                var firstTri = tris[0];
+                                Log($"  First tri after transform: [{firstTri.Vertices[0].X:F1}, {firstTri.Vertices[0].Y:F1}, {firstTri.Vertices[0].Z:F1}]");
+                            }
+                            
+                            collisionTriangles.AddRange(tris);
+                            triangleCount += tris.Count;
+                            loadedCount++;
+                            
+                            Log($"  -> Extracted {tris.Count} triangles from {ybnName}", statusCallback);
+
+                            // Update Z bounds using world-space bounds
+                            bmin.Z = Math.Min(bmin.Z, boundsitem.Min.Z);
+                            bmax.Z = Math.Max(bmax.Z, boundsitem.Max.Z);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Error extracting triangles from {ybnName}: {ex.Message}", statusCallback);
+                            failedFiles.Add(ybnName);
+                            failedCount++;
+                        }
+                    }
+                    else if (!ybn.Loaded)
+                    {
+                        statusCallback?.Invoke($"  -> YBN {ybnName} not loaded yet");
+                    }
+                    else if (ybn.Bounds == null)
+                    {
+                        statusCallback?.Invoke($"  -> YBN {ybnName} has no bounds");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Requirement 10.2: Report which files could not be loaded
+                    string ybnName = boundsitem.Name.ToString();
+                    statusCallback?.Invoke($"Error loading YBN {ybnName}: {ex.Message}");
+                    failedFiles.Add(ybnName);
+                    failedCount++;
+                }
+            }
+
+            // Report loading statistics
+            Log("", statusCallback);
+            Log($"SUMMARY: Loaded {loadedCount} YBN files with {triangleCount} triangles", statusCallback);
+            if (failedCount > 0)
+            {
+                Log($"WARNING: {failedCount} YBN files failed to load", statusCallback);
+            }
+            if (timeoutCount > 0)
+            {
+                Log($"WARNING: {timeoutCount} YBN files timed out", statusCallback);
+            }
+
+            // Requirement 10.1: Validate that we have collision geometry
+            if (collisionTriangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No collision triangles extracted from any YBN files");
+                if (failedFiles.Count > 0)
+                {
+                    statusCallback?.Invoke($"Failed files: {string.Join(", ", failedFiles.Take(10))}");
+                }
+                return false;
+            }
+
+            // Build octree from collision triangles
+            try
+            {
+                Log($"Building octree with bounds: [{bmin.X:F1}, {bmin.Y:F1}, {bmin.Z:F1}] to [{bmax.X:F1}, {bmax.Y:F1}, {bmax.Z:F1}]", statusCallback);
+                BuildOctree(bmin, bmax);
+                
+                // Requirement 10.2: Validate octree construction success
+                if (collisionOctree == null)
+                {
+                    Log("Error: Octree construction failed", statusCallback);
+                    return false;
+                }
+                
+                Log($"Octree built successfully with {collisionTriangles.Count} triangles", statusCallback);
+                
+                // Test a single ray cast to verify octree is working
+                var testOrigin = new Vector3((bmin.X + bmax.X) * 0.5f, (bmin.Y + bmax.Y) * 0.5f, bmax.Z + 10.0f);
+                var testDir = new Vector3(0, 0, -1);
+                Log($"Test ray: origin=[{testOrigin.X:F1}, {testOrigin.Y:F1}, {testOrigin.Z:F1}], dir=[{testDir.X}, {testDir.Y}, {testDir.Z}], maxDist=1000", statusCallback);
+                
+                var testResult = collisionOctree.RayIntersect(testOrigin, testDir, 1000.0f);
+                Log($"Test ray result: Hit={testResult.Hit}, Distance={testResult.Distance:F2}", statusCallback);
+                
+                if (!testResult.Hit)
+                {
+                    Log("WARNING: Test ray cast missed! This indicates the octree may not contain geometry in the expected location.", statusCallback);
+                    
+                    // Try to find where the geometry actually is
+                    if (collisionTriangles.Count > 0)
+                    {
+                        var firstTri = collisionTriangles[0];
+                        Log($"First triangle vertices: [{firstTri.Vertices[0].X:F1}, {firstTri.Vertices[0].Y:F1}, {firstTri.Vertices[0].Z:F1}], " +
+                            $"[{firstTri.Vertices[1].X:F1}, {firstTri.Vertices[1].Y:F1}, {firstTri.Vertices[1].Z:F1}], " +
+                            $"[{firstTri.Vertices[2].X:F1}, {firstTri.Vertices[2].Y:F1}, {firstTri.Vertices[2].Z:F1}]", statusCallback);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Error building octree: {ex.Message}", statusCallback);
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Extract triangles from a Bounds object recursively
+        /// </summary>
+        private List<NavGenTri> ExtractTrianglesFromBounds(Bounds bounds, Matrix? worldTransform = null)
+        {
+            var triangles = new List<NavGenTri>();
+
+            if (bounds == null) return triangles;
+
+            // Use the provided world transform, or just the bounds' transform if none provided
+            var transform = worldTransform ?? bounds.Transform;
+
+            // Handle different bound types
+            if (bounds is BoundGeometry geom)
+            {
+                ExtractTrianglesFromGeometry(geom, triangles, transform);
+            }
+            else if (bounds is BoundBVH bvh)
+            {
+                ExtractTrianglesFromGeometry(bvh, triangles, transform);
+            }
+            else if (bounds is BoundComposite composite)
+            {
+                // Recursively extract from child bounds with accumulated transform
+                if (composite.Children?.data_items != null)
+                {
+                    foreach (var child in composite.Children.data_items)
+                    {
+                        if (child != null)
+                        {
+                            var childTris = ExtractTrianglesFromBounds(child, worldTransform);
+                            triangles.AddRange(childTris);
+                        }
+                    }
+                }
+            }
+
+            return triangles;
+        }
+
+        /// <summary>
+        /// Extract triangles from BoundGeometry
+        /// </summary>
+        private void ExtractTrianglesFromGeometry(BoundGeometry geom, List<NavGenTri> triangles, Matrix transform)
+        {
+            if (geom.Polygons == null) return;
+
+            foreach (var poly in geom.Polygons)
+            {
+                if (poly == null) continue;
+
+                // Only process triangles for now
+                if (poly is BoundPolygonTriangle triPoly)
+                {
+                    var tri = new NavGenTri();
+                    
+                    // Use the polygon's Vertex properties which already return world-space positions
+                    tri.Vertices[0] = triPoly.Vertex1;
+                    tri.Vertices[1] = triPoly.Vertex2;
+                    tri.Vertices[2] = triPoly.Vertex3;
+
+                    // Calculate normal
+                    var edge1 = tri.Vertices[1] - tri.Vertices[0];
+                    var edge2 = tri.Vertices[2] - tri.Vertices[0];
+                    tri.Normal = Vector3.Normalize(Vector3.Cross(edge1, edge2));
+
+                    // Get material information
+                    if (geom.PolygonMaterialIndices != null && triPoly.Index < geom.PolygonMaterialIndices.Length)
+                    {
+                        byte matIndex = geom.PolygonMaterialIndices[triPoly.Index];
+                        if (geom.Materials != null && matIndex < geom.Materials.Length)
+                        {
+                            var material = geom.Materials[matIndex];
+                            
+                            // Map material type based on material properties
+                            tri.Material = MaterialType.Default;
+                            
+                            // Check for water material (material type 4 is typically water)
+                            if (material.Type == 4)
+                            {
+                                tri.Material = MaterialType.Water;
+                                tri.IsWater = true;
+                            }
+                            // Check for pavement/concrete materials (types 1, 2, 3 are typically hard surfaces)
+                            else if (material.Type == 1 || material.Type == 2 || material.Type == 3)
+                            {
+                                tri.Material = MaterialType.Pavement;
+                            }
+                            // Check for stairs based on material flags or specific types
+                            // Material type 5 is often used for stairs/steps
+                            else if (material.Type == 5)
+                            {
+                                tri.Material = MaterialType.Stairs;
+                            }
+                            
+                            // Note: Slope detection is done later based on surface normal angle
+                            // during the MarkSteepTriangles phase
+                        }
+                    }
+
+                    triangles.Add(tri);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Build octree from loaded collision triangles
+        /// </summary>
+        private void BuildOctree(Vector3 min, Vector3 max)
+        {
+            if (collisionTriangles.Count == 0)
+            {
+                collisionOctree = null;
+                return;
+            }
+
+            collisionOctree = new NavOctree();
+            collisionOctree.Build(collisionTriangles, min, max);
+        }
+
+        /// <summary>
+        /// Perform ray intersection test against loaded collision geometry
+        /// </summary>
+        /// <param name="origin">Ray origin</param>
+        /// <param name="direction">Ray direction (should be normalized)</param>
+        /// <param name="maxDistance">Maximum ray distance</param>
+        /// <returns>Ray intersection result</returns>
+        public NavOctree.RayIntersectResult RayIntersect(Vector3 origin, Vector3 direction, float maxDistance = float.MaxValue)
+        {
+            if (collisionOctree == null)
+            {
+                return new NavOctree.RayIntersectResult { Hit = false };
+            }
+
+            return collisionOctree.RayIntersect(origin, direction, maxDistance);
+        }
+
+        /// <summary>
+        /// Get all collision triangles within a bounding box
+        /// </summary>
+        public List<NavGenTri> GetTrianglesInBounds(Vector3 min, Vector3 max)
+        {
+            if (collisionOctree == null)
+            {
+                return new List<NavGenTri>();
+            }
+
+            return collisionOctree.GetTrianglesInBounds(min, max);
+        }
+
+        /// <summary>
+        /// Set generation parameters
+        /// </summary>
+        public void SetGenerationParams(NavGenParams parameters)
+        {
+            genParams = parameters ?? new NavGenParams();
+        }
+
+        /// <summary>
+        /// Initialize log file for detailed debugging
+        /// </summary>
+        public void InitializeLogFile(string logPath = null)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(logPath))
+                {
+                    logPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                        "CodeWalker",
+                        $"NavMeshGen_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+                    );
+                }
+
+                logFilePath = logPath;
+                var directory = System.IO.Path.GetDirectoryName(logPath);
+                if (!System.IO.Directory.Exists(directory))
+                {
+                    System.IO.Directory.CreateDirectory(directory);
+                }
+
+                logWriter = new System.IO.StreamWriter(logPath, false);
+                logWriter.AutoFlush = true;
+                
+                Log($"NavMesh Generation Log - {DateTime.Now}");
+                Log($"Log file: {logPath}");
+                Log("=".PadRight(80, '='));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize log file: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Close the log file
+        /// </summary>
+        public void CloseLogFile()
+        {
+            if (logWriter != null)
+            {
+                Log("=".PadRight(80, '='));
+                Log($"Log completed at {DateTime.Now}");
+                logWriter.Close();
+                logWriter = null;
+            }
+        }
+
+        /// <summary>
+        /// Write to log file and optionally call status callback
+        /// </summary>
+        private void Log(string message, Action<string> statusCallback = null)
+        {
+            // Write to log file
+            if (logWriter != null)
+            {
+                logWriter.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
+            }
+
+            // Also write to debug output
+            System.Diagnostics.Debug.WriteLine(message);
+
+            // Call status callback if provided
+            statusCallback?.Invoke(message);
+        }
+
+        /// <summary>
+        /// Perform height sampling phase - cast rays downward to find collision surfaces
+        /// </summary>
+        /// <param name="min">Minimum bounds (XY)</param>
+        /// <param name="max">Maximum bounds (XY)</param>
+        /// <param name="minZ">Minimum Z value for ray casting</param>
+        /// <param name="maxZ">Maximum Z value for ray casting</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of height samples created</returns>
+        public int PerformHeightSampling(Vector2 min, Vector2 max, float minZ, float maxZ, Action<string> statusCallback = null)
+        {
+            Log("", statusCallback);
+            Log("PHASE 2: HEIGHT SAMPLING", statusCallback);
+            Log("=".PadRight(80, '='), statusCallback);
+            
+            if (collisionOctree == null)
+            {
+                Log("Error: Collision octree not built. Call LoadCollisionGeometry first.", statusCallback);
+                return 0;
+            }
+
+            // Calculate grid dimensions based on sampling density
+            float samplingDensity = genParams.SamplingDensity;
+            int gridWidth = (int)Math.Ceiling((max.X - min.X) / samplingDensity) + 1;
+            int gridHeight = (int)Math.Ceiling((max.Y - min.Y) / samplingDensity) + 1;
+
+            Log($"Creating sampling grid: {gridWidth} x {gridHeight} = {gridWidth * gridHeight} samples", statusCallback);
+            Log($"Bounds: X=[{min.X:F1}, {max.X:F1}], Y=[{min.Y:F1}, {max.Y:F1}], Z=[{minZ:F1}, {maxZ:F1}]", statusCallback);
+            Log($"Collision triangles available: {collisionTriangles.Count}", statusCallback);
+            Log($"Sampling density: {samplingDensity:F2} meters", statusCallback);
+
+            // Initialize the spatial grid for storing height samples
+            var gridMin = new Vector3(min.X, min.Y, minZ);
+            var gridMax = new Vector3(max.X, max.Y, maxZ);
+            heightSampleGrid = new CPlacedNodeMultiMap();
+            heightSampleGrid.Initialize(gridMin, gridMax, samplingDensity);
+
+            int totalSamples = 0;
+            int processedCells = 0;
+            int totalCells = gridWidth * gridHeight;
+            int totalRayCasts = 0;
+            int totalHits = 0;
+
+            // Cast rays downward from each grid position
+            for (int gx = 0; gx < gridWidth; gx++)
+            {
+                for (int gy = 0; gy < gridHeight; gy++)
+                {
+                    // Calculate world position for this grid cell
+                    float worldX = min.X + gx * samplingDensity;
+                    float worldY = min.Y + gy * samplingDensity;
+
+                    // Start ray from top of the area
+                    var rayOrigin = new Vector3(worldX, worldY, maxZ + 10.0f);
+                    var rayDirection = new Vector3(0, 0, -1); // Downward (normalized)
+
+                    // Cast ray and collect all intersections at different Z levels
+                    float currentZ = maxZ + 10.0f;
+                    int samplesAtThisXY = 0;
+                    float lastSampleZ = float.MaxValue;
+
+                    while (currentZ > minZ && samplesAtThisXY < 15) // Limit to 15 samples per XY to avoid infinite loops
+                    {
+                        rayOrigin.Z = currentZ;
+                        float rayDistance = currentZ - minZ + 10.0f; // Add extra distance to ensure we reach minZ
+                        
+                        totalRayCasts++;
+                        var result = RayIntersect(rayOrigin, rayDirection, rayDistance);
+
+                        if (result.Hit && result.Triangle != null)
+                        {
+                            totalHits++;
+                            
+                            // Filter out surfaces that are too close to previous sample (likely same surface)
+                            if (lastSampleZ != float.MaxValue && Math.Abs(result.Position.Z - lastSampleZ) < 0.1f)
+                            {
+                                currentZ = result.Position.Z - genParams.MinZDistBetweenSamples;
+                                continue;
+                            }
+                            
+                            // Filter out steep surfaces (likely walls, not walkable ground)
+                            var upVector = new Vector3(0, 0, 1);
+                            float normalDot = Vector3.Dot(result.Triangle.Normal, upVector);
+                            float surfaceAngle = (float)Math.Acos(Math.Clamp(normalDot, -1f, 1f)) * 180f / (float)Math.PI;
+                            
+                            // Skip surfaces steeper than 60 degrees (likely walls)
+                            if (surfaceAngle > 60.0f)
+                            {
+                                currentZ = result.Position.Z - genParams.MinZDistBetweenSamples;
+                                continue;
+                            }
+                            
+                            // Check if we already have a sample at this Z level (within tolerance)
+                            var existingNode = heightSampleGrid.GetNode(result.Position, genParams.MinZDistBetweenSamples, samplingDensity * 0.1f);
+
+                            if (existingNode == null)
+                            {
+                                // Create new height sample node
+                                var node = new NavGenNode
+                                {
+                                    BasePosition = result.Position,
+                                    CollisionTriangle = result.Triangle,
+                                    Material = result.Triangle.Material,
+                                    IsWater = result.Triangle.IsWater,
+                                    Flags = 0
+                                };
+
+                                // Set flags based on material and surface properties
+                                if (result.Triangle.IsWater)
+                                {
+                                    node.Flags |= 0x01; // Water flag
+                                }
+                                
+                                // Set flags for pavement
+                                if (result.Triangle.Material == MaterialType.Pavement)
+                                {
+                                    node.Flags |= 0x02; // Pavement flag
+                                }
+                                
+                                // Set flags for stairs
+                                if (result.Triangle.Material == MaterialType.Stairs)
+                                {
+                                    node.Flags |= 0x04; // Stairs flag
+                                }
+
+                                // Add to spatial grid
+                                heightSampleGrid.AddNode(node);
+                                totalSamples++;
+                                samplesAtThisXY++;
+                                lastSampleZ = result.Position.Z;
+                            }
+
+                            // Move ray down for next intersection (step by minimum Z distance)
+                            currentZ = result.Position.Z - genParams.MinZDistBetweenSamples;
+                        }
+                        else
+                        {
+                            // No more intersections
+                            break;
+                        }
+                    }
+
+                    processedCells++;
+
+                    // Update status every 1000 cells
+                    if (processedCells % 1000 == 0)
+                    {
+                        float progress = (float)processedCells / totalCells * 100f;
+                        float hitRate = totalRayCasts > 0 ? (totalHits * 100.0f / totalRayCasts) : 0;
+                        statusCallback?.Invoke($"Height sampling: {progress:F1}% ({totalSamples} samples, {totalHits}/{totalRayCasts} hits = {hitRate:F1}%)");
+                    }
+                    
+                    // Log first few cells for debugging
+                    if (processedCells <= 5)
+                    {
+                        statusCallback?.Invoke($"  Cell [{gx},{gy}] at ({worldX:F1}, {worldY:F1}): {samplesAtThisXY} samples found");
+                    }
+                }
+            }
+
+            statusCallback?.Invoke($"Height sampling complete: {totalSamples} samples created from {gridWidth}x{gridHeight} grid");
+            statusCallback?.Invoke($"Ray casting stats: {totalRayCasts} casts, {totalHits} hits ({(totalRayCasts > 0 ? (totalHits * 100.0f / totalRayCasts) : 0):F1}% hit rate)");
+
+            return totalSamples;
+        }
+
+        /// <summary>
+        /// Get the height sample grid (for debugging or further processing)
+        /// </summary>
+        public CPlacedNodeMultiMap GetHeightSampleGrid()
+        {
+            return heightSampleGrid;
+        }
+
+        /// <summary>
+        /// Get the surface triangles (after triangulation)
+        /// </summary>
+        public List<NavSurfaceTri> GetSurfaceTriangles()
+        {
+            return surfaceTriangles;
+        }
+
+        /// <summary>
+        /// Get the surface polygons (after merging)
+        /// </summary>
+        public List<NavSurfacePoly> GetSurfacePolygons()
+        {
+            return surfacePolygons;
+        }
+
+        /// <summary>
+        /// Convert triangles directly to polygons without merging (for testing)
+        /// </summary>
+        public List<NavSurfacePoly> ConvertTrianglesToPolygons(Action<string> statusCallback = null)
+        {
+            if (surfaceTriangles == null || surfaceTriangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No surface triangles available. Call PerformTriangulation first.");
+                return new List<NavSurfacePoly>();
+            }
+
+            statusCallback?.Invoke($"Converting {surfaceTriangles.Count} triangles to polygons (no merging)...");
+
+            var polygons = new List<NavSurfacePoly>();
+
+            foreach (var tri in surfaceTriangles)
+            {
+                if (tri.IsRemoved) continue;
+
+                // Create a polygon from this triangle
+                var poly = new NavSurfacePoly
+                {
+                    Vertices = new List<NavGenNode>(tri.Nodes),
+                    Material = tri.Material,
+                    PolyFlags = tri.PolyFlags,
+                    IsWater = tri.IsWater
+                };
+
+                polygons.Add(poly);
+            }
+
+            surfacePolygons = polygons;
+            statusCallback?.Invoke($"Created {polygons.Count} polygons from triangles (no merging applied)");
+
+            return polygons;
+        }
+
+        /// <summary>
+        /// Perform triangulation phase - connect height samples into surface triangles
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of triangles created</returns>
+        public int PerformTriangulation(Action<string> statusCallback = null)
+        {
+            if (heightSampleGrid == null)
+            {
+                statusCallback?.Invoke("Error: Height sample grid not created. Call PerformHeightSampling first.");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting triangulation...");
+
+            var triangles = new List<NavSurfaceTri>();
+            int processedNodes = 0;
+            int totalNodes = 0;
+
+            // Count total nodes for progress reporting
+            for (int gx = 0; gx < heightSampleGrid.GridWidth; gx++)
+            {
+                for (int gy = 0; gy < heightSampleGrid.GridHeight; gy++)
+                {
+                    totalNodes += heightSampleGrid.GetNodesAt(gx, gy).Count;
+                }
+            }
+
+            statusCallback?.Invoke($"Triangulating {totalNodes} height samples...");
+
+            // For each height sample, try to create triangles with adjacent samples
+            // We create 2 triangles per grid cell in a consistent diagonal pattern
+            for (int gx = 0; gx < heightSampleGrid.GridWidth; gx++)
+            {
+                for (int gy = 0; gy < heightSampleGrid.GridHeight; gy++)
+                {
+                    var nodes = heightSampleGrid.GetNodesAt(gx, gy);
+
+                    foreach (var node in nodes)
+                    {
+                        if (node.IsRemoved) continue;
+
+                        // Create triangles in a consistent pattern to avoid checkerboard artifacts
+                        // For each grid cell, we create 2 triangles with a consistent diagonal:
+                        
+                        // Triangle 1: current -> right -> top-right
+                        // This forms the lower-right triangle of the grid cell
+                        TryCreateTriangle(node, 1, 0, 1, 1, triangles);
+
+                        // Triangle 2: current -> top-right -> top
+                        // This forms the upper-left triangle of the grid cell
+                        TryCreateTriangle(node, 1, 1, 0, 1, triangles);
+
+                        processedNodes++;
+
+                        // Update status every 1000 nodes
+                        if (processedNodes % 1000 == 0)
+                        {
+                            float progress = (float)processedNodes / totalNodes * 100f;
+                            statusCallback?.Invoke($"Triangulation: {progress:F1}% ({triangles.Count} triangles created)");
+                        }
+                    }
+                }
+            }
+
+            // Establish adjacency relationships between triangles
+            statusCallback?.Invoke("Establishing triangle adjacency...");
+            EstablishTriangleAdjacency(triangles);
+
+            // Mark steep triangles
+            statusCallback?.Invoke("Marking steep triangles...");
+            MarkSteepTriangles(triangles);
+
+            // Store triangles for later phases
+            surfaceTriangles = triangles;
+
+            statusCallback?.Invoke($"Triangulation complete: {triangles.Count} triangles created");
+
+            return triangles.Count;
+        }
+
+        /// <summary>
+        /// Try to create a triangle from a node and two adjacent nodes
+        /// </summary>
+        private void TryCreateTriangle(NavGenNode node, int dx1, int dy1, int dx2, int dy2, List<NavSurfaceTri> triangles)
+        {
+            // Find adjacent nodes
+            var adj1 = heightSampleGrid.GetAdjacentNode(node, dx1, dy1, genParams.TriangulationMaxHeightDiff);
+            var adj2 = heightSampleGrid.GetAdjacentNode(node, dx2, dy2, genParams.TriangulationMaxHeightDiff);
+
+            if (adj1 == null || adj2 == null)
+                return;
+
+            if (adj1.IsRemoved || adj2.IsRemoved)
+                return;
+
+            // Check height differences
+            float heightDiff1 = Math.Abs(adj1.BasePosition.Z - node.BasePosition.Z);
+            float heightDiff2 = Math.Abs(adj2.BasePosition.Z - node.BasePosition.Z);
+            float heightDiff12 = Math.Abs(adj2.BasePosition.Z - adj1.BasePosition.Z);
+
+            if (heightDiff1 > genParams.TriangulationMaxHeightDiff ||
+                heightDiff2 > genParams.TriangulationMaxHeightDiff ||
+                heightDiff12 > genParams.TriangulationMaxHeightDiff)
+            {
+                return;
+            }
+
+            // Perform line-of-sight tests to ensure no obstacles between samples
+            if (!LineOfSightTest(node.BasePosition, adj1.BasePosition))
+                return;
+
+            if (!LineOfSightTest(node.BasePosition, adj2.BasePosition))
+                return;
+
+            if (!LineOfSightTest(adj1.BasePosition, adj2.BasePosition))
+                return;
+
+            // Create the triangle
+            var triangle = new NavSurfaceTri
+            {
+                Nodes = new NavGenNode[] { node, adj1, adj2 }
+            };
+
+            // Calculate normal and plane equation
+            triangle.CalculateNormal();
+            
+            // Requirement 10.3: Validate triangle is not degenerate
+            float area = triangle.CalculateArea();
+            if (area < genParams.MinTriangleArea)
+            {
+                // Triangle is degenerate (too small), skip it
+                return;
+            }
+
+            // Set material from nodes (use most common material)
+            // Priority: Water > Stairs > Pavement > Slope > Default
+            if (node.IsWater || adj1.IsWater || adj2.IsWater)
+            {
+                triangle.Material = MaterialType.Water;
+                triangle.IsWater = true;
+            }
+            else if (node.Material == MaterialType.Stairs || adj1.Material == MaterialType.Stairs || adj2.Material == MaterialType.Stairs)
+            {
+                triangle.Material = MaterialType.Stairs;
+            }
+            else if (node.Material == MaterialType.Pavement || adj1.Material == MaterialType.Pavement || adj2.Material == MaterialType.Pavement)
+            {
+                triangle.Material = MaterialType.Pavement;
+            }
+            else if (node.Material == MaterialType.Slope || adj1.Material == MaterialType.Slope || adj2.Material == MaterialType.Slope)
+            {
+                triangle.Material = MaterialType.Slope;
+            }
+            else
+            {
+                triangle.Material = MaterialType.Default;
+            }
+
+            // Add triangle to node's surrounding triangles list
+            node.SurroundingTriangles.Add(triangle);
+            adj1.SurroundingTriangles.Add(triangle);
+            adj2.SurroundingTriangles.Add(triangle);
+
+            triangles.Add(triangle);
+        }
+
+        /// <summary>
+        /// Perform line-of-sight test between two positions
+        /// Ensures no obstacles block the path between samples
+        /// </summary>
+        private bool LineOfSightTest(Vector3 from, Vector3 to)
+        {
+            // Calculate midpoint and test height
+            var midpoint = (from + to) * 0.5f;
+            var direction = to - from;
+            var distance = direction.Length();
+
+            if (distance < 0.01f)
+                return true; // Too close, consider it valid
+
+            direction.Normalize();
+
+            // Cast ray from slightly above the from position
+            var testOrigin = from + new Vector3(0, 0, genParams.HeightAboveNodeBase);
+            var testDirection = to - testOrigin;
+            var testDistance = testDirection.Length();
+            testDirection.Normalize();
+
+            // Check if ray hits any geometry between the two points
+            var result = RayIntersect(testOrigin, testDirection, testDistance);
+
+            if (!result.Hit)
+                return true; // No obstacle
+
+            // Check if the hit point is significantly below the line between the two samples
+            // This allows for small bumps but blocks major obstacles
+            var expectedZ = from.Z + (to.Z - from.Z) * (result.Position.X - from.X) / (to.X - from.X + 0.001f);
+            var heightDiff = Math.Abs(result.Position.Z - expectedZ);
+
+            return heightDiff <= genParams.MaxHeightChangeUnderEdge;
+        }
+
+        /// <summary>
+        /// Establish adjacency relationships between triangles
+        /// </summary>
+        private void EstablishTriangleAdjacency(List<NavSurfaceTri> triangles)
+        {
+            // Build edge dictionary for fast lookups
+            var edgeToTriangles = new Dictionary<(NavGenNode, NavGenNode), List<NavSurfaceTri>>();
+
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved) continue;
+
+                // Add all three edges
+                for (int i = 0; i < 3; i++)
+                {
+                    var n1 = tri.Nodes[i];
+                    var n2 = tri.Nodes[(i + 1) % 3];
+
+                    // Create edge key (order independent)
+                    var edgeKey = n1.GetHashCode() < n2.GetHashCode() ? (n1, n2) : (n2, n1);
+
+                    if (!edgeToTriangles.ContainsKey(edgeKey))
+                    {
+                        edgeToTriangles[edgeKey] = new List<NavSurfaceTri>();
+                    }
+
+                    edgeToTriangles[edgeKey].Add(tri);
+                }
+            }
+
+            // Set adjacency for each triangle
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved) continue;
+
+                tri.AdjacentTris = new NavSurfaceTri[3];
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var n1 = tri.Nodes[i];
+                    var n2 = tri.Nodes[(i + 1) % 3];
+
+                    var edgeKey = n1.GetHashCode() < n2.GetHashCode() ? (n1, n2) : (n2, n1);
+
+                    if (edgeToTriangles.TryGetValue(edgeKey, out var edgeTriangles))
+                    {
+                        // Find the other triangle sharing this edge
+                        foreach (var otherTri in edgeTriangles)
+                        {
+                            if (otherTri != tri && !otherTri.IsRemoved)
+                            {
+                                tri.AdjacentTris[i] = otherTri;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Mark triangles that are too steep for normal traversal
+        /// </summary>
+        private void MarkSteepTriangles(List<NavSurfaceTri> triangles)
+        {
+            var upVector = new Vector3(0, 0, 1);
+            float maxAngleRad = genParams.MaxAngleForWalkable * (float)Math.PI / 180f;
+            float steepAngleRad = genParams.AngleForTooSteep * (float)Math.PI / 180f;
+
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved) continue;
+
+                // Calculate angle between triangle normal and up vector
+                float dotProduct = Vector3.Dot(tri.Normal, upVector);
+                float angle = (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
+
+                // Mark as too steep if angle exceeds threshold
+                if (angle > steepAngleRad)
+                {
+                    tri.IsTooSteep = true;
+                }
+                // Mark as slope if angle is between walkable and too steep thresholds
+                else if (angle > maxAngleRad)
+                {
+                    // This is a slope - walkable but steep
+                    // Only set material to Slope if it's not already a special material (water, stairs, etc.)
+                    if (tri.Material == MaterialType.Default || tri.Material == MaterialType.Pavement)
+                    {
+                        tri.Material = MaterialType.Slope;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Perform edge collapse optimization using stored triangles
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of edges collapsed</returns>
+        public int PerformEdgeCollapseOptimization(Action<string> statusCallback = null)
+        {
+            return PerformEdgeCollapseOptimization(surfaceTriangles, statusCallback);
+        }
+
+        /// <summary>
+        /// Perform edge collapse optimization to reduce triangle count
+        /// </summary>
+        /// <param name="triangles">List of triangles to optimize</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of edges collapsed</returns>
+        public int PerformEdgeCollapseOptimization(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
+        {
+            if (triangles == null || triangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No triangles to optimize");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting edge collapse optimization...");
+
+            // Step 1: Create NavTriEdge objects for all triangle edges
+            statusCallback?.Invoke("Creating edge list...");
+            var edgeList = CreateEdgeList(triangles);
+            statusCallback?.Invoke($"Created {edgeList.Count} edges");
+
+            // Step 2: Calculate quadric error metric cost for each edge
+            statusCallback?.Invoke("Calculating edge costs...");
+            foreach (var edge in edgeList)
+            {
+                CalculateEdgeCost(edge);
+            }
+
+            // Step 3: Create priority queue sorted by edge cost
+            var edgeQueue = new SortedSet<NavTriEdge>(new EdgeCostComparer());
+            foreach (var edge in edgeList)
+            {
+                if (!edge.IsRemoved)
+                {
+                    edgeQueue.Add(edge);
+                }
+            }
+
+            statusCallback?.Invoke($"Priority queue initialized with {edgeQueue.Count} edges");
+
+            int collapsedCount = 0;
+            int processedCount = 0;
+            int totalEdges = edgeQueue.Count;
+
+            // Step 4: Collapse edges in order of increasing cost
+            while (edgeQueue.Count > 0)
+            {
+                // Get lowest cost edge
+                var edge = edgeQueue.Min;
+                edgeQueue.Remove(edge);
+
+                if (edge.IsRemoved)
+                    continue;
+
+                processedCount++;
+
+                // Check if cost exceeds threshold
+                if (edge.CostNode1ToNode2 > genParams.MaxQuadricErrorMetric)
+                {
+                    // All remaining edges have higher cost, stop optimization
+                    break;
+                }
+
+                // Step 5: Validate collapse doesn't create invalid geometry
+                if (!ValidateEdgeCollapse(edge))
+                {
+                    continue;
+                }
+
+                // Perform the collapse
+                if (CollapseEdge(edge))
+                {
+                    collapsedCount++;
+
+                    // Step 6: Update surrounding edge costs
+                    var affectedEdges = GetAffectedEdges(edge.Node1);
+                    foreach (var affectedEdge in affectedEdges)
+                    {
+                        if (!affectedEdge.IsRemoved)
+                        {
+                            // Remove from queue, recalculate cost, re-add
+                            edgeQueue.Remove(affectedEdge);
+                            CalculateEdgeCost(affectedEdge);
+                            edgeQueue.Add(affectedEdge);
+                        }
+                    }
+                }
+
+                // Update status every 100 edges
+                if (processedCount % 100 == 0)
+                {
+                    float progress = (float)processedCount / totalEdges * 100f;
+                    statusCallback?.Invoke($"Edge collapse: {progress:F1}% ({collapsedCount} edges collapsed)");
+                }
+            }
+
+            statusCallback?.Invoke($"Edge collapse complete: {collapsedCount} edges collapsed from {totalEdges} total edges");
+
+            return collapsedCount;
+        }
+
+        /// <summary>
+        /// Create edge list from triangles
+        /// </summary>
+        private List<NavTriEdge> CreateEdgeList(List<NavSurfaceTri> triangles)
+        {
+            var edgeDict = new Dictionary<(NavGenNode, NavGenNode), NavTriEdge>();
+
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                    continue;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var node1 = tri.Nodes[i];
+                    var node2 = tri.Nodes[(i + 1) % 3];
+
+                    if (node1 == null || node2 == null || node1.IsRemoved || node2.IsRemoved)
+                        continue;
+
+                    // Create edge key (order independent)
+                    var edgeKey = node1.GetHashCode() < node2.GetHashCode() 
+                        ? (node1, node2) 
+                        : (node2, node1);
+
+                    if (!edgeDict.ContainsKey(edgeKey))
+                    {
+                        var edge = new NavTriEdge
+                        {
+                            Node1 = edgeKey.Item1,
+                            Node2 = edgeKey.Item2,
+                            Tri1 = tri,
+                            Tri2 = null
+                        };
+
+                        edgeDict[edgeKey] = edge;
+
+                        // Add edge to node's surrounding edges
+                        node1.SurroundingEdges.Add(edge);
+                        node2.SurroundingEdges.Add(edge);
+                    }
+                    else
+                    {
+                        // This is the second triangle sharing this edge
+                        var edge = edgeDict[edgeKey];
+                        edge.Tri2 = tri;
+                    }
+                }
+            }
+
+            return edgeDict.Values.ToList();
+        }
+
+        /// <summary>
+        /// Calculate quadric error metric cost for an edge
+        /// </summary>
+        private void CalculateEdgeCost(NavTriEdge edge)
+        {
+            if (edge == null || edge.Node1 == null || edge.Node2 == null)
+            {
+                edge.CostNode1ToNode2 = float.MaxValue;
+                edge.CostNode2ToNode1 = float.MaxValue;
+                return;
+            }
+
+            // Calculate cost based on:
+            // 1. Edge length (shorter edges are cheaper to collapse)
+            // 2. Number of surrounding triangles (avoid collapsing complex areas)
+            // 3. Angle between adjacent triangles (avoid creating sharp folds)
+
+            float edgeLength = edge.Length();
+            int triangleCount = edge.Node1.SurroundingTriangles.Count + edge.Node2.SurroundingTriangles.Count;
+
+            // Base cost is edge length
+            float cost = edgeLength;
+
+            // Penalize nodes with many triangles (complex areas)
+            if (triangleCount > genParams.MaxTrianglesSurroundingNode)
+            {
+                cost *= 10.0f;
+            }
+
+            // Penalize boundary edges (only one triangle)
+            if (edge.Tri1 == null || edge.Tri2 == null)
+            {
+                cost *= 5.0f;
+            }
+            else
+            {
+                // Calculate angle between adjacent triangles
+                float dotProduct = Vector3.Dot(edge.Tri1.Normal, edge.Tri2.Normal);
+                float angle = (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
+
+                // Penalize sharp angles (potential folds)
+                if (angle > Math.PI / 4) // 45 degrees
+                {
+                    cost *= (1.0f + angle);
+                }
+            }
+
+            edge.CostNode1ToNode2 = cost;
+            edge.CostNode2ToNode1 = cost;
+        }
+
+        /// <summary>
+        /// Validate that collapsing an edge won't create invalid geometry
+        /// </summary>
+        private bool ValidateEdgeCollapse(NavTriEdge edge)
+        {
+            if (edge == null || edge.IsRemoved)
+                return false;
+
+            if (edge.Node1 == null || edge.Node2 == null)
+                return false;
+
+            if (edge.Node1.IsRemoved || edge.Node2.IsRemoved)
+                return false;
+
+            // Don't collapse if either node has too many triangles
+            if (edge.Node1.SurroundingTriangles.Count > genParams.MaxTrianglesSurroundingNode ||
+                edge.Node2.SurroundingTriangles.Count > genParams.MaxTrianglesSurroundingNode)
+                return false;
+
+            // Check that collapse won't flip normals of surrounding triangles
+            var targetPos = edge.Node1.BasePosition; // Collapse to Node1
+
+            foreach (var tri in edge.Node2.SurroundingTriangles)
+            {
+                if (tri.IsRemoved)
+                    continue;
+
+                // Skip the two triangles that will be removed
+                if (tri == edge.Tri1 || tri == edge.Tri2)
+                    continue;
+
+                // Calculate what the normal would be after collapse
+                var newNormal = CalculateTriangleNormalAfterCollapse(tri, edge.Node2, targetPos);
+
+                // Check if normal flipped
+                float dotProduct = Vector3.Dot(tri.Normal, newNormal);
+                if (dotProduct < 0.0f)
+                {
+                    return false; // Normal would flip
+                }
+
+                // Check if triangle would become degenerate
+                float newArea = CalculateTriangleAreaAfterCollapse(tri, edge.Node2, targetPos);
+                if (newArea < genParams.MinTriangleArea)
+                {
+                    return false; // Triangle would be too small
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Calculate what a triangle's normal would be after collapsing a node
+        /// </summary>
+        private Vector3 CalculateTriangleNormalAfterCollapse(NavSurfaceTri tri, NavGenNode oldNode, Vector3 newPos)
+        {
+            if (tri.Nodes == null || tri.Nodes.Length < 3)
+                return Vector3.Zero;
+
+            var v0 = tri.Nodes[0] == oldNode ? newPos : tri.Nodes[0].BasePosition;
+            var v1 = tri.Nodes[1] == oldNode ? newPos : tri.Nodes[1].BasePosition;
+            var v2 = tri.Nodes[2] == oldNode ? newPos : tri.Nodes[2].BasePosition;
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            var normal = Vector3.Cross(edge1, edge2);
+            if (normal.LengthSquared() > 0)
+            {
+                normal.Normalize();
+            }
+
+            return normal;
+        }
+
+        /// <summary>
+        /// Calculate what a triangle's area would be after collapsing a node
+        /// </summary>
+        private float CalculateTriangleAreaAfterCollapse(NavSurfaceTri tri, NavGenNode oldNode, Vector3 newPos)
+        {
+            if (tri.Nodes == null || tri.Nodes.Length < 3)
+                return 0f;
+
+            var v0 = tri.Nodes[0] == oldNode ? newPos : tri.Nodes[0].BasePosition;
+            var v1 = tri.Nodes[1] == oldNode ? newPos : tri.Nodes[1].BasePosition;
+            var v2 = tri.Nodes[2] == oldNode ? newPos : tri.Nodes[2].BasePosition;
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            return Vector3.Cross(edge1, edge2).Length() * 0.5f;
+        }
+
+        /// <summary>
+        /// Collapse an edge by removing Node2 and merging into Node1
+        /// </summary>
+        private bool CollapseEdge(NavTriEdge edge)
+        {
+            if (edge == null || edge.IsRemoved)
+                return false;
+
+            var node1 = edge.Node1;
+            var node2 = edge.Node2;
+
+            if (node1 == null || node2 == null || node1.IsRemoved || node2.IsRemoved)
+                return false;
+
+            // Mark the two triangles sharing this edge as removed
+            if (edge.Tri1 != null)
+            {
+                edge.Tri1.IsRemoved = true;
+                RemoveTriangleFromNodes(edge.Tri1);
+            }
+
+            if (edge.Tri2 != null)
+            {
+                edge.Tri2.IsRemoved = true;
+                RemoveTriangleFromNodes(edge.Tri2);
+            }
+
+            // Update all triangles that reference Node2 to reference Node1 instead
+            foreach (var tri in node2.SurroundingTriangles.ToList())
+            {
+                if (tri.IsRemoved)
+                    continue;
+
+                // Skip the triangles we just removed
+                if (tri == edge.Tri1 || tri == edge.Tri2)
+                    continue;
+
+                // Replace Node2 with Node1 in the triangle
+                for (int i = 0; i < tri.Nodes.Length; i++)
+                {
+                    if (tri.Nodes[i] == node2)
+                    {
+                        tri.Nodes[i] = node1;
+                        node1.SurroundingTriangles.Add(tri);
+                    }
+                }
+
+                // Recalculate triangle normal
+                tri.CalculateNormal();
+            }
+
+            // Mark all edges connected to Node2 as removed
+            foreach (var e in node2.SurroundingEdges)
+            {
+                e.IsRemoved = true;
+            }
+
+            // Mark the collapsed edge as removed
+            edge.IsRemoved = true;
+
+            // Mark Node2 as removed
+            node2.IsRemoved = true;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Remove a triangle from its nodes' surrounding triangle lists
+        /// </summary>
+        private void RemoveTriangleFromNodes(NavSurfaceTri tri)
+        {
+            if (tri.Nodes == null)
+                return;
+
+            foreach (var node in tri.Nodes)
+            {
+                if (node != null)
+                {
+                    node.SurroundingTriangles.Remove(tri);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get all edges connected to a node
+        /// </summary>
+        private List<NavTriEdge> GetAffectedEdges(NavGenNode node)
+        {
+            var affectedEdges = new List<NavTriEdge>();
+
+            if (node == null || node.IsRemoved)
+                return affectedEdges;
+
+            // Get all edges from surrounding triangles
+            foreach (var tri in node.SurroundingTriangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null)
+                    continue;
+
+                for (int i = 0; i < tri.Nodes.Length; i++)
+                {
+                    var n1 = tri.Nodes[i];
+                    var n2 = tri.Nodes[(i + 1) % tri.Nodes.Length];
+
+                    if (n1 == null || n2 == null)
+                        continue;
+
+                    // Find edge in node's surrounding edges
+                    foreach (var edge in n1.SurroundingEdges)
+                    {
+                        if (edge.IsRemoved)
+                            continue;
+
+                        if ((edge.Node1 == n1 && edge.Node2 == n2) ||
+                            (edge.Node1 == n2 && edge.Node2 == n1))
+                        {
+                            if (!affectedEdges.Contains(edge))
+                            {
+                                affectedEdges.Add(edge);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return affectedEdges;
+        }
+
+        /// <summary>
+        /// Comparer for sorting edges by cost
+        /// </summary>
+        private class EdgeCostComparer : IComparer<NavTriEdge>
+        {
+            public int Compare(NavTriEdge x, NavTriEdge y)
+            {
+                if (x == null && y == null) return 0;
+                if (x == null) return -1;
+                if (y == null) return 1;
+
+                int costCompare = x.CostNode1ToNode2.CompareTo(y.CostNode1ToNode2);
+                if (costCompare != 0)
+                    return costCompare;
+
+                // If costs are equal, use hash code to maintain uniqueness in SortedSet
+                return x.GetHashCode().CompareTo(y.GetHashCode());
+            }
+        }
+
+        /// <summary>
+        /// Perform polygon merging using stored triangles
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of merged polygons</returns>
+        public List<NavSurfacePoly> PerformPolygonMerging(Action<string> statusCallback = null)
+        {
+            return PerformPolygonMerging(surfaceTriangles, statusCallback);
+        }
+
+        /// <summary>
+        /// Perform polygon merging phase - merge adjacent triangles into larger convex polygons
+        /// </summary>
+        /// <param name="triangles">List of triangles to merge</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of merged polygons</returns>
+        public List<NavSurfacePoly> PerformPolygonMerging(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
+        {
+            if (triangles == null || triangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No triangles to merge");
+                return new List<NavSurfacePoly>();
+            }
+
+            statusCallback?.Invoke("Starting polygon merging...");
+
+            // Step 1: Build edge dictionary for fast adjacency lookups
+            statusCallback?.Invoke("Building edge dictionary...");
+            var edgeDict = BuildEdgeDictionary(triangles);
+            statusCallback?.Invoke($"Edge dictionary built with {edgeDict.Count} edges");
+
+            // Step 2: Convert triangles to initial polygons and build adjacency
+            var polygons = new List<NavSurfacePoly>();
+            var triangleToPolygon = new Dictionary<NavSurfaceTri, NavSurfacePoly>();
+            var edgeToPolygon = new Dictionary<(NavGenNode, NavGenNode), NavSurfacePoly>();
+
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved) continue;
+
+                var poly = new NavSurfacePoly
+                {
+                    Vertices = new List<NavGenNode> { tri.Nodes[0], tri.Nodes[1], tri.Nodes[2] },
+                    Material = tri.Material,
+                    IsWater = tri.IsWater,
+                    IsTooSteep = tri.IsTooSteep,
+                    PolyFlags = tri.PolyFlags
+                };
+
+                poly.CalculateNormalAndPlane();
+                polygons.Add(poly);
+                triangleToPolygon[tri] = poly;
+                
+                // Build edge-to-polygon mapping for fast adjacency lookup
+                for (int i = 0; i < 3; i++)
+                {
+                    var v1 = tri.Nodes[i];
+                    var v2 = tri.Nodes[(i + 1) % 3];
+                    var edgeKey = v1.GetHashCode() < v2.GetHashCode() ? (v1, v2) : (v2, v1);
+                    
+                    // Store the polygon for this edge (will be overwritten if shared)
+                    edgeToPolygon[edgeKey] = poly;
+                }
+            }
+
+            Log($"Created {polygons.Count} initial polygons from triangles", statusCallback);
+
+            // Step 3: Sort polygons by area (merge smaller polygons first)
+            polygons.Sort((a, b) => a.CalculateArea().CompareTo(b.CalculateArea()));
+
+            // Step 4: Attempt to merge adjacent polygons using fast edge lookup
+            int mergeCount = 0;
+            int processedCount = 0;
+            int totalPolygons = polygons.Count;
+            int maxMergeAttempts = 10; // Increased from 3 to allow more aggressive merging
+
+            Log($"Starting merge loop with {totalPolygons} polygons", statusCallback);
+            
+            // Reset debug counters
+            debugMergeAttempts = 0;
+            debugMaterialFail = 0;
+            debugWaterFail = 0;
+            debugVertexCountFail = 0;
+            debugCoplanarFail = 0;
+            debugConvexFail = 0;
+
+            for (int i = 0; i < polygons.Count; i++)
+            {
+                var poly = polygons[i];
+                if (poly.IsRemoved) continue;
+
+                processedCount++;
+
+                // Try to merge with each adjacent polygon (limited attempts)
+                int mergeAttempts = 0;
+                bool merged = true;
+                while (merged && poly.Vertices.Count < genParams.MaxPolygonVertices && mergeAttempts < maxMergeAttempts)
+                {
+                    merged = false;
+                    mergeAttempts++;
+
+                    // Find adjacent polygons by checking edges using fast lookup
+                    for (int edgeIdx = 0; edgeIdx < poly.Vertices.Count; edgeIdx++)
+                    {
+                        var v1 = poly.Vertices[edgeIdx];
+                        var v2 = poly.Vertices[(edgeIdx + 1) % poly.Vertices.Count];
+                        var edgeKey = v1.GetHashCode() < v2.GetHashCode() ? (v1, v2) : (v2, v1);
+
+                        // Fast lookup of adjacent polygon
+                        NavSurfacePoly adjacentPoly = null;
+                        if (edgeToPolygon.TryGetValue(edgeKey, out var edgePoly))
+                        {
+                            if (edgePoly != poly && !edgePoly.IsRemoved)
+                            {
+                                adjacentPoly = edgePoly;
+                            }
+                        }
+
+                        if (adjacentPoly != null)
+                        {
+                            debugMergeAttempts++;
+                            
+                            // Test if merge is valid with detailed logging
+                            bool canMerge = true;
+                            
+                            if (poly.Material != adjacentPoly.Material)
+                            {
+                                debugMaterialFail++;
+                                canMerge = false;
+                            }
+                            else if (poly.IsWater != adjacentPoly.IsWater)
+                            {
+                                debugWaterFail++;
+                                canMerge = false;
+                            }
+                            else
+                            {
+                                int combinedVertexCount = poly.Vertices.Count + adjacentPoly.Vertices.Count - 2;
+                                if (combinedVertexCount > genParams.MaxPolygonVertices)
+                                {
+                                    debugVertexCountFail++;
+                                    canMerge = false;
+                                }
+                                else if (!TestCoplanarity(poly, adjacentPoly))
+                                {
+                                    debugCoplanarFail++;
+                                    canMerge = false;
+                                }
+                                else if (!TestConvexityAfterMerge(poly, adjacentPoly, v1, v2))
+                                {
+                                    debugConvexFail++;
+                                    canMerge = false;
+                                }
+                            }
+                            
+                            if (canMerge)
+                            {
+                                // Perform the merge
+                                MergePolygons(poly, adjacentPoly, v1, v2);
+                                adjacentPoly.IsRemoved = true;
+                                mergeCount++;
+                                merged = true;
+                                
+                                // Update edge-to-polygon mapping for the merged polygon's edges
+                                for (int j = 0; j < poly.Vertices.Count; j++)
+                                {
+                                    var ev1 = poly.Vertices[j];
+                                    var ev2 = poly.Vertices[(j + 1) % poly.Vertices.Count];
+                                    var ek = ev1.GetHashCode() < ev2.GetHashCode() ? (ev1, ev2) : (ev2, ev1);
+                                    edgeToPolygon[ek] = poly;
+                                }
+                                
+                                break; // Start over with new polygon shape
+                            }
+                        }
+                    }
+                }
+                
+                // Log first few failures for debugging
+                if (processedCount == 100 && mergeCount == 0)
+                {
+                    Log($"DEBUG: After 100 polygons, 0 merges. Attempts: {debugMergeAttempts}, Material: {debugMaterialFail}, Water: {debugWaterFail}, Vertex: {debugVertexCountFail}, Coplanar: {debugCoplanarFail}, Convex: {debugConvexFail}", statusCallback);
+                }
+
+                // Update status every 1000 polygons for better performance
+                if (processedCount % 1000 == 0)
+                {
+                    float progress = (float)processedCount / totalPolygons * 100f;
+                    statusCallback?.Invoke($"Polygon merging: {progress:F1}% ({mergeCount} merges performed)");
+                }
+            }
+            
+            Log($"Merge loop complete: processed {processedCount} polygons, performed {mergeCount} merges", statusCallback);
+            Log($"Merge statistics:", statusCallback);
+            Log($"  Total merge attempts: {debugMergeAttempts}", statusCallback);
+            Log($"  Failed - Material mismatch: {debugMaterialFail}", statusCallback);
+            Log($"  Failed - Water mismatch: {debugWaterFail}", statusCallback);
+            Log($"  Failed - Vertex count: {debugVertexCountFail}", statusCallback);
+            Log($"  Failed - Coplanarity: {debugCoplanarFail}", statusCallback);
+            Log($"  Failed - Convexity: {debugConvexFail}", statusCallback);
+
+            // Step 5: Remove merged polygons and collect final list
+            var finalPolygons = polygons.Where(p => !p.IsRemoved).ToList();
+
+            // Store polygons for later phases
+            surfacePolygons = finalPolygons;
+
+            statusCallback?.Invoke($"Polygon merging complete: {mergeCount} merges performed, {finalPolygons.Count} final polygons");
+
+            return finalPolygons;
+        }
+
+        /// <summary>
+        /// Build edge dictionary from triangles for fast adjacency lookups
+        /// </summary>
+        private EdgeDictionary BuildEdgeDictionary(List<NavSurfaceTri> triangles)
+        {
+            var edgeDict = new EdgeDictionary();
+
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                    continue;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var v1 = tri.Nodes[i].BasePosition;
+                    var v2 = tri.Nodes[(i + 1) % 3].BasePosition;
+
+                    var existingEdge = edgeDict.TryGetEdge(v1, v2);
+                    if (existingEdge == null)
+                    {
+                        var edge = new NavTriEdge
+                        {
+                            Node1 = tri.Nodes[i],
+                            Node2 = tri.Nodes[(i + 1) % 3],
+                            Tri1 = tri
+                        };
+                        edgeDict.AddEdge(v1, v2, edge);
+                    }
+                    else
+                    {
+                        existingEdge.Tri2 = tri;
+                    }
+                }
+            }
+
+            return edgeDict;
+        }
+
+        /// <summary>
+        /// Find adjacent polygon sharing an edge
+        /// </summary>
+        private NavSurfacePoly FindAdjacentPolygon(NavSurfacePoly poly, NavGenNode v1, NavGenNode v2, 
+            List<NavSurfacePoly> polygons, EdgeDictionary edgeDict)
+        {
+            // Look up edge in dictionary
+            var edge = edgeDict.TryGetEdge(v1.BasePosition, v2.BasePosition);
+            if (edge == null)
+                return null;
+
+            // Check triangles sharing this edge
+            var triangles = new[] { edge.Tri1, edge.Tri2 };
+
+            foreach (var tri in triangles)
+            {
+                if (tri == null || tri.IsRemoved)
+                    continue;
+
+                // Find which polygon this triangle belongs to
+                foreach (var otherPoly in polygons)
+                {
+                    if (otherPoly == poly || otherPoly.IsRemoved)
+                        continue;
+
+                    // Check if this polygon contains the triangle's vertices
+                    if (PolygonContainsTriangle(otherPoly, tri))
+                    {
+                        return otherPoly;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Check if a polygon contains all vertices of a triangle
+        /// </summary>
+        private bool PolygonContainsTriangle(NavSurfacePoly poly, NavSurfaceTri tri)
+        {
+            if (tri.Nodes == null || tri.Nodes.Length < 3)
+                return false;
+
+            int matchCount = 0;
+            foreach (var triNode in tri.Nodes)
+            {
+                foreach (var polyNode in poly.Vertices)
+                {
+                    if (polyNode == triNode)
+                    {
+                        matchCount++;
+                        break;
+                    }
+                }
+            }
+
+            return matchCount >= 2; // At least 2 vertices match (shared edge)
+        }
+
+        /// <summary>
+        /// Test if two polygons can be merged
+        /// </summary>
+        private bool CanMergePolygons(NavSurfacePoly poly1, NavSurfacePoly poly2, NavGenNode sharedV1, NavGenNode sharedV2)
+        {
+            // Test 1: Material matching - preserve material boundaries
+            // This ensures that pavement, water, stairs, and slope surfaces remain separate
+            // Requirement 8.1, 8.2, 8.3, 8.4: Preserve material properties during merging
+            if (poly1.Material != poly2.Material)
+                return false;
+
+            // Test 2: Water surface separation
+            // Requirement 4.5, 8.4: Water surfaces must be kept separate from non-water surfaces
+            if (poly1.IsWater != poly2.IsWater)
+                return false;
+
+            // Test 3: Check vertex count constraint
+            int combinedVertexCount = poly1.Vertices.Count + poly2.Vertices.Count - 2; // Subtract shared edge vertices
+            if (combinedVertexCount > genParams.MaxPolygonVertices)
+                return false;
+
+            // Test 4: Coplanarity - all vertices must be within epsilon of the plane
+            if (!TestCoplanarity(poly1, poly2))
+                return false;
+
+            // Test 5: Convexity - merged polygon must remain convex
+            if (!TestConvexityAfterMerge(poly1, poly2, sharedV1, sharedV2))
+                return false;
+
+            return true;
+        }
+        
+        private static int debugMergeAttempts = 0;
+        private static int debugMaterialFail = 0;
+        private static int debugWaterFail = 0;
+        private static int debugVertexCountFail = 0;
+        private static int debugCoplanarFail = 0;
+        private static int debugConvexFail = 0;
+
+        /// <summary>
+        /// Test if two polygons are coplanar
+        /// </summary>
+        private bool TestCoplanarity(NavSurfacePoly poly1, NavSurfacePoly poly2)
+        {
+            // Test all vertices of poly2 against poly1's plane
+            foreach (var vertex in poly2.Vertices)
+            {
+                float distance = Math.Abs(Vector3.Dot(poly1.Normal, vertex.BasePosition) - poly1.PlaneDistance);
+                if (distance > genParams.CoplanarPlaneTestEps)
+                {
+                    return false;
+                }
+            }
+
+            // Test all vertices of poly1 against poly2's plane
+            foreach (var vertex in poly1.Vertices)
+            {
+                float distance = Math.Abs(Vector3.Dot(poly2.Normal, vertex.BasePosition) - poly2.PlaneDistance);
+                if (distance > genParams.CoplanarPlaneTestEps)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Test if merged polygon would be convex (using 2D XY projection)
+        /// </summary>
+        private bool TestConvexityAfterMerge(NavSurfacePoly poly1, NavSurfacePoly poly2, NavGenNode sharedV1, NavGenNode sharedV2)
+        {
+            // Create merged vertex list
+            var mergedVertices = CreateMergedVertexList(poly1, poly2, sharedV1, sharedV2);
+
+            if (mergedVertices == null || mergedVertices.Count < 3)
+                return false;
+
+            // Test convexity in 2D (XY plane) using cross product sign
+            // For a convex polygon, all cross products should have the same sign
+            bool? isClockwise = null;
+
+            for (int i = 0; i < mergedVertices.Count; i++)
+            {
+                var v0 = mergedVertices[i].BasePosition;
+                var v1 = mergedVertices[(i + 1) % mergedVertices.Count].BasePosition;
+                var v2 = mergedVertices[(i + 2) % mergedVertices.Count].BasePosition;
+
+                // Calculate cross product in 2D (Z component only)
+                var edge1 = new Vector2(v1.X - v0.X, v1.Y - v0.Y);
+                var edge2 = new Vector2(v2.X - v1.X, v2.Y - v1.Y);
+                float crossZ = edge1.X * edge2.Y - edge1.Y * edge2.X;
+
+                // Skip near-zero cross products (colinear edges)
+                if (Math.Abs(crossZ) < 0.001f)
+                    continue;
+
+                bool currentClockwise = crossZ < 0;
+
+                if (!isClockwise.HasValue)
+                {
+                    isClockwise = currentClockwise;
+                }
+                else if (isClockwise.Value != currentClockwise)
+                {
+                    // Cross product sign changed - polygon is not convex
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Create merged vertex list by combining two polygons
+        /// </summary>
+        private List<NavGenNode> CreateMergedVertexList(NavSurfacePoly poly1, NavSurfacePoly poly2, 
+            NavGenNode sharedV1, NavGenNode sharedV2)
+        {
+            var mergedVertices = new List<NavGenNode>();
+
+            // Find indices of shared vertices in both polygons
+            int poly1_v1_idx = poly1.Vertices.IndexOf(sharedV1);
+            int poly1_v2_idx = poly1.Vertices.IndexOf(sharedV2);
+            int poly2_v1_idx = poly2.Vertices.IndexOf(sharedV1);
+            int poly2_v2_idx = poly2.Vertices.IndexOf(sharedV2);
+
+            if (poly1_v1_idx < 0 || poly1_v2_idx < 0 || poly2_v1_idx < 0 || poly2_v2_idx < 0)
+                return null; // Shared vertices not found
+
+            // Add vertices from poly1, skipping the shared edge
+            int startIdx = poly1_v2_idx;
+            int endIdx = poly1_v1_idx;
+            int count = 0;
+
+            for (int i = startIdx; count < poly1.Vertices.Count; i = (i + 1) % poly1.Vertices.Count, count++)
+            {
+                if (i == poly1_v1_idx)
+                    break;
+
+                mergedVertices.Add(poly1.Vertices[i]);
+            }
+
+            // Add vertices from poly2, skipping the shared edge
+            startIdx = poly2_v1_idx;
+            endIdx = poly2_v2_idx;
+            count = 0;
+
+            for (int i = startIdx; count < poly2.Vertices.Count; i = (i + 1) % poly2.Vertices.Count, count++)
+            {
+                if (i == poly2_v2_idx)
+                    break;
+
+                mergedVertices.Add(poly2.Vertices[i]);
+            }
+
+            return mergedVertices;
+        }
+
+        /// <summary>
+        /// Merge two polygons by combining their vertex lists
+        /// </summary>
+        private void MergePolygons(NavSurfacePoly poly1, NavSurfacePoly poly2, NavGenNode sharedV1, NavGenNode sharedV2)
+        {
+            // Create merged vertex list
+            var mergedVertices = CreateMergedVertexList(poly1, poly2, sharedV1, sharedV2);
+
+            if (mergedVertices == null)
+                return;
+
+            // Update poly1 with merged vertices
+            poly1.Vertices = mergedVertices;
+
+            // Recalculate normal and plane
+            poly1.CalculateNormalAndPlane();
+
+            // Update adjacencies (simplified - would need full adjacency tracking for complete implementation)
+            // For now, we just mark that the polygon has been modified
+        }
+
+        /// <summary>
+        /// Remove colinear edges using stored polygons
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of vertices removed</returns>
+        public int RemoveColinearEdges(Action<string> statusCallback = null)
+        {
+            return RemoveColinearEdges(surfacePolygons, statusCallback);
+        }
+
+        /// <summary>
+        /// Remove colinear edges from polygons by removing redundant vertices
+        /// </summary>
+        /// <param name="polygons">List of polygons to process</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of vertices removed</returns>
+        public int RemoveColinearEdges(List<NavSurfacePoly> polygons, Action<string> statusCallback = null)
+        {
+            if (polygons == null || polygons.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No polygons to process");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting colinear edge removal...");
+
+            int totalVerticesRemoved = 0;
+            int processedCount = 0;
+            int totalPolygons = polygons.Count;
+
+            // Build adjacency information to identify shared vertices
+            var sharedVertices = BuildSharedVertexSet(polygons);
+
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null || poly.Vertices.Count < 3)
+                    continue;
+
+                processedCount++;
+
+                // Remove colinear vertices from this polygon
+                int removedCount = RemoveColinearVerticesFromPolygon(poly, sharedVertices);
+                totalVerticesRemoved += removedCount;
+
+                // Update status every 100 polygons
+                if (processedCount % 100 == 0)
+                {
+                    float progress = (float)processedCount / totalPolygons * 100f;
+                    statusCallback?.Invoke($"Colinear edge removal: {progress:F1}% ({totalVerticesRemoved} vertices removed)");
+                }
+            }
+
+            statusCallback?.Invoke($"Colinear edge removal complete: {totalVerticesRemoved} vertices removed from {processedCount} polygons");
+
+            return totalVerticesRemoved;
+        }
+
+        /// <summary>
+        /// Build a set of vertices that are shared between multiple polygons
+        /// </summary>
+        private HashSet<NavGenNode> BuildSharedVertexSet(List<NavSurfacePoly> polygons)
+        {
+            var vertexCounts = new Dictionary<NavGenNode, int>();
+
+            // Count how many polygons each vertex appears in
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null)
+                    continue;
+
+                foreach (var vertex in poly.Vertices)
+                {
+                    if (vertex == null)
+                        continue;
+
+                    if (!vertexCounts.ContainsKey(vertex))
+                    {
+                        vertexCounts[vertex] = 0;
+                    }
+                    vertexCounts[vertex]++;
+                }
+            }
+
+            // Build set of shared vertices (appear in more than one polygon)
+            var sharedVertices = new HashSet<NavGenNode>();
+            foreach (var kvp in vertexCounts)
+            {
+                if (kvp.Value > 1)
+                {
+                    sharedVertices.Add(kvp.Key);
+                }
+            }
+
+            return sharedVertices;
+        }
+
+        /// <summary>
+        /// Remove colinear vertices from a single polygon
+        /// </summary>
+        /// <param name="poly">Polygon to process</param>
+        /// <param name="sharedVertices">Set of vertices shared between multiple polygons</param>
+        /// <returns>Number of vertices removed</returns>
+        private int RemoveColinearVerticesFromPolygon(NavSurfacePoly poly, HashSet<NavGenNode> sharedVertices)
+        {
+            if (poly.Vertices == null || poly.Vertices.Count < 3)
+                return 0;
+
+            int removedCount = 0;
+            bool removedAny = true;
+
+            // Keep iterating until no more vertices can be removed
+            while (removedAny && poly.Vertices.Count > 3)
+            {
+                removedAny = false;
+                var newVertices = new List<NavGenNode>();
+
+                for (int i = 0; i < poly.Vertices.Count; i++)
+                {
+                    var prevVertex = poly.Vertices[(i - 1 + poly.Vertices.Count) % poly.Vertices.Count];
+                    var currentVertex = poly.Vertices[i];
+                    var nextVertex = poly.Vertices[(i + 1) % poly.Vertices.Count];
+
+                    // Check if current vertex is shared with other polygons
+                    // If so, we cannot remove it as it's on a shared edge
+                    if (sharedVertices.Contains(currentVertex))
+                    {
+                        newVertices.Add(currentVertex);
+                        continue;
+                    }
+
+                    // Calculate vectors for the two edges
+                    var edge1 = currentVertex.BasePosition - prevVertex.BasePosition;
+                    var edge2 = nextVertex.BasePosition - currentVertex.BasePosition;
+
+                    // Normalize the edges
+                    float edge1Length = edge1.Length();
+                    float edge2Length = edge2.Length();
+
+                    if (edge1Length < 1e-6f || edge2Length < 1e-6f)
+                    {
+                        // Degenerate edge, keep the vertex
+                        newVertices.Add(currentVertex);
+                        continue;
+                    }
+
+                    edge1 /= edge1Length;
+                    edge2 /= edge2Length;
+
+                    // Calculate dot product to determine angle
+                    float dotProduct = Vector3.Dot(edge1, edge2);
+
+                    // If dot product is close to 1.0, the edges are colinear (angle close to 0 degrees)
+                    // If dot product is close to -1.0, the edges are opposite (angle close to 180 degrees)
+                    // We want to remove vertices where the angle is close to 180 degrees (straight line)
+                    const float colinearThreshold = 0.9998f; // Corresponds to about 1 degree tolerance
+
+                    if (dotProduct > colinearThreshold)
+                    {
+                        // Edges are colinear, remove this vertex
+                        removedCount++;
+                        removedAny = true;
+                        // Don't add current vertex to newVertices
+                    }
+                    else
+                    {
+                        // Keep this vertex
+                        newVertices.Add(currentVertex);
+                    }
+                }
+
+                // Update polygon vertices
+                if (removedAny && newVertices.Count >= 3)
+                {
+                    poly.Vertices = newVertices;
+                }
+                else if (newVertices.Count < 3)
+                {
+                    // Don't allow polygon to have fewer than 3 vertices
+                    break;
+                }
+            }
+
+            // Recalculate normal and plane after removing vertices
+            if (removedCount > 0)
+            {
+                poly.CalculateNormalAndPlane();
+            }
+
+            return removedCount;
+        }
+
+        /// <summary>
+        /// Fill jagged edges by creating triangles in gaps between boundary edges
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of triangles created to fill gaps</returns>
+        public int FillJaggedEdges(Action<string> statusCallback = null)
+        {
+            return FillJaggedEdges(surfaceTriangles, statusCallback);
+        }
+
+        /// <summary>
+        /// Fill jagged edges by creating triangles in gaps between boundary edges
+        /// </summary>
+        /// <param name="triangles">List of triangles to process</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of triangles created to fill gaps</returns>
+        public int FillJaggedEdges(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
+        {
+            if (triangles == null || triangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No triangles to process");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting jagged edge filling...");
+
+            // Step 1: Identify boundary edges (edges with only one adjacent triangle)
+            statusCallback?.Invoke("Identifying boundary edges...");
+            var boundaryEdges = IdentifyBoundaryEdges(triangles);
+            statusCallback?.Invoke($"Found {boundaryEdges.Count} boundary edges");
+
+            if (boundaryEdges.Count == 0)
+            {
+                statusCallback?.Invoke("No boundary edges found, skipping gap filling");
+                return 0;
+            }
+
+            // Step 2: Find gaps between non-adjacent boundary edges
+            statusCallback?.Invoke("Finding gaps between boundary edges...");
+            var gaps = FindGapsBetweenBoundaryEdges(boundaryEdges);
+            statusCallback?.Invoke($"Found {gaps.Count} potential gaps to fill");
+
+            if (gaps.Count == 0)
+            {
+                statusCallback?.Invoke("No gaps found, skipping gap filling");
+                return 0;
+            }
+
+            // Step 3: Attempt to fill each gap with triangles
+            statusCallback?.Invoke("Filling gaps with triangles...");
+            int trianglesCreated = 0;
+            int processedGaps = 0;
+
+            foreach (var gap in gaps)
+            {
+                processedGaps++;
+
+                // Try to create a triangle to fill this gap
+                var newTriangle = TryCreateGapFillingTriangle(gap, triangles);
+
+                if (newTriangle != null)
+                {
+                    // Validate the new triangle doesn't intersect existing geometry
+                    if (ValidateGapFillingTriangle(newTriangle, triangles))
+                    {
+                        // Add the triangle to the mesh
+                        triangles.Add(newTriangle);
+                        trianglesCreated++;
+
+                        // Establish adjacency with surrounding triangles
+                        EstablishAdjacencyForNewTriangle(newTriangle, triangles);
+                    }
+                }
+
+                // Update status every 10 gaps
+                if (processedGaps % 10 == 0)
+                {
+                    float progress = (float)processedGaps / gaps.Count * 100f;
+                    statusCallback?.Invoke($"Gap filling: {progress:F1}% ({trianglesCreated} triangles created)");
+                }
+            }
+
+            statusCallback?.Invoke($"Jagged edge filling complete: {trianglesCreated} triangles created from {gaps.Count} gaps");
+
+            return trianglesCreated;
+        }
+
+        /// <summary>
+        /// Represents a boundary edge in the navmesh
+        /// </summary>
+        private class BoundaryEdge
+        {
+            public NavGenNode Node1 { get; set; }
+            public NavGenNode Node2 { get; set; }
+            public NavSurfaceTri Triangle { get; set; }
+            public Vector3 Midpoint { get; set; }
+            public float Length { get; set; }
+
+            public BoundaryEdge(NavGenNode n1, NavGenNode n2, NavSurfaceTri tri)
+            {
+                Node1 = n1;
+                Node2 = n2;
+                Triangle = tri;
+                Midpoint = (n1.BasePosition + n2.BasePosition) * 0.5f;
+                Length = (n2.BasePosition - n1.BasePosition).Length();
+            }
+        }
+
+        /// <summary>
+        /// Represents a gap between two boundary edges
+        /// </summary>
+        private class EdgeGap
+        {
+            public BoundaryEdge Edge1 { get; set; }
+            public BoundaryEdge Edge2 { get; set; }
+            public float Distance { get; set; }
+            public NavGenNode SharedNode1 { get; set; } // Node from Edge1 closest to Edge2
+            public NavGenNode SharedNode2 { get; set; } // Node from Edge2 closest to Edge1
+            public NavGenNode ThirdNode { get; set; }   // Third node to form triangle
+        }
+
+        /// <summary>
+        /// Identify all boundary edges in the mesh (edges with only one adjacent triangle)
+        /// </summary>
+        private List<BoundaryEdge> IdentifyBoundaryEdges(List<NavSurfaceTri> triangles)
+        {
+            var boundaryEdges = new List<BoundaryEdge>();
+            var edgeCount = new Dictionary<(NavGenNode, NavGenNode), (NavSurfaceTri, int)>();
+
+            // Count how many triangles share each edge
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                    continue;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    var n1 = tri.Nodes[i];
+                    var n2 = tri.Nodes[(i + 1) % 3];
+
+                    if (n1 == null || n2 == null || n1.IsRemoved || n2.IsRemoved)
+                        continue;
+
+                    // Create edge key (order independent)
+                    var edgeKey = n1.GetHashCode() < n2.GetHashCode() ? (n1, n2) : (n2, n1);
+
+                    if (edgeCount.ContainsKey(edgeKey))
+                    {
+                        // This edge is shared by multiple triangles, not a boundary edge
+                        var existing = edgeCount[edgeKey];
+                        edgeCount[edgeKey] = (existing.Item1, existing.Item2 + 1);
+                    }
+                    else
+                    {
+                        // First time seeing this edge
+                        edgeCount[edgeKey] = (tri, 1);
+                    }
+                }
+            }
+
+            // Collect edges that appear only once (boundary edges)
+            foreach (var kvp in edgeCount)
+            {
+                if (kvp.Value.Item2 == 1)
+                {
+                    var edge = new BoundaryEdge(kvp.Key.Item1, kvp.Key.Item2, kvp.Value.Item1);
+                    boundaryEdges.Add(edge);
+                }
+            }
+
+            return boundaryEdges;
+        }
+
+        /// <summary>
+        /// Find gaps between non-adjacent boundary edges that could be filled
+        /// </summary>
+        private List<EdgeGap> FindGapsBetweenBoundaryEdges(List<BoundaryEdge> boundaryEdges)
+        {
+            var gaps = new List<EdgeGap>();
+
+            // Maximum distance to consider for gap filling
+            float maxGapDistance = genParams.MaxTriangleSideLength * 2.0f;
+
+            // For each boundary edge, look for nearby boundary edges that could form a gap
+            for (int i = 0; i < boundaryEdges.Count; i++)
+            {
+                var edge1 = boundaryEdges[i];
+
+                for (int j = i + 1; j < boundaryEdges.Count; j++)
+                {
+                    var edge2 = boundaryEdges[j];
+
+                    // Check if edges share a node (adjacent edges don't form a gap)
+                    if (edge1.Node1 == edge2.Node1 || edge1.Node1 == edge2.Node2 ||
+                        edge1.Node2 == edge2.Node1 || edge1.Node2 == edge2.Node2)
+                    {
+                        continue;
+                    }
+
+                    // Calculate distance between edge midpoints
+                    float distance = (edge2.Midpoint - edge1.Midpoint).Length();
+
+                    if (distance > maxGapDistance)
+                        continue;
+
+                    // Find the closest nodes between the two edges
+                    float minDist = float.MaxValue;
+                    NavGenNode closestNode1 = null;
+                    NavGenNode closestNode2 = null;
+
+                    foreach (var n1 in new[] { edge1.Node1, edge1.Node2 })
+                    {
+                        foreach (var n2 in new[] { edge2.Node1, edge2.Node2 })
+                        {
+                            float dist = (n2.BasePosition - n1.BasePosition).Length();
+                            if (dist < minDist)
+                            {
+                                minDist = dist;
+                                closestNode1 = n1;
+                                closestNode2 = n2;
+                            }
+                        }
+                    }
+
+                    // Check if the distance is reasonable for gap filling
+                    if (minDist > genParams.MaxTriangleSideLength)
+                        continue;
+
+                    // Find the third node to form a triangle
+                    // Try both remaining nodes from each edge
+                    NavGenNode thirdNode = null;
+                    float bestThirdNodeDist = float.MaxValue;
+
+                    foreach (var n in new[] { edge1.Node1, edge1.Node2, edge2.Node1, edge2.Node2 })
+                    {
+                        if (n == closestNode1 || n == closestNode2)
+                            continue;
+
+                        float dist1 = (n.BasePosition - closestNode1.BasePosition).Length();
+                        float dist2 = (n.BasePosition - closestNode2.BasePosition).Length();
+
+                        // Check if this node forms a reasonable triangle
+                        if (dist1 <= genParams.MaxTriangleSideLength && 
+                            dist2 <= genParams.MaxTriangleSideLength)
+                        {
+                            float avgDist = (dist1 + dist2) * 0.5f;
+                            if (avgDist < bestThirdNodeDist)
+                            {
+                                bestThirdNodeDist = avgDist;
+                                thirdNode = n;
+                            }
+                        }
+                    }
+
+                    if (thirdNode != null)
+                    {
+                        var gap = new EdgeGap
+                        {
+                            Edge1 = edge1,
+                            Edge2 = edge2,
+                            Distance = minDist,
+                            SharedNode1 = closestNode1,
+                            SharedNode2 = closestNode2,
+                            ThirdNode = thirdNode
+                        };
+
+                        gaps.Add(gap);
+                    }
+                }
+            }
+
+            // Sort gaps by distance (fill smaller gaps first)
+            gaps.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+
+            return gaps;
+        }
+
+        /// <summary>
+        /// Try to create a triangle to fill a gap
+        /// </summary>
+        private NavSurfaceTri TryCreateGapFillingTriangle(EdgeGap gap, List<NavSurfaceTri> existingTriangles)
+        {
+            if (gap.SharedNode1 == null || gap.SharedNode2 == null || gap.ThirdNode == null)
+                return null;
+
+            // Check if these three nodes already form a triangle
+            foreach (var tri in existingTriangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null)
+                    continue;
+
+                int matchCount = 0;
+                foreach (var node in tri.Nodes)
+                {
+                    if (node == gap.SharedNode1 || node == gap.SharedNode2 || node == gap.ThirdNode)
+                        matchCount++;
+                }
+
+                if (matchCount == 3)
+                {
+                    // Triangle already exists
+                    return null;
+                }
+            }
+
+            // Create the new triangle
+            var newTriangle = new NavSurfaceTri
+            {
+                Nodes = new NavGenNode[] { gap.SharedNode1, gap.SharedNode2, gap.ThirdNode }
+            };
+
+            // Calculate normal and plane
+            newTriangle.CalculateNormal();
+
+            // Check if the triangle has a valid area
+            float area = newTriangle.CalculateArea();
+            if (area < genParams.MinTriangleArea || area > genParams.MaxTriangleArea)
+            {
+                return null;
+            }
+
+            // Set material from surrounding triangles (use most common)
+            newTriangle.Material = gap.Edge1.Triangle.Material;
+            newTriangle.IsWater = gap.Edge1.Triangle.IsWater || gap.Edge2.Triangle.IsWater;
+
+            // Check if triangle is too steep
+            var upVector = new Vector3(0, 0, 1);
+            float dotProduct = Vector3.Dot(newTriangle.Normal, upVector);
+            float angle = (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
+            float steepAngleRad = genParams.AngleForTooSteep * (float)Math.PI / 180f;
+
+            if (angle > steepAngleRad)
+            {
+                newTriangle.IsTooSteep = true;
+            }
+
+            // Add triangle to nodes' surrounding triangles
+            gap.SharedNode1.SurroundingTriangles.Add(newTriangle);
+            gap.SharedNode2.SurroundingTriangles.Add(newTriangle);
+            gap.ThirdNode.SurroundingTriangles.Add(newTriangle);
+
+            return newTriangle;
+        }
+
+        /// <summary>
+        /// Validate that a gap-filling triangle doesn't intersect existing geometry
+        /// </summary>
+        private bool ValidateGapFillingTriangle(NavSurfaceTri newTriangle, List<NavSurfaceTri> existingTriangles)
+        {
+            if (newTriangle == null || newTriangle.Nodes == null || newTriangle.Nodes.Length < 3)
+                return false;
+
+            // Check that the triangle doesn't have degenerate geometry
+            var v0 = newTriangle.Nodes[0].BasePosition;
+            var v1 = newTriangle.Nodes[1].BasePosition;
+            var v2 = newTriangle.Nodes[2].BasePosition;
+
+            // Check for colinear vertices
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+            var cross = Vector3.Cross(edge1, edge2);
+
+            if (cross.LengthSquared() < 1e-6f)
+            {
+                return false; // Degenerate triangle
+            }
+
+            // Check that the triangle doesn't intersect with existing triangles
+            // We'll do a simple check: ensure the triangle's center doesn't fall inside any existing triangle
+            // and that edges don't cross existing triangle edges
+            var center = (v0 + v1 + v2) / 3.0f;
+
+            foreach (var existingTri in existingTriangles)
+            {
+                if (existingTri.IsRemoved || existingTri.Nodes == null || existingTri.Nodes.Length < 3)
+                    continue;
+
+                // Skip if triangles share nodes (they're adjacent, not intersecting)
+                int sharedNodes = 0;
+                foreach (var newNode in newTriangle.Nodes)
+                {
+                    foreach (var existingNode in existingTri.Nodes)
+                    {
+                        if (newNode == existingNode)
+                        {
+                            sharedNodes++;
+                            break;
+                        }
+                    }
+                }
+
+                if (sharedNodes >= 2)
+                {
+                    // Triangles share an edge, this is OK
+                    continue;
+                }
+
+                // Check if triangles are on very different Z levels (no intersection possible)
+                var existingCenter = (existingTri.Nodes[0].BasePosition + 
+                                     existingTri.Nodes[1].BasePosition + 
+                                     existingTri.Nodes[2].BasePosition) / 3.0f;
+
+                float zDiff = Math.Abs(center.Z - existingCenter.Z);
+                if (zDiff > genParams.TriangulationMaxHeightDiff * 2.0f)
+                {
+                    // Triangles are far apart vertically, no intersection
+                    continue;
+                }
+
+                // Check if the new triangle's center is inside the existing triangle
+                if (PointInTriangle2D(center, existingTri.Nodes[0].BasePosition, 
+                                     existingTri.Nodes[1].BasePosition, 
+                                     existingTri.Nodes[2].BasePosition))
+                {
+                    // Check Z distance to see if they actually overlap
+                    float expectedZ = CalculateZOnTriangle(center, existingTri);
+                    if (Math.Abs(center.Z - expectedZ) < 0.5f)
+                    {
+                        return false; // Triangles overlap
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Check if a point is inside a triangle (2D XY projection)
+        /// </summary>
+        private bool PointInTriangle2D(Vector3 point, Vector3 v0, Vector3 v1, Vector3 v2)
+        {
+            // Use barycentric coordinates
+            float denom = ((v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y));
+
+            if (Math.Abs(denom) < 1e-6f)
+                return false; // Degenerate triangle
+
+            float a = ((v1.Y - v2.Y) * (point.X - v2.X) + (v2.X - v1.X) * (point.Y - v2.Y)) / denom;
+            float b = ((v2.Y - v0.Y) * (point.X - v2.X) + (v0.X - v2.X) * (point.Y - v2.Y)) / denom;
+            float c = 1.0f - a - b;
+
+            return a >= 0 && a <= 1 && b >= 0 && b <= 1 && c >= 0 && c <= 1;
+        }
+
+        /// <summary>
+        /// Calculate the Z coordinate on a triangle at a given XY position
+        /// </summary>
+        private float CalculateZOnTriangle(Vector3 point, NavSurfaceTri triangle)
+        {
+            if (triangle.Nodes == null || triangle.Nodes.Length < 3)
+                return 0f;
+
+            // Use the plane equation: dot(normal, point) = planeDistance
+            // Solve for Z: normal.Z * Z = planeDistance - normal.X * point.X - normal.Y * point.Y
+            if (Math.Abs(triangle.Normal.Z) < 1e-6f)
+                return triangle.Nodes[0].BasePosition.Z; // Vertical triangle, return any Z
+
+            float z = (triangle.PlaneDistance - triangle.Normal.X * point.X - triangle.Normal.Y * point.Y) / triangle.Normal.Z;
+            return z;
+        }
+
+        /// <summary>
+        /// Establish adjacency for a newly created triangle
+        /// </summary>
+        private void EstablishAdjacencyForNewTriangle(NavSurfaceTri newTriangle, List<NavSurfaceTri> allTriangles)
+        {
+            if (newTriangle == null || newTriangle.Nodes == null || newTriangle.Nodes.Length < 3)
+                return;
+
+            newTriangle.AdjacentTris = new NavSurfaceTri[3];
+
+            // For each edge of the new triangle, find adjacent triangles
+            for (int i = 0; i < 3; i++)
+            {
+                var n1 = newTriangle.Nodes[i];
+                var n2 = newTriangle.Nodes[(i + 1) % 3];
+
+                // Search for triangles that share this edge
+                foreach (var tri in allTriangles)
+                {
+                    if (tri == newTriangle || tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                        continue;
+
+                    // Check if this triangle shares the edge (n1, n2)
+                    bool hasN1 = false;
+                    bool hasN2 = false;
+
+                    foreach (var node in tri.Nodes)
+                    {
+                        if (node == n1) hasN1 = true;
+                        if (node == n2) hasN2 = true;
+                    }
+
+                    if (hasN1 && hasN2)
+                    {
+                        // Found adjacent triangle
+                        newTriangle.AdjacentTris[i] = tri;
+
+                        // Update the adjacent triangle's adjacency to point back to the new triangle
+                        if (tri.AdjacentTris != null)
+                        {
+                            for (int j = 0; j < tri.AdjacentTris.Length; j++)
+                            {
+                                var adjN1 = tri.Nodes[j];
+                                var adjN2 = tri.Nodes[(j + 1) % tri.Nodes.Length];
+
+                                if ((adjN1 == n1 && adjN2 == n2) || (adjN1 == n2 && adjN2 == n1))
+                                {
+                                    tri.AdjacentTris[j] = newTriangle;
+                                    break;
+                                }
+                            }
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Smooth boundary edges by repositioning vertices to reduce aliasing artifacts
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of vertices moved</returns>
+        public int SmoothBoundaryEdges(Action<string> statusCallback = null)
+        {
+            return SmoothBoundaryEdges(surfaceTriangles, statusCallback);
+        }
+
+        /// <summary>
+        /// Smooth boundary edges by repositioning vertices to reduce aliasing artifacts
+        /// </summary>
+        /// <param name="triangles">List of triangles to process</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of vertices moved</returns>
+        public int SmoothBoundaryEdges(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
+        {
+            if (triangles == null || triangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No triangles to process");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting boundary edge smoothing...");
+
+            // Step 1: Identify boundary edges (edges with only one adjacent triangle)
+            statusCallback?.Invoke("Identifying boundary edges...");
+            var boundaryEdges = IdentifyBoundaryEdges(triangles);
+            statusCallback?.Invoke($"Found {boundaryEdges.Count} boundary edges");
+
+            if (boundaryEdges.Count == 0)
+            {
+                statusCallback?.Invoke("No boundary edges found, skipping smoothing");
+                return 0;
+            }
+
+            // Step 2: Identify vertices with aliasing artifacts (jagged patterns)
+            statusCallback?.Invoke("Identifying vertices with aliasing artifacts...");
+            var verticesToSmooth = IdentifyAliasingVertices(boundaryEdges);
+            statusCallback?.Invoke($"Found {verticesToSmooth.Count} vertices with aliasing artifacts");
+
+            if (verticesToSmooth.Count == 0)
+            {
+                statusCallback?.Invoke("No aliasing artifacts found, skipping smoothing");
+                return 0;
+            }
+
+            // Step 3: Calculate optimal positions for each vertex
+            statusCallback?.Invoke("Calculating optimal vertex positions...");
+            var vertexMoves = CalculateOptimalVertexPositions(verticesToSmooth, boundaryEdges);
+            statusCallback?.Invoke($"Calculated {vertexMoves.Count} vertex moves");
+
+            // Step 4: Validate and apply moves
+            statusCallback?.Invoke("Validating and applying vertex moves...");
+            int movedCount = 0;
+            int processedCount = 0;
+
+            foreach (var move in vertexMoves)
+            {
+                processedCount++;
+
+                // Validate that moving this vertex won't create invalid triangles
+                if (ValidateVertexMove(move.Key, move.Value, triangles))
+                {
+                    // Apply the move
+                    move.Key.BasePosition = move.Value;
+                    movedCount++;
+
+                    // Recalculate normals for affected triangles
+                    foreach (var tri in move.Key.SurroundingTriangles)
+                    {
+                        if (!tri.IsRemoved)
+                        {
+                            tri.CalculateNormal();
+                        }
+                    }
+                }
+
+                // Update status every 10 moves
+                if (processedCount % 10 == 0)
+                {
+                    float progress = (float)processedCount / vertexMoves.Count * 100f;
+                    statusCallback?.Invoke($"Smoothing: {progress:F1}% ({movedCount} vertices moved)");
+                }
+            }
+
+            // Step 5: Re-establish adjacency relationships (in case they changed)
+            if (movedCount > 0)
+            {
+                statusCallback?.Invoke("Re-establishing triangle adjacency...");
+                EstablishTriangleAdjacency(triangles);
+            }
+
+            statusCallback?.Invoke($"Boundary edge smoothing complete: {movedCount} vertices moved from {verticesToSmooth.Count} candidates");
+
+            return movedCount;
+        }
+
+        /// <summary>
+        /// Identify vertices on boundary edges that exhibit aliasing artifacts (jagged staircase patterns)
+        /// </summary>
+        private HashSet<NavGenNode> IdentifyAliasingVertices(List<BoundaryEdge> boundaryEdges)
+        {
+            var aliasingVertices = new HashSet<NavGenNode>();
+
+            // Build a graph of boundary vertices and their connections
+            var vertexConnections = new Dictionary<NavGenNode, List<NavGenNode>>();
+
+            foreach (var edge in boundaryEdges)
+            {
+                if (!vertexConnections.ContainsKey(edge.Node1))
+                {
+                    vertexConnections[edge.Node1] = new List<NavGenNode>();
+                }
+                if (!vertexConnections.ContainsKey(edge.Node2))
+                {
+                    vertexConnections[edge.Node2] = new List<NavGenNode>();
+                }
+
+                vertexConnections[edge.Node1].Add(edge.Node2);
+                vertexConnections[edge.Node2].Add(edge.Node1);
+            }
+
+            // For each boundary vertex, check if it's part of a jagged pattern
+            foreach (var kvp in vertexConnections)
+            {
+                var vertex = kvp.Key;
+                var connections = kvp.Value;
+
+                // A vertex is potentially aliased if it has exactly 2 boundary connections
+                // (it's in the middle of a boundary chain, not a corner or endpoint)
+                if (connections.Count != 2)
+                    continue;
+
+                var prev = connections[0];
+                var next = connections[1];
+
+                // Calculate vectors to previous and next vertices
+                var toPrev = prev.BasePosition - vertex.BasePosition;
+                var toNext = next.BasePosition - vertex.BasePosition;
+
+                // Normalize
+                float prevLength = toPrev.Length();
+                float nextLength = toNext.Length();
+
+                if (prevLength < 1e-6f || nextLength < 1e-6f)
+                    continue;
+
+                toPrev /= prevLength;
+                toNext /= nextLength;
+
+                // Calculate the angle between the two edges
+                float dotProduct = Vector3.Dot(toPrev, toNext);
+                float angle = (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
+
+                // If the angle is close to 180 degrees (straight line), this vertex is colinear
+                // and doesn't need smoothing
+                const float straightLineThreshold = 170.0f * (float)Math.PI / 180f; // 170 degrees
+
+                if (angle > straightLineThreshold)
+                    continue;
+
+                // If the angle is very sharp (< 90 degrees), this might be an intentional corner
+                const float sharpCornerThreshold = 90.0f * (float)Math.PI / 180f; // 90 degrees
+
+                if (angle < sharpCornerThreshold)
+                    continue;
+
+                // Check if this vertex creates a "staircase" pattern
+                // This happens when the edges alternate between primarily X and Y directions
+                bool isPrevPrimarilyX = Math.Abs(toPrev.X) > Math.Abs(toPrev.Y);
+                bool isNextPrimarilyX = Math.Abs(toNext.X) > Math.Abs(toNext.Y);
+
+                // If one edge is primarily X and the other is primarily Y, this is a staircase pattern
+                if (isPrevPrimarilyX != isNextPrimarilyX)
+                {
+                    aliasingVertices.Add(vertex);
+                }
+                else
+                {
+                    // Also check for small deviations from a straight line
+                    // Calculate the distance from the vertex to the line between prev and next
+                    var prevToNext = next.BasePosition - prev.BasePosition;
+                    var prevToVertex = vertex.BasePosition - prev.BasePosition;
+
+                    // Project prevToVertex onto prevToNext
+                    float t = Vector3.Dot(prevToVertex, prevToNext) / prevToNext.LengthSquared();
+                    t = Math.Clamp(t, 0f, 1f);
+
+                    var closestPointOnLine = prev.BasePosition + prevToNext * t;
+                    float distanceToLine = (vertex.BasePosition - closestPointOnLine).Length();
+
+                    // If the vertex is close to the line but not on it, it's an aliasing artifact
+                    const float aliasingThreshold = 0.5f; // meters
+
+                    if (distanceToLine > 0.1f && distanceToLine < aliasingThreshold)
+                    {
+                        aliasingVertices.Add(vertex);
+                    }
+                }
+            }
+
+            return aliasingVertices;
+        }
+
+        /// <summary>
+        /// Calculate optimal positions for vertices to straighten boundary edges
+        /// </summary>
+        private Dictionary<NavGenNode, Vector3> CalculateOptimalVertexPositions(
+            HashSet<NavGenNode> verticesToSmooth, List<BoundaryEdge> boundaryEdges)
+        {
+            var vertexMoves = new Dictionary<NavGenNode, Vector3>();
+
+            // Build vertex connection graph
+            var vertexConnections = new Dictionary<NavGenNode, List<NavGenNode>>();
+
+            foreach (var edge in boundaryEdges)
+            {
+                if (!vertexConnections.ContainsKey(edge.Node1))
+                {
+                    vertexConnections[edge.Node1] = new List<NavGenNode>();
+                }
+                if (!vertexConnections.ContainsKey(edge.Node2))
+                {
+                    vertexConnections[edge.Node2] = new List<NavGenNode>();
+                }
+
+                vertexConnections[edge.Node1].Add(edge.Node2);
+                vertexConnections[edge.Node2].Add(edge.Node1);
+            }
+
+            // For each vertex to smooth, calculate the optimal position
+            foreach (var vertex in verticesToSmooth)
+            {
+                if (!vertexConnections.TryGetValue(vertex, out var connections))
+                    continue;
+
+                if (connections.Count != 2)
+                    continue;
+
+                var prev = connections[0];
+                var next = connections[1];
+
+                // Calculate the optimal position as the point on the line between prev and next
+                // that is closest to the current vertex position
+                var prevToNext = next.BasePosition - prev.BasePosition;
+                var prevToVertex = vertex.BasePosition - prev.BasePosition;
+
+                // Project prevToVertex onto prevToNext
+                float t = Vector3.Dot(prevToVertex, prevToNext) / prevToNext.LengthSquared();
+                t = Math.Clamp(t, 0f, 1f);
+
+                var optimalPosition = prev.BasePosition + prevToNext * t;
+
+                // Limit the maximum move distance to avoid drastic changes
+                const float maxMoveDistance = 1.0f; // meters
+
+                var moveVector = optimalPosition - vertex.BasePosition;
+                float moveDistance = moveVector.Length();
+
+                if (moveDistance > maxMoveDistance)
+                {
+                    moveVector = moveVector / moveDistance * maxMoveDistance;
+                    optimalPosition = vertex.BasePosition + moveVector;
+                }
+
+                // Only move if the distance is significant
+                const float minMoveDistance = 0.05f; // meters
+
+                if (moveDistance >= minMoveDistance)
+                {
+                    vertexMoves[vertex] = optimalPosition;
+                }
+            }
+
+            return vertexMoves;
+        }
+
+        /// <summary>
+        /// Validate that moving a vertex won't create invalid triangles
+        /// </summary>
+        private bool ValidateVertexMove(NavGenNode vertex, Vector3 newPosition, List<NavSurfaceTri> allTriangles)
+        {
+            if (vertex == null || vertex.SurroundingTriangles == null)
+                return false;
+
+            // Check all triangles that use this vertex
+            foreach (var tri in vertex.SurroundingTriangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                    continue;
+
+                // Calculate what the triangle would look like after the move
+                var v0 = tri.Nodes[0] == vertex ? newPosition : tri.Nodes[0].BasePosition;
+                var v1 = tri.Nodes[1] == vertex ? newPosition : tri.Nodes[1].BasePosition;
+                var v2 = tri.Nodes[2] == vertex ? newPosition : tri.Nodes[2].BasePosition;
+
+                // Check 1: Triangle must not become degenerate (zero area)
+                var edge1 = v1 - v0;
+                var edge2 = v2 - v0;
+                var cross = Vector3.Cross(edge1, edge2);
+                float newArea = cross.Length() * 0.5f;
+
+                if (newArea < genParams.MinTriangleArea)
+                {
+                    return false; // Triangle would become too small
+                }
+
+                // Check 2: Triangle normal must not flip
+                var newNormal = cross;
+                if (newNormal.LengthSquared() > 0)
+                {
+                    newNormal.Normalize();
+                }
+
+                float dotProduct = Vector3.Dot(tri.Normal, newNormal);
+                if (dotProduct < 0.0f)
+                {
+                    return false; // Normal would flip
+                }
+
+                // Check 3: Triangle must not become too elongated
+                float edge1Length = edge1.Length();
+                float edge2Length = edge2.Length();
+                var edge3 = v2 - v1;
+                float edge3Length = edge3.Length();
+
+                float maxEdgeLength = Math.Max(Math.Max(edge1Length, edge2Length), edge3Length);
+                float minEdgeLength = Math.Min(Math.Min(edge1Length, edge2Length), edge3Length);
+
+                // Aspect ratio check: longest edge should not be more than 10x the shortest
+                if (maxEdgeLength > minEdgeLength * 10.0f)
+                {
+                    return false; // Triangle would become too elongated
+                }
+
+                // Check 4: Edge lengths must be within acceptable range
+                if (maxEdgeLength > genParams.MaxTriangleSideLength)
+                {
+                    return false; // Edge would be too long
+                }
+
+                if (minEdgeLength < genParams.MinTriangleSideLength)
+                {
+                    return false; // Edge would be too short
+                }
+
+                // Check 5: Triangle angles must be reasonable
+                // Calculate angles using dot products
+                var angle1 = CalculateAngle(v0, v1, v2);
+                var angle2 = CalculateAngle(v1, v2, v0);
+                var angle3 = CalculateAngle(v2, v0, v1);
+
+                float minAngleDegrees = genParams.MinTriangleAngle;
+                float minAngleRad = minAngleDegrees * (float)Math.PI / 180f;
+
+                if (angle1 < minAngleRad || angle2 < minAngleRad || angle3 < minAngleRad)
+                {
+                    return false; // Triangle would have too sharp an angle
+                }
+            }
+
+            // Check that the vertex doesn't move into another triangle
+            foreach (var tri in allTriangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null || tri.Nodes.Length < 3)
+                    continue;
+
+                // Skip triangles that use this vertex
+                bool usesVertex = false;
+                foreach (var node in tri.Nodes)
+                {
+                    if (node == vertex)
+                    {
+                        usesVertex = true;
+                        break;
+                    }
+                }
+
+                if (usesVertex)
+                    continue;
+
+                // Check if the new position would be inside this triangle
+                if (PointInTriangle2D(newPosition, tri.Nodes[0].BasePosition, 
+                                     tri.Nodes[1].BasePosition, tri.Nodes[2].BasePosition))
+                {
+                    // Check Z distance to see if they actually overlap
+                    float expectedZ = CalculateZOnTriangle(newPosition, tri);
+                    if (Math.Abs(newPosition.Z - expectedZ) < 0.5f)
+                    {
+                        return false; // Vertex would move into another triangle
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Calculate the angle at vertex v1 in the triangle (v0, v1, v2)
+        /// </summary>
+        private float CalculateAngle(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
+            var edge1 = v0 - v1;
+            var edge2 = v2 - v1;
+
+            float edge1Length = edge1.Length();
+            float edge2Length = edge2.Length();
+
+            if (edge1Length < 1e-6f || edge2Length < 1e-6f)
+                return 0f;
+
+            edge1 /= edge1Length;
+            edge2 /= edge2Length;
+
+            float dotProduct = Vector3.Dot(edge1, edge2);
+            return (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
+        }
+
+        /// <summary>
+        /// Remove small disconnected patches of polygons below minimum area threshold
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of polygons removed</returns>
+        public int RemoveSmallPatches(Action<string> statusCallback = null)
+        {
+            return RemoveSmallPatches(surfacePolygons, statusCallback);
+        }
+
+        /// <summary>
+        /// Remove small disconnected patches of polygons below minimum area threshold
+        /// </summary>
+        /// <param name="polygons">List of polygons to process</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>Number of polygons removed</returns>
+        public int RemoveSmallPatches(List<NavSurfacePoly> polygons, Action<string> statusCallback = null)
+        {
+            if (polygons == null || polygons.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No polygons to process");
+                return 0;
+            }
+
+            statusCallback?.Invoke("Starting small patch removal...");
+
+            // Step 1: Build adjacency information for polygons
+            statusCallback?.Invoke("Building polygon adjacency information...");
+            BuildPolygonAdjacency(polygons);
+
+            // Step 2: Find connected regions using flood fill
+            statusCallback?.Invoke("Finding connected regions...");
+            var regions = FindConnectedRegions(polygons);
+            statusCallback?.Invoke($"Found {regions.Count} connected regions");
+
+            if (regions.Count == 0)
+            {
+                statusCallback?.Invoke("No regions found, skipping patch removal");
+                return 0;
+            }
+
+            // Step 3: Calculate total area of each region
+            statusCallback?.Invoke("Calculating region areas...");
+            var regionAreas = new Dictionary<int, float>();
+            foreach (var kvp in regions)
+            {
+                int regionId = kvp.Key;
+                var regionPolygons = kvp.Value;
+
+                float totalArea = 0f;
+                foreach (var poly in regionPolygons)
+                {
+                    totalArea += poly.CalculateArea();
+                }
+
+                regionAreas[regionId] = totalArea;
+            }
+
+            // Step 4: Determine minimum area threshold
+            // Use a reasonable default: 1 square meter
+            float minAreaThreshold = 1.0f;
+
+            // Step 5: Remove regions below threshold
+            statusCallback?.Invoke($"Removing regions below {minAreaThreshold:F2} square meters...");
+            int removedCount = 0;
+            int processedRegions = 0;
+
+            foreach (var kvp in regions)
+            {
+                int regionId = kvp.Key;
+                var regionPolygons = kvp.Value;
+                float regionArea = regionAreas[regionId];
+
+                processedRegions++;
+
+                if (regionArea < minAreaThreshold)
+                {
+                    // Mark all polygons in this region as removed
+                    foreach (var poly in regionPolygons)
+                    {
+                        poly.IsRemoved = true;
+                        removedCount++;
+                    }
+
+                    statusCallback?.Invoke($"Removed region {regionId} with area {regionArea:F2} m² ({regionPolygons.Count} polygons)");
+                }
+
+                // Update status every 10 regions
+                if (processedRegions % 10 == 0)
+                {
+                    float progress = (float)processedRegions / regions.Count * 100f;
+                    statusCallback?.Invoke($"Patch removal: {progress:F1}% ({removedCount} polygons removed)");
+                }
+            }
+
+            // Step 6: Update adjacencies after removal
+            if (removedCount > 0)
+            {
+                statusCallback?.Invoke("Updating adjacencies after removal...");
+                UpdatePolygonAdjacenciesAfterRemoval(polygons);
+            }
+
+            statusCallback?.Invoke($"Small patch removal complete: {removedCount} polygons removed from {regions.Count} regions");
+
+            return removedCount;
+        }
+
+        /// <summary>
+        /// Build adjacency relationships between polygons
+        /// </summary>
+        private void BuildPolygonAdjacency(List<NavSurfacePoly> polygons)
+        {
+            // Build edge-to-polygon mapping
+            var edgeToPolygons = new Dictionary<(NavGenNode, NavGenNode), List<NavSurfacePoly>>();
+
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null || poly.Vertices.Count < 3)
+                    continue;
+
+                // Initialize adjacency list if needed
+                if (poly.AdjacentPolys == null)
+                {
+                    poly.AdjacentPolys = new List<NavSurfacePoly>();
+                }
+                else
+                {
+                    poly.AdjacentPolys.Clear();
+                }
+
+                // Add all edges of this polygon to the mapping
+                for (int i = 0; i < poly.Vertices.Count; i++)
+                {
+                    var v1 = poly.Vertices[i];
+                    var v2 = poly.Vertices[(i + 1) % poly.Vertices.Count];
+
+                    // Create edge key (order independent)
+                    var edgeKey = v1.GetHashCode() < v2.GetHashCode() ? (v1, v2) : (v2, v1);
+
+                    if (!edgeToPolygons.ContainsKey(edgeKey))
+                    {
+                        edgeToPolygons[edgeKey] = new List<NavSurfacePoly>();
+                    }
+
+                    edgeToPolygons[edgeKey].Add(poly);
+                }
+            }
+
+            // Build adjacency lists for each polygon
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null || poly.Vertices.Count < 3)
+                    continue;
+
+                // Find adjacent polygons by checking shared edges
+                var adjacentPolygons = new HashSet<NavSurfacePoly>();
+
+                for (int i = 0; i < poly.Vertices.Count; i++)
+                {
+                    var v1 = poly.Vertices[i];
+                    var v2 = poly.Vertices[(i + 1) % poly.Vertices.Count];
+
+                    var edgeKey = v1.GetHashCode() < v2.GetHashCode() ? (v1, v2) : (v2, v1);
+
+                    if (edgeToPolygons.TryGetValue(edgeKey, out var edgePolygons))
+                    {
+                        foreach (var adjacentPoly in edgePolygons)
+                        {
+                            if (adjacentPoly != poly && !adjacentPoly.IsRemoved)
+                            {
+                                adjacentPolygons.Add(adjacentPoly);
+                            }
+                        }
+                    }
+                }
+
+                poly.AdjacentPolys = adjacentPolygons.ToList();
+            }
+        }
+
+        /// <summary>
+        /// Find connected regions of polygons using flood fill
+        /// </summary>
+        /// <returns>Dictionary mapping region ID to list of polygons in that region</returns>
+        private Dictionary<int, List<NavSurfacePoly>> FindConnectedRegions(List<NavSurfacePoly> polygons)
+        {
+            var regions = new Dictionary<int, List<NavSurfacePoly>>();
+            var visited = new HashSet<NavSurfacePoly>();
+            int currentRegionId = 0;
+
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || visited.Contains(poly))
+                    continue;
+
+                // Start a new region with flood fill from this polygon
+                var regionPolygons = new List<NavSurfacePoly>();
+                FloodFillRegion(poly, visited, regionPolygons);
+
+                if (regionPolygons.Count > 0)
+                {
+                    regions[currentRegionId] = regionPolygons;
+                    currentRegionId++;
+                }
+            }
+
+            return regions;
+        }
+
+        /// <summary>
+        /// Flood fill to find all polygons connected to a starting polygon
+        /// </summary>
+        private void FloodFillRegion(NavSurfacePoly startPoly, HashSet<NavSurfacePoly> visited, List<NavSurfacePoly> regionPolygons)
+        {
+            // Use iterative flood fill with a queue to avoid stack overflow
+            var queue = new Queue<NavSurfacePoly>();
+            queue.Enqueue(startPoly);
+            visited.Add(startPoly);
+
+            while (queue.Count > 0)
+            {
+                var currentPoly = queue.Dequeue();
+                regionPolygons.Add(currentPoly);
+
+                // Add all unvisited adjacent polygons to the queue
+                if (currentPoly.AdjacentPolys != null)
+                {
+                    foreach (var adjacentPoly in currentPoly.AdjacentPolys)
+                    {
+                        if (adjacentPoly == null || adjacentPoly.IsRemoved || visited.Contains(adjacentPoly))
+                            continue;
+
+                        visited.Add(adjacentPoly);
+                        queue.Enqueue(adjacentPoly);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update polygon adjacencies after removing polygons
+        /// </summary>
+        private void UpdatePolygonAdjacenciesAfterRemoval(List<NavSurfacePoly> polygons)
+        {
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.AdjacentPolys == null)
+                    continue;
+
+                // Remove any adjacent polygons that have been marked as removed
+                poly.AdjacentPolys.RemoveAll(adj => adj == null || adj.IsRemoved);
+            }
+        }
+
+        /// <summary>
+        /// Split polygons that cross grid cell boundaries
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of split polygons, all within single grid cells</returns>
+        public List<NavSurfacePoly> SplitPolygonsIntoGridCells(Action<string> statusCallback = null)
+        {
+            return SplitPolygonsIntoGridCells(surfacePolygons, statusCallback);
+        }
+
+        /// <summary>
+        /// Split polygons that cross grid cell boundaries
+        /// </summary>
+        /// <param name="polygons">List of polygons to split</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of split polygons, all within single grid cells</returns>
+        public List<NavSurfacePoly> SplitPolygonsIntoGridCells(List<NavSurfacePoly> polygons, Action<string> statusCallback = null)
+        {
+            if (polygons == null || polygons.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No polygons to split");
+                return new List<NavSurfacePoly>();
+            }
+
+            if (NavGrid == null)
+            {
+                NavGrid = new SpaceNavGrid();
+                NavGrid.CellSize = genParams.NavGridCellSize;
+                NavGrid.CellSizeInv = 1.0f / NavGrid.CellSize;
+            }
+
+            statusCallback?.Invoke("Starting grid cell splitting...");
+
+            // Step 1: Split along X axis boundaries
+            statusCallback?.Invoke("Splitting polygons along X boundaries...");
+            var splitPolysX = SplitSurfacePolygons(polygons, true);
+            statusCallback?.Invoke($"X-axis split complete: {splitPolysX.Count} polygons");
+
+            // Step 2: Split along Y axis boundaries
+            statusCallback?.Invoke("Splitting polygons along Y boundaries...");
+            var splitPolysY = SplitSurfacePolygons(splitPolysX, false);
+            statusCallback?.Invoke($"Y-axis split complete: {splitPolysY.Count} polygons");
+
+            // Store the split polygons
+            surfacePolygons = splitPolysY;
+
+            statusCallback?.Invoke($"Grid cell splitting complete: {polygons.Count} polygons split into {splitPolysY.Count} polygons");
+
+            return splitPolysY;
+        }
+
+        /// <summary>
+        /// Split surface polygons along grid boundaries (either X or Y axis)
+        /// </summary>
+        /// <param name="polygons">Polygons to split</param>
+        /// <param name="xaxis">True to split along X boundaries, false for Y boundaries</param>
+        /// <returns>List of split polygons</returns>
+        private List<NavSurfacePoly> SplitSurfacePolygons(List<NavSurfacePoly> polygons, bool xaxis)
+        {
+            var newPolygons = new List<NavSurfacePoly>();
+
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null || poly.Vertices.Count < 3)
+                    continue;
+
+                // Check if polygon crosses a grid boundary
+                Vector2I firstCellPos = NavGrid.GetCellPos(poly.Vertices[0].BasePosition);
+                int split1 = 0;
+                int split2 = 0;
+
+                for (int i = 1; i < poly.Vertices.Count; i++)
+                {
+                    Vector2I cellPos = NavGrid.GetCellPos(poly.Vertices[i].BasePosition);
+                    int coord1 = xaxis ? cellPos.X : cellPos.Y;
+                    int coord2 = xaxis ? firstCellPos.X : firstCellPos.Y;
+
+                    if (coord1 != coord2) // Polygon crosses a boundary
+                    {
+                        if (split1 == 0)
+                        {
+                            split1 = i;
+                        }
+                        else
+                        {
+                            split2 = i;
+                            break;
+                        }
+                    }
+
+                    firstCellPos = cellPos;
+                }
+
+                if (split1 > 0)
+                {
+                    // Polygon crosses at least one boundary, need to split it
+                    var split2beg = (split2 > 0) ? split2 - 1 : poly.Vertices.Count - 1;
+                    var split2end = split2beg + 1;
+
+                    var sv11 = poly.Vertices[split1 - 1].BasePosition;
+                    var sv12 = poly.Vertices[split1].BasePosition;
+                    var sv21 = poly.Vertices[split2beg].BasePosition;
+                    var sv22 = poly.Vertices[split2 % poly.Vertices.Count].BasePosition;
+
+                    var sp1 = GetSplitPos(sv11, sv12, xaxis);
+                    var sp2 = GetSplitPos(sv21, sv22, xaxis);
+
+                    // Validate split
+                    if (!IsValidSplit(sp1, sp2, sv11, sv12, sv21, sv22))
+                    {
+                        // Split did nothing, keep polygon as is
+                        newPolygons.Add(poly);
+                    }
+                    else
+                    {
+                        // Create two new polygons from the split
+                        var poly1 = new NavSurfacePoly
+                        {
+                            Material = poly.Material,
+                            IsWater = poly.IsWater,
+                            IsTooSteep = poly.IsTooSteep,
+                            PolyFlags = poly.PolyFlags,
+                            Vertices = new List<NavGenNode>()
+                        };
+
+                        var poly2 = new NavSurfacePoly
+                        {
+                            Material = poly.Material,
+                            IsWater = poly.IsWater,
+                            IsTooSteep = poly.IsTooSteep,
+                            PolyFlags = poly.PolyFlags,
+                            Vertices = new List<NavGenNode>()
+                        };
+
+                        // Create new nodes for the split points
+                        var splitNode1 = new NavGenNode
+                        {
+                            BasePosition = sp1,
+                            Material = poly.Material,
+                            IsWater = poly.IsWater
+                        };
+
+                        var splitNode2 = new NavGenNode
+                        {
+                            BasePosition = sp2,
+                            Material = poly.Material,
+                            IsWater = poly.IsWater
+                        };
+
+                        // Build vertex list for poly1
+                        for (int i = 0; i < split1; i++)
+                        {
+                            poly1.Vertices.Add(poly.Vertices[i]);
+                        }
+                        poly1.Vertices.Add(splitNode1);
+                        poly1.Vertices.Add(splitNode2);
+                        for (int i = split2end; i < poly.Vertices.Count; i++)
+                        {
+                            poly1.Vertices.Add(poly.Vertices[i]);
+                        }
+
+                        // Build vertex list for poly2
+                        poly2.Vertices.Add(splitNode1);
+                        for (int i = split1; i < split2end; i++)
+                        {
+                            poly2.Vertices.Add(poly.Vertices[i]);
+                        }
+                        poly2.Vertices.Add(splitNode2);
+
+                        // Recalculate normals and planes
+                        poly1.CalculateNormalAndPlane();
+                        poly2.CalculateNormalAndPlane();
+
+                        newPolygons.Add(poly1);
+                        newPolygons.Add(poly2);
+                    }
+                }
+                else
+                {
+                    // Polygon doesn't cross any boundaries, keep as is
+                    newPolygons.Add(poly);
+                }
+            }
+
+            return newPolygons;
+        }
+
+        /// <summary>
+        /// Convert NavSurfacePolygons to YnvPolys and assign to grid cells
+        /// </summary>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of YnvFile objects</returns>
+        public List<YnvFile> ConvertToYnvFiles(Action<string> statusCallback = null)
+        {
+            return ConvertToYnvFiles(surfacePolygons, statusCallback);
+        }
+
+        /// <summary>
+        /// Convert NavSurfacePolygons to YnvPolys and assign to grid cells
+        /// </summary>
+        /// <param name="polygons">List of surface polygons to convert</param>
+        /// <param name="statusCallback">Optional callback for status updates</param>
+        /// <returns>List of YnvFile objects</returns>
+        public List<YnvFile> ConvertToYnvFiles(List<NavSurfacePoly> polygons, Action<string> statusCallback = null)
+        {
+            if (polygons == null || polygons.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No polygons to convert");
+                return new List<YnvFile>();
+            }
+
+            if (NavGrid == null)
+            {
+                NavGrid = new SpaceNavGrid();
+                NavGrid.CellSize = genParams.NavGridCellSize;
+                NavGrid.CellSizeInv = 1.0f / NavGrid.CellSize;
+            }
+
+            YnvFiles = new List<YnvFile>();
+
+            statusCallback?.Invoke("Converting polygons to YNV format...");
+
+            int convertedCount = 0;
+
+            foreach (var poly in polygons)
+            {
+                if (poly.IsRemoved || poly.Vertices == null || poly.Vertices.Count < 3)
+                    continue;
+
+                // Convert to YnvPoly
+                var ynvPoly = poly.ToYnvPoly();
+                if (ynvPoly == null)
+                    continue;
+
+                // Calculate position and determine grid cell
+                ynvPoly.CalculatePosition();
+                var pos = ynvPoly.Position;
+                var cell = NavGrid.GetCell(pos);
+
+                // Get or create YNV file for this cell
+                var ynv = cell.Ynv;
+                if (ynv == null)
+                {
+                    ynv = new YnvFile();
+                    ynv.Name = "navmesh[" + cell.FileX.ToString() + "][" + cell.FileY.ToString() + "]";
+                    ynv.Nav = new NavMesh();
+                    ynv.Nav.SetDefaults(false);
+                    ynv.Nav.AABBSize = new Vector3(NavGrid.CellSize, NavGrid.CellSize, 0.0f);
+                    ynv.Nav.SectorTree = new NavMeshSector();
+                    ynv.Nav.SectorTree.AABBMin = new Vector4(NavGrid.GetCellMin(cell), 0.0f);
+                    ynv.Nav.SectorTree.AABBMax = new Vector4(NavGrid.GetCellMax(cell), 0.0f);
+                    ynv.AreaID = cell.X + cell.Y * 100;
+                    ynv.Polys = new List<YnvPoly>();
+                    ynv.HasChanged = true;
+                    ynv.RpfFileEntry = new RpfResourceFileEntry();
+                    ynv.RpfFileEntry.Name = ynv.Name + ".ynv";
+                    ynv.RpfFileEntry.Path = string.Empty;
+                    cell.Ynv = ynv;
+                    YnvFiles.Add(ynv);
+                }
+
+                // Set polygon properties
+                ynvPoly.AreaID = (ushort)ynv.AreaID;
+                ynvPoly.Index = ynv.Polys.Count;
+                ynvPoly.Ynv = ynv;
+                ynv.Polys.Add(ynvPoly);
+
+                convertedCount++;
+            }
+
+            statusCallback?.Invoke($"Converted {convertedCount} polygons into {YnvFiles.Count} YNV files");
+
+            // Finalize YNV files
+            FinalizeYnvs(YnvFiles, false);
+
+            return YnvFiles;
+        }
+
+    }
+
+    // Core data structures for navmesh generation
+
+    /// <summary>
+    /// Represents a height sample node in the navigation mesh generation process
+    /// </summary>
+    public class NavGenNode
+    {
+        public Vector3 BasePosition { get; set; }
+        public List<NavSurfaceTri> SurroundingTriangles { get; set; } = new();
+        public List<NavTriEdge> SurroundingEdges { get; set; } = new();
+        public NavGenTri CollisionTriangle { get; set; }
+        public MaterialType Material { get; set; }
+        public bool IsWater { get; set; }
+        public bool IsRemoved { get; set; }
+        public int Flags { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a collision triangle from the source geometry
+    /// </summary>
+    public class NavGenTri
+    {
+        public Vector3[] Vertices { get; set; } = new Vector3[3];
+        public Vector3 Normal { get; set; }
+        public MaterialType Material { get; set; }
+        public bool IsWater { get; set; }
+    }
+
+    /// <summary>
+    /// Material types for collision surfaces
+    /// </summary>
+    public enum MaterialType
+    {
+        Default = 0,
+        Pavement = 1,
+        Water = 2,
+        Stairs = 3,
+        Slope = 4
+    }
+
+    /// <summary>
+    /// Represents a surface triangle in the navigation mesh
+    /// </summary>
+    public class NavSurfaceTri
+    {
+        public NavGenNode[] Nodes { get; set; } = new NavGenNode[3];
+        public NavSurfaceTri[] AdjacentTris { get; set; } = new NavSurfaceTri[3];
+        public Vector3 Normal { get; set; }
+        public float PlaneDistance { get; set; }
+        public MaterialType Material { get; set; }
+        public ushort PolyFlags { get; set; }
+        public bool IsWater { get; set; }
+        public bool IsTooSteep { get; set; }
+        public bool IsRemoved { get; set; }
+
+        /// <summary>
+        /// Calculate the triangle's normal and plane distance
+        /// </summary>
+        public void CalculateNormal()
+        {
+            if (Nodes == null || Nodes.Length < 3) return;
+
+            var v0 = Nodes[0].BasePosition;
+            var v1 = Nodes[1].BasePosition;
+            var v2 = Nodes[2].BasePosition;
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            Normal = Vector3.Cross(edge1, edge2);
+            Normal.Normalize();
+
+            PlaneDistance = Vector3.Dot(Normal, v0);
+        }
+
+        /// <summary>
+        /// Calculate the area of the triangle
+        /// </summary>
+        public float CalculateArea()
+        {
+            if (Nodes == null || Nodes.Length < 3) return 0f;
+
+            var v0 = Nodes[0].BasePosition;
+            var v1 = Nodes[1].BasePosition;
+            var v2 = Nodes[2].BasePosition;
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            return Vector3.Cross(edge1, edge2).Length() * 0.5f;
+        }
+    }
+
+    /// <summary>
+    /// Represents an edge between two nodes in the navigation mesh
+    /// </summary>
+    public class NavTriEdge
+    {
+        public NavGenNode Node1 { get; set; }
+        public NavGenNode Node2 { get; set; }
+        public NavSurfaceTri Tri1 { get; set; }
+        public NavSurfaceTri Tri2 { get; set; }
+        public float CostNode1ToNode2 { get; set; }
+        public float CostNode2ToNode1 { get; set; }
+        public bool IsRemoved { get; set; }
+
+        /// <summary>
+        /// Calculate the length of this edge
+        /// </summary>
+        public float Length()
+        {
+            if (Node1 == null || Node2 == null) return 0f;
+            return (Node2.BasePosition - Node1.BasePosition).Length();
+        }
+    }
+
+    /// <summary>
+    /// Represents a merged polygon in the navigation mesh (can have more than 3 vertices)
+    /// </summary>
+    public class NavSurfacePoly
+    {
+        public List<NavGenNode> Vertices { get; set; } = new();
+        public List<NavSurfacePoly> AdjacentPolys { get; set; } = new();
+        public Vector3 Normal { get; set; }
+        public float PlaneDistance { get; set; }
+        public MaterialType Material { get; set; }
+        public ushort PolyFlags { get; set; }
+        public bool IsWater { get; set; }
+        public bool IsTooSteep { get; set; }
+        public bool IsRemoved { get; set; }
+
+        /// <summary>
+        /// Calculate the polygon's normal and plane distance
+        /// </summary>
+        public void CalculateNormalAndPlane()
+        {
+            if (Vertices == null || Vertices.Count < 3) return;
+
+            // Use first three vertices to calculate normal
+            var v0 = Vertices[0].BasePosition;
+            var v1 = Vertices[1].BasePosition;
+            var v2 = Vertices[2].BasePosition;
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            Normal = Vector3.Cross(edge1, edge2);
+            if (Normal.LengthSquared() > 0)
+            {
+                Normal.Normalize();
+            }
+
+            PlaneDistance = Vector3.Dot(Normal, v0);
+        }
+
+        /// <summary>
+        /// Calculate the area of the polygon
+        /// </summary>
+        public float CalculateArea()
+        {
+            if (Vertices == null || Vertices.Count < 3) return 0f;
+
+            // Use triangulation to calculate area
+            float totalArea = 0f;
+            var v0 = Vertices[0].BasePosition;
+
+            for (int i = 1; i < Vertices.Count - 1; i++)
+            {
+                var v1 = Vertices[i].BasePosition;
+                var v2 = Vertices[i + 1].BasePosition;
+
+                var edge1 = v1 - v0;
+                var edge2 = v2 - v0;
+
+                totalArea += Vector3.Cross(edge1, edge2).Length() * 0.5f;
+            }
+
+            return totalArea;
+        }
+
+        /// <summary>
+        /// Convert this polygon to a YnvPoly for output
+        /// </summary>
+        public YnvPoly ToYnvPoly()
+        {
+            if (Vertices == null || Vertices.Count < 3)
+                return null;
+
+            var positions = Vertices.Select(v => v.BasePosition).ToArray();
+            var ynvPoly = new YnvPoly
+            {
+                Vertices = positions,
+                AreaID = 0x3FFF // Will be set later based on grid position
+            };
+
+            // Set flags based on material and properties
+            if (IsWater)
+            {
+                ynvPoly.B07_IsWater = true;
+            }
+            
+            if (IsTooSteep)
+            {
+                ynvPoly.B06_SteepSlope = true;
+            }
+
+            // Set material-specific flags
+            switch (Material)
+            {
+                case MaterialType.Pavement:
+                    ynvPoly.B02_IsFootpath = true;
+                    break;
+                case MaterialType.Water:
+                    ynvPoly.B07_IsWater = true;
+                    break;
+                case MaterialType.Stairs:
+                    // Stairs are typically marked as footpaths
+                    ynvPoly.B02_IsFootpath = true;
+                    break;
+                case MaterialType.Slope:
+                    ynvPoly.B06_SteepSlope = true;
+                    break;
+            }
+
+            // Initialize edges array (will be populated later if needed)
+            ynvPoly.Edges = new YnvEdge[positions.Length];
+            for (int i = 0; i < positions.Length; i++)
+            {
+                ynvPoly.Edges[i] = new YnvEdge();
+                ynvPoly.Edges[i].Poly1 = ynvPoly;
+                ynvPoly.Edges[i].Poly2 = ynvPoly;
+                ynvPoly.Edges[i].AreaID1 = 0x3FFF;
+                ynvPoly.Edges[i].AreaID2 = 0x3FFF;
+            }
+
+            return ynvPoly;
+        }
+    }
+
+    /// <summary>
+    /// Octree for spatial indexing of collision geometry
+    /// </summary>
+    public class NavOctree
+    {
+        private class OctreeNode
+        {
+            public Vector3 Min { get; set; }
+            public Vector3 Max { get; set; }
+            public List<NavGenTri> Triangles { get; set; }
+            public OctreeNode[] Children { get; set; }
+            public bool IsLeaf => Children == null;
+        }
+
+        private OctreeNode root;
+        private int maxTrianglesPerLeaf = 10;
+        private int maxDepth = 8;
+
+        /// <summary>
+        /// Build the octree from a list of collision triangles
+        /// </summary>
+        public void Build(List<NavGenTri> collisionTriangles, Vector3 min, Vector3 max)
+        {
+            root = new OctreeNode
+            {
+                Min = min,
+                Max = max,
+                Triangles = new List<NavGenTri>()
+            };
+
+            foreach (var tri in collisionTriangles)
+            {
+                InsertTriangle(root, tri, 0);
+            }
+        }
+
+        private void InsertTriangle(OctreeNode node, NavGenTri triangle, int depth)
+        {
+            if (node.IsLeaf)
+            {
+                node.Triangles.Add(triangle);
+
+                // Subdivide if we have too many triangles and haven't reached max depth
+                if (node.Triangles.Count > maxTrianglesPerLeaf && depth < maxDepth)
+                {
+                    Subdivide(node, depth);
+                }
+            }
+            else
+            {
+                // Insert into appropriate children
+                for (int i = 0; i < 8; i++)
+                {
+                    if (TriangleIntersectsBox(triangle, node.Children[i].Min, node.Children[i].Max))
+                    {
+                        InsertTriangle(node.Children[i], triangle, depth + 1);
+                    }
+                }
+            }
+        }
+
+        private void Subdivide(OctreeNode node, int depth)
+        {
+            var center = (node.Min + node.Max) * 0.5f;
+            node.Children = new OctreeNode[8];
+
+            for (int i = 0; i < 8; i++)
+            {
+                var min = new Vector3(
+                    (i & 1) == 0 ? node.Min.X : center.X,
+                    (i & 2) == 0 ? node.Min.Y : center.Y,
+                    (i & 4) == 0 ? node.Min.Z : center.Z
+                );
+                var max = new Vector3(
+                    (i & 1) == 0 ? center.X : node.Max.X,
+                    (i & 2) == 0 ? center.Y : node.Max.Y,
+                    (i & 4) == 0 ? center.Z : node.Max.Z
+                );
+
+                node.Children[i] = new OctreeNode
+                {
+                    Min = min,
+                    Max = max,
+                    Triangles = new List<NavGenTri>()
+                };
+            }
+
+            // Redistribute triangles to children
+            foreach (var tri in node.Triangles)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    if (TriangleIntersectsBox(tri, node.Children[i].Min, node.Children[i].Max))
+                    {
+                        InsertTriangle(node.Children[i], tri, depth + 1);
+                    }
+                }
+            }
+
+            node.Triangles.Clear();
+        }
+
+        private bool TriangleIntersectsBox(NavGenTri triangle, Vector3 boxMin, Vector3 boxMax)
+        {
+            // Simple AABB test - check if any vertex is inside the box or if triangle intersects box
+            foreach (var vertex in triangle.Vertices)
+            {
+                if (vertex.X >= boxMin.X && vertex.X <= boxMax.X &&
+                    vertex.Y >= boxMin.Y && vertex.Y <= boxMax.Y &&
+                    vertex.Z >= boxMin.Z && vertex.Z <= boxMax.Z)
+                {
+                    return true;
+                }
+            }
+
+            // Check if triangle bounding box intersects node bounding box
+            var triMin = new Vector3(
+                Math.Min(Math.Min(triangle.Vertices[0].X, triangle.Vertices[1].X), triangle.Vertices[2].X),
+                Math.Min(Math.Min(triangle.Vertices[0].Y, triangle.Vertices[1].Y), triangle.Vertices[2].Y),
+                Math.Min(Math.Min(triangle.Vertices[0].Z, triangle.Vertices[1].Z), triangle.Vertices[2].Z)
+            );
+            var triMax = new Vector3(
+                Math.Max(Math.Max(triangle.Vertices[0].X, triangle.Vertices[1].X), triangle.Vertices[2].X),
+                Math.Max(Math.Max(triangle.Vertices[0].Y, triangle.Vertices[1].Y), triangle.Vertices[2].Y),
+                Math.Max(Math.Max(triangle.Vertices[0].Z, triangle.Vertices[1].Z), triangle.Vertices[2].Z)
+            );
+
+            return !(triMax.X < boxMin.X || triMin.X > boxMax.X ||
+                     triMax.Y < boxMin.Y || triMin.Y > boxMax.Y ||
+                     triMax.Z < boxMin.Z || triMin.Z > boxMax.Z);
+        }
+
+        /// <summary>
+        /// Ray intersection result
+        /// </summary>
+        public class RayIntersectResult
+        {
+            public bool Hit { get; set; }
+            public Vector3 Position { get; set; }
+            public NavGenTri Triangle { get; set; }
+            public float Distance { get; set; }
+        }
+
+        /// <summary>
+        /// Perform ray intersection test against the octree
+        /// </summary>
+        public RayIntersectResult RayIntersect(Vector3 origin, Vector3 direction, float maxDistance)
+        {
+            var result = new RayIntersectResult { Hit = false, Distance = float.MaxValue };
+
+            if (root == null) return result;
+
+            RayIntersectNode(root, origin, direction, maxDistance, result);
+
+            return result;
+        }
+
+        private void RayIntersectNode(OctreeNode node, Vector3 origin, Vector3 direction, float maxDistance, RayIntersectResult result)
+        {
+            // Test if ray intersects this node's bounding box
+            if (!RayBoxIntersect(origin, direction, node.Min, node.Max, maxDistance))
+                return;
+
+            if (node.IsLeaf)
+            {
+                // Test all triangles in this leaf
+                foreach (var tri in node.Triangles)
+                {
+                    var hit = RayTriangleIntersect(origin, direction, tri, out float distance);
+                    if (hit && distance < result.Distance && distance <= maxDistance)
+                    {
+                        result.Hit = true;
+                        result.Distance = distance;
+                        result.Position = origin + direction * distance;
+                        result.Triangle = tri;
+                    }
+                }
+            }
+            else
+            {
+                // Recursively test children
+                foreach (var child in node.Children)
+                {
+                    RayIntersectNode(child, origin, direction, maxDistance, result);
+                }
+            }
+        }
+
+        private bool RayBoxIntersect(Vector3 origin, Vector3 direction, Vector3 boxMin, Vector3 boxMax, float maxDistance)
+        {
+            float tmin = 0.0f;
+            float tmax = maxDistance;
+
+            for (int i = 0; i < 3; i++)
+            {
+                float o = i == 0 ? origin.X : (i == 1 ? origin.Y : origin.Z);
+                float d = i == 0 ? direction.X : (i == 1 ? direction.Y : direction.Z);
+                float bmin = i == 0 ? boxMin.X : (i == 1 ? boxMin.Y : boxMin.Z);
+                float bmax = i == 0 ? boxMax.X : (i == 1 ? boxMax.Y : boxMax.Z);
+
+                if (Math.Abs(d) < 1e-6f)
+                {
+                    if (o < bmin || o > bmax)
+                        return false;
+                }
+                else
+                {
+                    float t1 = (bmin - o) / d;
+                    float t2 = (bmax - o) / d;
+
+                    if (t1 > t2)
+                    {
+                        float temp = t1;
+                        t1 = t2;
+                        t2 = temp;
+                    }
+
+                    tmin = Math.Max(tmin, t1);
+                    tmax = Math.Min(tmax, t2);
+
+                    if (tmin > tmax)
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool RayTriangleIntersect(Vector3 origin, Vector3 direction, NavGenTri triangle, out float distance)
+        {
+            distance = 0f;
+
+            const float EPSILON = 1e-6f;
+
+            var v0 = triangle.Vertices[0];
+            var v1 = triangle.Vertices[1];
+            var v2 = triangle.Vertices[2];
+
+            var edge1 = v1 - v0;
+            var edge2 = v2 - v0;
+
+            var h = Vector3.Cross(direction, edge2);
+            var a = Vector3.Dot(edge1, h);
+
+            if (a > -EPSILON && a < EPSILON)
+                return false; // Ray is parallel to triangle
+
+            var f = 1.0f / a;
+            var s = origin - v0;
+            var u = f * Vector3.Dot(s, h);
+
+            if (u < 0.0f || u > 1.0f)
+                return false;
+
+            var q = Vector3.Cross(s, edge1);
+            var v = f * Vector3.Dot(direction, q);
+
+            if (v < 0.0f || u + v > 1.0f)
+                return false;
+
+            distance = f * Vector3.Dot(edge2, q);
+
+            return distance > EPSILON;
+        }
+
+        /// <summary>
+        /// Get all triangles within a bounding box
+        /// </summary>
+        public List<NavGenTri> GetTrianglesInBounds(Vector3 min, Vector3 max)
+        {
+            var result = new List<NavGenTri>();
+            if (root != null)
+            {
+                GetTrianglesInBoundsRecursive(root, min, max, result);
+            }
+            return result;
+        }
+
+        private void GetTrianglesInBoundsRecursive(OctreeNode node, Vector3 min, Vector3 max, List<NavGenTri> result)
+        {
+            // Check if node intersects query bounds
+            if (node.Max.X < min.X || node.Min.X > max.X ||
+                node.Max.Y < min.Y || node.Min.Y > max.Y ||
+                node.Max.Z < min.Z || node.Min.Z > max.Z)
+                return;
+
+            if (node.IsLeaf)
+            {
+                result.AddRange(node.Triangles);
+            }
+            else
+            {
+                foreach (var child in node.Children)
+                {
+                    GetTrianglesInBoundsRecursive(child, min, max, result);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Spatial grid for storing height samples with multiple Z values per XY location
+    /// </summary>
+    public class CPlacedNodeMultiMap
+    {
+        private class NodeList
+        {
+            public List<NavGenNode> Nodes { get; set; } = new();
+        }
+
+        private NodeList[,] nodeGrid;
+        private Vector3 gridMin;
+        private Vector3 gridMax;
+        private float cellSize;
+        private int gridWidth;
+        private int gridHeight;
+
+        /// <summary>
+        /// Get the grid width
+        /// </summary>
+        public int GridWidth => gridWidth;
+
+        /// <summary>
+        /// Get the grid height
+        /// </summary>
+        public int GridHeight => gridHeight;
+
+        /// <summary>
+        /// Initialize the spatial grid
+        /// </summary>
+        public void Initialize(Vector3 min, Vector3 max, float cellSize)
+        {
+            this.gridMin = min;
+            this.gridMax = max;
+            this.cellSize = cellSize;
+
+            gridWidth = (int)Math.Ceiling((max.X - min.X) / cellSize);
+            gridHeight = (int)Math.Ceiling((max.Y - min.Y) / cellSize);
+
+            nodeGrid = new NodeList[gridWidth, gridHeight];
+
+            for (int x = 0; x < gridWidth; x++)
+            {
+                for (int y = 0; y < gridHeight; y++)
+                {
+                    nodeGrid[x, y] = new NodeList();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add a node to the spatial grid
+        /// </summary>
+        public void AddNode(NavGenNode node)
+        {
+            var gridPos = WorldToGrid(node.BasePosition);
+            if (IsValidGridPos(gridPos))
+            {
+                nodeGrid[gridPos.X, gridPos.Y].Nodes.Add(node);
+            }
+        }
+
+        /// <summary>
+        /// Get a node at a specific position with tolerance
+        /// </summary>
+        public NavGenNode GetNode(Vector3 position, float zInterval, float xyEpsilon)
+        {
+            var gridPos = WorldToGrid(position);
+            if (!IsValidGridPos(gridPos))
+                return null;
+
+            var nodes = nodeGrid[gridPos.X, gridPos.Y].Nodes;
+
+            foreach (var node in nodes)
+            {
+                var dx = Math.Abs(node.BasePosition.X - position.X);
+                var dy = Math.Abs(node.BasePosition.Y - position.Y);
+                var dz = Math.Abs(node.BasePosition.Z - position.Z);
+
+                if (dx <= xyEpsilon && dy <= xyEpsilon && dz <= zInterval)
+                {
+                    return node;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get the highest node below a given position
+        /// </summary>
+        public NavGenNode GetHighestNodeBelow(Vector3 position, float maxZ)
+        {
+            var gridPos = WorldToGrid(position);
+            if (!IsValidGridPos(gridPos))
+                return null;
+
+            var nodes = nodeGrid[gridPos.X, gridPos.Y].Nodes;
+            NavGenNode highest = null;
+            float highestZ = float.MinValue;
+
+            foreach (var node in nodes)
+            {
+                if (node.BasePosition.Z <= maxZ && node.BasePosition.Z > highestZ)
+                {
+                    highest = node;
+                    highestZ = node.BasePosition.Z;
+                }
+            }
+
+            return highest;
+        }
+
+        /// <summary>
+        /// Get all nodes at a grid position
+        /// </summary>
+        public List<NavGenNode> GetNodesAt(int gridX, int gridY)
+        {
+            if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight)
+            {
+                return nodeGrid[gridX, gridY].Nodes;
+            }
+            return new List<NavGenNode>();
+        }
+
+        /// <summary>
+        /// Get adjacent node in a specific direction
+        /// </summary>
+        public NavGenNode GetAdjacentNode(NavGenNode node, int dx, int dy, float maxHeightDiff)
+        {
+            var gridPos = WorldToGrid(node.BasePosition);
+            var adjGridPos = new Vector2I(gridPos.X + dx, gridPos.Y + dy);
+
+            if (!IsValidGridPos(adjGridPos))
+                return null;
+
+            var nodes = nodeGrid[adjGridPos.X, adjGridPos.Y].Nodes;
+            NavGenNode closest = null;
+            float closestDist = float.MaxValue;
+
+            foreach (var adjNode in nodes)
+            {
+                var heightDiff = Math.Abs(adjNode.BasePosition.Z - node.BasePosition.Z);
+                if (heightDiff <= maxHeightDiff && heightDiff < closestDist)
+                {
+                    closest = adjNode;
+                    closestDist = heightDiff;
+                }
+            }
+
+            return closest;
+        }
+
+        private Vector2I WorldToGrid(Vector3 worldPos)
+        {
+            int x = (int)((worldPos.X - gridMin.X) / cellSize);
+            int y = (int)((worldPos.Y - gridMin.Y) / cellSize);
+            return new Vector2I(x, y);
+        }
+
+        private bool IsValidGridPos(Vector2I gridPos)
+        {
+            return gridPos.X >= 0 && gridPos.X < gridWidth &&
+                   gridPos.Y >= 0 && gridPos.Y < gridHeight;
+        }
+    }
+
+    /// <summary>
+    /// Dictionary for fast edge lookups with bidirectional support
+    /// </summary>
+    public class EdgeDictionary
+    {
+        private struct EdgeKey : IEquatable<EdgeKey>
+        {
+            public Vector3 V1 { get; }
+            public Vector3 V2 { get; }
+
+            public EdgeKey(Vector3 v1, Vector3 v2)
+            {
+                // Always store with smaller vertex first for consistent hashing
+                if (CompareVectors(v1, v2) <= 0)
+                {
+                    V1 = v1;
+                    V2 = v2;
+                }
+                else
+                {
+                    V1 = v2;
+                    V2 = v1;
+                }
+            }
+
+            private static int CompareVectors(Vector3 a, Vector3 b)
+            {
+                if (a.X != b.X) return a.X.CompareTo(b.X);
+                if (a.Y != b.Y) return a.Y.CompareTo(b.Y);
+                return a.Z.CompareTo(b.Z);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + V1.GetHashCode();
+                    hash = hash * 31 + V2.GetHashCode();
+                    return hash;
+                }
+            }
+
+            public bool Equals(EdgeKey other)
+            {
+                return V1.Equals(other.V1) && V2.Equals(other.V2);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is EdgeKey other && Equals(other);
+            }
+        }
+
+        private Dictionary<EdgeKey, NavTriEdge> edges = new();
+
+        /// <summary>
+        /// Try to get an edge between two vertices (order independent)
+        /// </summary>
+        public NavTriEdge TryGetEdge(Vector3 v1, Vector3 v2)
+        {
+            var key = new EdgeKey(v1, v2);
+            edges.TryGetValue(key, out var edge);
+            return edge;
+        }
+
+        /// <summary>
+        /// Add an edge to the dictionary
+        /// </summary>
+        public void AddEdge(Vector3 v1, Vector3 v2, NavTriEdge edge)
+        {
+            var key = new EdgeKey(v1, v2);
+            edges[key] = edge;
+        }
+
+        /// <summary>
+        /// Remove an edge from the dictionary
+        /// </summary>
+        public void RemoveEdge(Vector3 v1, Vector3 v2)
+        {
+            var key = new EdgeKey(v1, v2);
+            edges.Remove(key);
+        }
+
+        /// <summary>
+        /// Get all edges in the dictionary
+        /// </summary>
+        public IEnumerable<NavTriEdge> GetAllEdges()
+        {
+            return edges.Values;
+        }
+
+        /// <summary>
+        /// Clear all edges
+        /// </summary>
+        public void Clear()
+        {
+            edges.Clear();
+        }
+
+        /// <summary>
+        /// Get the number of edges
+        /// </summary>
+        public int Count => edges.Count;
+    }
+
+    /// <summary>
+    /// Configuration parameters for navmesh generation
+    /// </summary>
+    public class NavGenParams
+    {
+        // Sampling
+        public float SamplingDensity { get; set; } = 0.5f; // meters between samples
+        public float MinZDistBetweenSamples { get; set; } = 0.5f;
+
+        // Triangulation
+        public float TriangulationMaxHeightDiff { get; set; } = 2.0f;
+        public float HeightAboveNodeBase { get; set; } = 0.5f; // Reduced from 1.0 to sample closer to surface
+        public float MaxHeightChangeUnderEdge { get; set; } = 0.3f; // Reduced from 0.5 for stricter validation
+
+        // Slope Detection
+        public float MaxAngleForWalkable { get; set; } = 45.0f; // degrees
+        public float AngleForTooSteep { get; set; } = 60.0f;
+
+        // Optimization
+        public float MaxQuadricErrorMetric { get; set; } = 0.1f;
+        public int MaxTrianglesSurroundingNode { get; set; } = 16;
+        public float MinTriangleArea { get; set; } = 0.1f;
+        public float MaxTriangleArea { get; set; } = 50.0f;
+        public float MinTriangleSideLength { get; set; } = 0.3f;
+        public float MaxTriangleSideLength { get; set; } = 15.0f;
+        public float MinTriangleAngle { get; set; } = 15.0f; // degrees
+
+        // Merging
+        public float CoplanarPlaneTestEps { get; set; } = 0.5f; // Increased from 0.25 to allow more merging
+        public float ConvexPlaneTestEps { get; set; } = 0.05f; // Increased from 0.01 to be less strict
+        public int MaxPolygonVertices { get; set; } = 8;
+
+        // Grid
+        public float NavGridCellSize { get; set; } = 150.0f; // meters per YNV file
     }
 }
