@@ -115,7 +115,7 @@ namespace CodeWalker.World
 
         public override string ToString()
         {
-            return string.Format("[{0}] X=({1} : {2}), Y=({3} : {4})", xmlNodeIndex, minX, maxX, minY, maxY);
+            return $"[{xmlNodeIndex}] X=({minX} : {maxX}), Y=({minY} : {maxY})";
         }
     }
 

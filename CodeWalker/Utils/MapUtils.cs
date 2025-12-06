@@ -107,7 +107,7 @@ namespace CodeWalker
             }
             for (int i = 4; i < ss.Length; i++)
             {
-                if (Properties == null) Properties = new List<string>();
+                Properties ??= [];
                 Properties.Add(ss[i].Trim());
             }
             WorldPos = p;

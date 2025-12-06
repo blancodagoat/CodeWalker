@@ -230,8 +230,7 @@ namespace ST.Library.UI.NodeEditor
 
         public STNodeOption[] ToArray() {
             STNodeOption[] ops = new STNodeOption[this._Count];
-            for (int i = 0; i < ops.Length; i++)
-                ops[i] = m_options[i];
+            Array.Copy(m_options, ops, this._Count);
             return ops;
         }
     }

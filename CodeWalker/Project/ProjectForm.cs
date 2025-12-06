@@ -6200,8 +6200,7 @@ namespace CodeWalker.Project
                 if (vals.Length > 7)
                 {
                     var mshash = JenkHash.GenHash(vals[7].Trim().ToLowerInvariant());
-                    modelset = stypes?.GetPedModelSet(mshash) ?? null;
-                    if (modelset == null) modelset = stypes?.GetVehicleModelSet(mshash) ?? null;
+                    modelset = stypes?.GetPedModelSet(mshash) ?? stypes?.GetVehicleModelSet(mshash);
                 }
                 if (vals.Length > 8)
                 {
@@ -7603,8 +7602,8 @@ namespace CodeWalker.Project
                 if (arch == null) return null;
                 MetaHash name = arch._BaseArchetypeDef.name;
                 if (name == 0) return null;
-                if (!visiblemloentities.ContainsKey(name)) return null;
-                return visiblemloentities[name]?.MloInstance;
+                if (!visiblemloentities.TryGetValue(name, out var entity)) return null;
+                return entity?.MloInstance;
             }
         }
 

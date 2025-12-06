@@ -245,22 +245,30 @@ namespace CodeWalker
         {
             Task.Run(() =>
             {
-                lock (FileCacheSyncRoot)
+                try
                 {
-                    if (!FileCache.IsInited)
+                    lock (FileCacheSyncRoot)
                     {
-                        UpdateStatus("Loading file cache...");
-                        var allRpfs = AllRpfs;
-                        FileCache.Init(UpdateStatus, UpdateErrorLog, allRpfs); //inits main dicts and archetypes only...
+                        if (!FileCache.IsInited)
+                        {
+                            UpdateStatus("Loading file cache...");
+                            var allRpfs = AllRpfs;
+                            FileCache.Init(UpdateStatus, UpdateErrorLog, allRpfs); //inits main dicts and archetypes only...
 
-                        UpdateStatus("Loading materials...");
-                        BoundsMaterialTypes.Init(FileCache);
+                            UpdateStatus("Loading materials...");
+                            BoundsMaterialTypes.Init(FileCache);
 
-                        UpdateStatus("Loading scenario types...");
-                        Scenarios.EnsureScenarioTypes(FileCache);
+                            UpdateStatus("Loading scenario types...");
+                            Scenarios.EnsureScenarioTypes(FileCache);
 
-                        UpdateStatus("File cache loaded.");
+                            UpdateStatus("File cache loaded.");
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    UpdateErrorLog($"Error initializing file cache: {ex}");
+                    UpdateStatus("File cache initialization failed.");
                 }
             });
         }
@@ -1103,7 +1111,7 @@ namespace CodeWalker
                     var tfull = tf.FullPath + "\\" + name;
                     tt = CreateRootDirTreeFolder(name, tpath, tfull);
                     tf.AddChild(tt);
-                    if (createdroot == null) createdroot = tt;
+                    createdroot ??= tt;
                 }
                 tf = tt;
             }
@@ -3141,8 +3149,8 @@ namespace CodeWalker
             //filelist is an output list of all files to import.
             //dirdict is an output dictionary of any directories that were created.
 
-            if (filelist == null) filelist = new List<string>();
-            if (dirdict == null) dirdict = new Dictionary<string, RpfDirectoryEntry>();
+            filelist ??= [];
+            dirdict ??= new Dictionary<string, RpfDirectoryEntry>();
 
             foreach (var fpath in fpaths)
             {
@@ -3526,15 +3534,25 @@ namespace CodeWalker
             void defragment(bool recursive)
             {
                 Task.Run(() => {
-                    if (inProgress) return;
-                    if (!EnsureRpfValidEncryption(rpf, recursive)) return;
-                    inProgress = true;
-                    enableUi(false);
-                    RpfFile.Defragment(rpf, updateProgress, recursive);
-                    updateProgress("Defragment complete.", 1.0f);
-                    enableUi(true);
-                    form.Invoke(new Action(() => { updateSizeLabels(false); }));
-                    inProgress = false;
+                    try
+                    {
+                        if (inProgress) return;
+                        if (!EnsureRpfValidEncryption(rpf, recursive)) return;
+                        inProgress = true;
+                        enableUi(false);
+                        RpfFile.Defragment(rpf, updateProgress, recursive);
+                        updateProgress("Defragment complete.", 1.0f);
+                        enableUi(true);
+                        form.Invoke(new Action(() => { updateSizeLabels(false); }));
+                        inProgress = false;
+                    }
+                    catch (Exception ex)
+                    {
+                        inProgress = false;
+                        try { enableUi(true); } catch { }
+                        try { form.Invoke(new Action(() => { MessageBox.Show($"Error during defragment: {ex.Message}"); })); }
+                        catch { }
+                    }
                 });
             }
             updateSizeLabels(true);
@@ -3613,12 +3631,19 @@ namespace CodeWalker
 
             Task.Run(() =>
             {
-                RefreshMainTreeViewRoot(root);
-
-                Invoke(new Action(() => 
+                try
                 {
-                    MainTreeView.SelectedNode = root.TreeNode;
-                }));
+                    RefreshMainTreeViewRoot(root);
+
+                    Invoke(new Action(() => 
+                    {
+                        MainTreeView.SelectedNode = root.TreeNode;
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    UpdateErrorLog($"Error opening folder: {ex}");
+                }
             });
         }
         private void CloseFolder(MainTreeFolder folder)
@@ -4182,9 +4207,17 @@ namespace CodeWalker
         {
             Task.Run(() =>
             {
-                RefreshMainTreeView();
+                try
+                {
+                    RefreshMainTreeView();
 
-                UpdateStatus("Scan complete.");
+                    UpdateStatus("Scan complete.");
+                }
+                catch (Exception ex)
+                {
+                    UpdateErrorLog($"Error refreshing tree view: {ex}");
+                    UpdateStatus("Refresh failed.");
+                }
             });
         }
 
@@ -4608,12 +4641,12 @@ namespace CodeWalker
 
         public void AddFile(string file)
         {
-            if (Files == null) Files = new List<string>();
+            Files ??= [];
             Files.Add(file);
         }
         public void AddChild(MainTreeFolder child)
         {
-            if (Children == null) Children = new List<MainTreeFolder>();
+            Children ??= [];
             Children.Add(child);
             child.Parent = this;
         }
@@ -5016,7 +5049,7 @@ namespace CodeWalker
 
         public void AddSubType(FileTypeInfo t)
         {
-            if (SubTypes == null) SubTypes = new List<FileTypeInfo>();
+            SubTypes ??= [];
             SubTypes.Add(t);
         }
     }

@@ -344,16 +344,27 @@ namespace CodeWalker.GameFiles
             {
                 return;
             }
-            // Sort nodes so ped nodes are at the end
+            // Sort nodes so ped nodes are at the end - single pass partitioning
+            var vehicleNodesList = new List<YndNode>();
+            var pedNodesList = new List<YndNode>();
+            
+            foreach (var n in Nodes)
+            {
+                if (n.IsPedNode)
+                    pedNodesList.Add(n);
+                else
+                    vehicleNodesList.Add(n);
+            }
+            
+            vehicleNodesList.Sort((a, b) => a.NodeID.CompareTo(b.NodeID));
+            pedNodesList.Sort((a, b) => a.NodeID.CompareTo(b.NodeID));
+            
             var nodes = new List<YndNode>(Nodes.Length);
             var affectedNodesList = new List<YndNode>();
-            var vehicleNodes = Nodes.Where(n => !n.IsPedNode).OrderBy(n => n.NodeID).ToArray();
-            var pedNodes = Nodes.Where(n => n.IsPedNode).OrderBy(n => n.NodeID).ToArray();
+            nodes.AddRange(vehicleNodesList);
+            nodes.AddRange(pedNodesList);
 
-            nodes.AddRange(vehicleNodes);
-            nodes.AddRange(pedNodes);
-
-            for (var i = 0; i < nodes.Count(); i++)
+            for (var i = 0; i < nodes.Count; i++)
             {
                 var node = nodes[i];
 
@@ -364,8 +375,8 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            NodeDictionary.NodesCountVehicle = (uint)vehicleNodes.Count();
-            NodeDictionary.NodesCountPed = (uint)pedNodes.Count();
+            NodeDictionary.NodesCountVehicle = (uint)vehicleNodesList.Count;
+            NodeDictionary.NodesCountPed = (uint)pedNodesList.Count;
             NodeDictionary.NodesCount = NodeDictionary.NodesCountVehicle + NodeDictionary.NodesCountPed;
             Nodes = nodes.ToArray();
 
@@ -385,11 +396,15 @@ namespace CodeWalker.GameFiles
 
             foreach (var n in Nodes)
             {
-                var nodeRmLinks = n.Links.Where(l =>
-                    l.Node1 == node || l.Node2 == node);
+                // Consolidated: materialize once and reuse
+                var nodeRmLinks = new List<YndLink>();
+                foreach (var l in n.Links)
+                {
+                    if (l.Node1 == node || l.Node2 == node)
+                        nodeRmLinks.Add(l);
+                }
 
-                var toRemove = n.Links.Where(rl => nodeRmLinks.Contains(rl)).ToArray();
-                foreach (var rl in toRemove)
+                foreach (var rl in nodeRmLinks)
                 {
                     n.RemoveLink(rl);
                 }
@@ -397,9 +412,16 @@ namespace CodeWalker.GameFiles
                 rmLinks.AddRange(nodeRmLinks);
             }
 
-            if (rmLinks.Any())
+            if (rmLinks.Count > 0)
             {
-                Links = Links.Where(l => !rmLinks.Contains(l)).ToArray();
+                // Consolidated: use loop instead of LINQ for filtering
+                var remainingLinks = new List<YndLink>(Links.Length);
+                foreach (var l in Links)
+                {
+                    if (!rmLinks.Contains(l))
+                        remainingLinks.Add(l);
+                }
+                Links = remainingLinks.ToArray();
                 return true;
             }
 

@@ -205,17 +205,15 @@ namespace ST.Library.UI.NodeEditor
                 brush.Color = this._ForeColor;
                 g.DrawString(this._Text, this._Font, brush, this.ClientRectangle, m_sf);
             }
-            if (this.Paint != null) this.Paint(this, new STNodeControlPaintEventArgs(dt));
+            this.Paint?.Invoke(this, new STNodeControlPaintEventArgs(dt));
         }
 
         public void Invalidate() {
-            if (this._Owner == null) return;
-            this._Owner.Invalidate(new Rectangle(this._Left, this._Top + this._Owner.TitleHeight, this.Width, this.Height));
+            this._Owner?.Invalidate(new Rectangle(this._Left, this._Top + this._Owner.TitleHeight, this.Width, this.Height));
         }
 
         public void Invalidate(Rectangle rect) {
-            if (this._Owner == null) return;
-            this._Owner.Invalidate(this.RectangleToParent(rect));
+            this._Owner?.Invalidate(this.RectangleToParent(rect));
         }
 
         public Rectangle RectangleToParent(Rectangle rect) {
@@ -243,52 +241,52 @@ namespace ST.Library.UI.NodeEditor
         public event STNodeControlPaintEventHandler Paint;
 
         protected internal virtual void OnGotFocus(EventArgs e) {
-            if (this.GotFocus != null) this.GotFocus(this, e);
+            this.GotFocus?.Invoke(this, e);
         }
         protected internal virtual void OnLostFocus(EventArgs e) {
-            if (this.LostFocus != null) this.LostFocus(this, e);
+            this.LostFocus?.Invoke(this, e);
         }
         protected internal virtual void OnMouseEnter(EventArgs e) {
-            if (this.MouseEnter != null) this.MouseEnter(this, e);
+            this.MouseEnter?.Invoke(this, e);
         }
         protected internal virtual void OnMouseLeave(EventArgs e) {
-            if (this.MouseLeave != null) this.MouseLeave(this, e);
+            this.MouseLeave?.Invoke(this, e);
         }
         protected internal virtual void OnMouseDown(MouseEventArgs e) {
-            if (this.MouseDown != null) this.MouseDown(this, e);
+            this.MouseDown?.Invoke(this, e);
         }
         protected internal virtual void OnMouseMove(MouseEventArgs e) {
-            if (this.MouseMove != null) this.MouseMove(this, e);
+            this.MouseMove?.Invoke(this, e);
         }
         protected internal virtual void OnMouseUp(MouseEventArgs e) {
-            if (this.MouseUp != null) this.MouseUp(this, e);
+            this.MouseUp?.Invoke(this, e);
         }
         protected internal virtual void OnMouseClick(MouseEventArgs e) {
-            if (this.MouseClick != null) this.MouseClick(this, e);
+            this.MouseClick?.Invoke(this, e);
         }
         protected internal virtual void OnMouseWheel(MouseEventArgs e) {
-            if (this.MouseWheel != null) this.MouseWheel(this, e);
+            this.MouseWheel?.Invoke(this, e);
         }
         protected internal virtual void OnMouseHWheel(MouseEventArgs e) {
-            if (this.MouseHWheel != null) this.MouseHWheel(this, e);
+            this.MouseHWheel?.Invoke(this, e);
         }
 
         protected internal virtual void OnKeyDown(KeyEventArgs e) {
-            if (this.KeyDown != null) this.KeyDown(this, e);
+            this.KeyDown?.Invoke(this, e);
         }
         protected internal virtual void OnKeyUp(KeyEventArgs e) {
-            if (this.KeyUp != null) this.KeyUp(this, e);
+            this.KeyUp?.Invoke(this, e);
         }
         protected internal virtual void OnKeyPress(KeyPressEventArgs e) {
-            if (this.KeyPress != null) this.KeyPress(this, e);
+            this.KeyPress?.Invoke(this, e);
         }
 
         protected internal virtual void OnMove(EventArgs e) {
-            if (this.Move != null) this.Move(this, e);
+            this.Move?.Invoke(this, e);
         }
 
         protected internal virtual void OnResize(EventArgs e) {
-            if (this.Resize != null) this.Resize(this, e);
+            this.Resize?.Invoke(this, e);
         }
 
         public IAsyncResult BeginInvoke(Delegate method) { return this.BeginInvoke(method, null); }

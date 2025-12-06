@@ -783,13 +783,13 @@ namespace ST.Library.UI.NodeEditor
             if (item != null) {
                 if (item.RectangleR.Contains(e.Location)) {
                     if (m_item_hover_value != item) {
-                        if (m_item_hover_value != null) m_item_hover_value.OnMouseLeave(e);
+                        m_item_hover_value?.OnMouseLeave(e);
                         m_item_hover_value = item;
                         m_item_hover_value.OnMouseEnter(e);
                     }
                     m_item_hover_value.OnMouseMove(e);
                 } else {
-                    if (m_item_hover_value != null) m_item_hover_value.OnMouseLeave(e);
+                    m_item_hover_value?.OnMouseLeave(e);
                 }
             }
             if (m_item_hover != item) {

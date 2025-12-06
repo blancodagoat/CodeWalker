@@ -48,7 +48,7 @@ namespace ST.Library.UI.NodeEditor
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
             this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
 
-            if (m_last_frm != null) m_last_frm.Close();
+            m_last_frm?.Close();
             m_last_frm = this;
 
             m_editor = editor;

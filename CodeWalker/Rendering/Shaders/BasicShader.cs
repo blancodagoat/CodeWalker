@@ -674,10 +674,10 @@ namespace CodeWalker.Rendering
                             case ShaderParamNames.FlowSampler:
                             case ShaderParamNames.FogSampler:
                             case ShaderParamNames.FoamSampler:
-                                if (texture == null) texture = itex;
+                                texture ??= itex;
                                 break;
                             default:
-                                if (texture == null) texture = itex;
+                                texture ??= itex;
                                 break;
                         }
                     }

@@ -766,8 +766,8 @@ namespace CodeWalker.GameFiles
         {
             Vector3 min = Min;
             Vector3 max = Max;
-            return string.Format("({0}, {1}, {2}) | ({3}, {4}, {5})", min.X, min.Y, min.Z, max.X, max.Y, max.Z);
-            //return string.Format("({0}, {1}, {2}) | ({3}, {4}, {5})", MinX, MinY, MinZ, MaxX, MaxY, MaxZ);
+            return $"({min.X}, {min.Y}, {min.Z}) | ({max.X}, {max.Y}, {max.Z})";
+            //return $"({MinX}, {MinY}, {MinZ}) | ({MaxX}, {MaxY}, {MaxZ})";
         }
     }
 

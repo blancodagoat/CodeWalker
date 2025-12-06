@@ -23,8 +23,8 @@ namespace CodeWalker.Rendering
         public DXManager DXMan { get { return dxman; } }
         private Device currentdevice;
         public Device Device { get { return currentdevice; } }
-        private object rendersyncroot = new object();
-        public object RenderSyncRoot { get { return rendersyncroot; } }
+        private Lock rendersyncroot = new();
+        public Lock RenderSyncRoot { get { return rendersyncroot; } }
 
         public ShaderManager shaders;
 
@@ -350,11 +350,11 @@ namespace CodeWalker.Rendering
 
         public void SetWeatherType(string name)
         {
-            if (!Monitor.TryEnter(rendersyncroot, 50))
+            if (!rendersyncroot.TryEnter(TimeSpan.FromMilliseconds(50)))
             { return; } //couldn't get a lock...
             weathertype = name;
             weather.SetNextWeather(weathertype);
-            Monitor.Exit(rendersyncroot);
+            rendersyncroot.Exit();
         }
 
         public void SetCameraMode(string modestr)
@@ -3706,8 +3706,7 @@ namespace CodeWalker.Rendering
             }
 
 
-            var extraTexDict = (drawable.Owner as YptFile)?.PtfxList?.TextureDictionary;
-            if (extraTexDict == null) extraTexDict = txdExtra;
+            var extraTexDict = (drawable.Owner as YptFile)?.PtfxList?.TextureDictionary ?? txdExtra;
 
             bool cacheSD = (rndbl.SDtxds == null);
             bool cacheHD = (renderhdtextures && (rndbl.HDtxds == null));

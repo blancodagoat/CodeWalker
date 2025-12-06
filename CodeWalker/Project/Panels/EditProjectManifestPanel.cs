@@ -78,8 +78,7 @@ namespace CodeWalker.Project.Panels
                 {
                     if (string.IsNullOrEmpty(ytypname))
                     {
-                        ytypname = ytyp.RpfFileEntry?.Name?.ToLowerInvariant();
-                        if (ytypname == null) ytypname = "";
+                        ytypname = ytyp.RpfFileEntry?.Name?.ToLowerInvariant() ?? "";
                     }
                     if (ytypname.EndsWith(".ytyp"))
                     {

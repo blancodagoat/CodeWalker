@@ -25,7 +25,7 @@ namespace CodeWalker
         public Form Form { get { return this; } } //for DXForm/DXManager use
 
         public Renderer Renderer = null;
-        public object RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
+        public Lock RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
 
         volatile bool formopen = false;
         volatile bool running = false;
@@ -69,7 +69,7 @@ namespace CodeWalker
         float gridSize = 1.0f;
         int gridCount = 40;
         List<VertexTypePC> gridVerts = new();
-        object gridSyncRoot = new object();
+        Lock gridSyncRoot = new();
 
 
 
@@ -217,7 +217,7 @@ namespace CodeWalker
 
             GameFileCache.BeginFrame();
 
-            if (!Monitor.TryEnter(Renderer.RenderSyncRoot, 50))
+            if (!Renderer.RenderSyncRoot.TryEnter(TimeSpan.FromMilliseconds(50)))
             { return; } //couldn't get a lock, try again next time
 
             UpdateControlInputs(elapsed);
@@ -264,7 +264,7 @@ namespace CodeWalker
 
             Renderer.EndRender();
 
-            Monitor.Exit(Renderer.RenderSyncRoot);
+            Renderer.RenderSyncRoot.Exit();
 
             //UpdateMarkerSelectionPanelInvoke();
         }

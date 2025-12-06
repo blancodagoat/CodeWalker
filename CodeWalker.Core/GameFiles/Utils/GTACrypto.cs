@@ -114,12 +114,15 @@ namespace CodeWalker.GameFiles
             var keyuints = new uint[key.Length / 4];
             Buffer.BlockCopy(key, 0, keyuints, 0, key.Length);
 
-            for (int blockIndex = 0; blockIndex < data.Length / 16; blockIndex++)
+            // Reuse a single buffer for block operations to avoid allocations in the loop
+            var encryptedBlock = new byte[16];
+            int blockCount = data.Length / 16;
+            for (int blockIndex = 0; blockIndex < blockCount; blockIndex++)
             {
-                var encryptedBlock = new byte[16];
-                Array.Copy(data, 16 * blockIndex, encryptedBlock, 0, 16);
+                int offset = 16 * blockIndex;
+                Array.Copy(data, offset, encryptedBlock, 0, 16);
                 var decryptedBlock = DecryptNGBlock(encryptedBlock, keyuints);
-                Array.Copy(decryptedBlock, 0, decryptedData, 16 * blockIndex, 16);
+                Array.Copy(decryptedBlock, 0, decryptedData, offset, 16);
             }
 
             if (data.Length % 16 != 0)
@@ -283,12 +286,15 @@ namespace CodeWalker.GameFiles
             var keyuints = new uint[key.Length / 4];
             Buffer.BlockCopy(key, 0, keyuints, 0, key.Length);
 
-            for (int blockIndex = 0; blockIndex < data.Length / 16; blockIndex++)
+            // Reuse a single buffer for block operations to avoid allocations in the loop
+            byte[] decryptedBlock = new byte[16];
+            int blockCount = data.Length / 16;
+            for (int blockIndex = 0; blockIndex < blockCount; blockIndex++)
             {
-                byte[] decryptedBlock = new byte[16];
-                Array.Copy(data, 16 * blockIndex, decryptedBlock, 0, 16);
+                int offset = 16 * blockIndex;
+                Array.Copy(data, offset, decryptedBlock, 0, 16);
                 byte[] encryptedBlock = EncryptBlock(decryptedBlock, keyuints);
-                Array.Copy(encryptedBlock, 0, encryptedData, 16 * blockIndex, 16);
+                Array.Copy(encryptedBlock, 0, encryptedData, offset, 16);
             }
 
             if (data.Length % 16 != 0)

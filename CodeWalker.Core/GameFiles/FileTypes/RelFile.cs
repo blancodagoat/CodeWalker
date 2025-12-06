@@ -2099,7 +2099,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            return string.Format("{0}: {1}, {2}, {3}, {4}, {5}, {6}, {7}", Flags.Hex, Flags2.Hex, Category, StartOffset, StartOffsetVariance, VolumeCurve, PreDelayVariable, StartOffsetVariable);
+            return $"{Flags.Hex}: {Flags2.Hex}, {Category}, {StartOffset}, {StartOffsetVariance}, {VolumeCurve}, {PreDelayVariable}, {StartOffsetVariable}";
         }
     }
 
@@ -18837,7 +18837,7 @@ namespace CodeWalker.GameFiles
         }
         public override string ToString()
         {
-            return string.Format("{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}", ListenerContribution, RearAttenuationFrontConeAngle, RearAttenuationRearConeAngle, CloseRearAttenuation, FarRearAttenuation, RollOff, RearAttenuationType, MicLength, MicToPlayerLocalEnvironmentRatio);
+            return $"{ListenerContribution}, {RearAttenuationFrontConeAngle}, {RearAttenuationRearConeAngle}, {CloseRearAttenuation}, {FarRearAttenuation}, {RollOff}, {RearAttenuationType}, {MicLength}, {MicToPlayerLocalEnvironmentRatio}";
         }
     }
 
@@ -23125,7 +23125,16 @@ namespace CodeWalker.GameFiles
                 return null;
             }
 
-            var inputs = parts[0].Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+            // Consolidated: split, trim, and filter in single pass
+            var inputParts = parts[0].Split(',');
+            var inputList = new List<string>(inputParts.Length);
+            foreach (var s in inputParts)
+            {
+                var trimmed = s.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                    inputList.Add(trimmed);
+            }
+            var inputs = inputList.ToArray();
 
             var stateBlockEnd = parts[1].LastIndexOf(']');
             var stateBlockStart = parts[1].IndexOf('[');
@@ -23146,8 +23155,17 @@ namespace CodeWalker.GameFiles
             var hasStateBlock = stateBlockStart != -1;
             var stateBlockStr = hasStateBlock ? parts[1].Substring(stateBlockStart + 1, stateBlockEnd - stateBlockStart - 1) : null;
 
-            var outputs = parts[1].Substring(0, hasStateBlock ? stateBlockStart : parts[1].Length)
-                                  .Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+            // Consolidated: split, trim, and filter in single pass
+            var outputStr = parts[1].Substring(0, hasStateBlock ? stateBlockStart : parts[1].Length);
+            var outputParts = outputStr.Split(',');
+            var outputList = new List<string>(outputParts.Length);
+            foreach (var s in outputParts)
+            {
+                var trimmed = s.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                    outputList.Add(trimmed);
+            }
+            var outputs = outputList.ToArray();
 
             var currInputIndex = 0;
             var currOutputIndex = 0;

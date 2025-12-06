@@ -276,7 +276,7 @@ namespace CodeWalker.Rendering
                     {
                         if (bone != null)
                         {
-                            if (ModelBoneLinks == null) ModelBoneLinks = new Dictionary<ushort, RenderableModel>();
+                            ModelBoneLinks ??= new Dictionary<ushort, RenderableModel>();
                             ModelBoneLinks[bone.Tag] = model;
                         }
                     }

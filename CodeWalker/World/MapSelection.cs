@@ -962,12 +962,12 @@ namespace CodeWalker
                     var collPoly = items[i].CollisionPoly;
                     if (collVert != null)
                     {
-                        if (collVerts == null) collVerts = new Dictionary<BoundVertex, int>();
+                        collVerts ??= new Dictionary<BoundVertex, int>();
                         collVerts[collVert] = collVert.Index;
                     }
                     else if (collPoly != null)
                     {
-                        if (collVerts == null) collVerts = new Dictionary<BoundVertex, int>();
+                        collVerts ??= new Dictionary<BoundVertex, int>();
                         collPoly.GatherVertices(collVerts);
                     }
                 }

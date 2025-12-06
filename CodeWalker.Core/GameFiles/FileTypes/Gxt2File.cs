@@ -69,7 +69,7 @@ namespace CodeWalker.GameFiles
         }
         public byte[] Save()
         {
-            if (TextEntries == null) TextEntries = new Gxt2Entry[0];
+            TextEntries ??= [];
             EntryCount = (uint)TextEntries.Length;
             uint offset = 16 + (EntryCount * 8);
             List<byte[]> datas = new();

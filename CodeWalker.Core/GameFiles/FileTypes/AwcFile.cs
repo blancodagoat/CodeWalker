@@ -1653,7 +1653,7 @@ namespace CodeWalker.GameFiles
                     //FormatChunk.Samples = (uint)sampleCount;
                     FormatChunk.SamplesPerSecond = (ushort)sampleRate;
 
-                    if (DataChunk == null) DataChunk = new AwcDataChunk(new AwcChunkInfo() { Type = AwcChunkType.data });
+                    DataChunk ??= new AwcDataChunk(new AwcChunkInfo() { Type = AwcChunkType.data });
 
                     DataChunk.Data = dataPCM;
                 }

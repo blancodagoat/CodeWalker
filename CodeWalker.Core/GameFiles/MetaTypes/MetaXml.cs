@@ -1791,9 +1791,8 @@ namespace CodeWalker.GameFiles
 
             foreach (var child in rs.Children)
             {
-                if (child is RbfBytes)
+                if (child is RbfBytes bytesChild)
                 {
-                    var bytesChild = (RbfBytes)child;
                     var contentField = rs.FindAttribute("content") as RbfString;//TODO: fix this to output nicer XML!
                     if (contentField != null)
                     {
@@ -1827,39 +1826,33 @@ namespace CodeWalker.GameFiles
                         sb.Append(str);
                     }
                 }
-                if (child is RbfFloat)
+                if (child is RbfFloat floatChild)
                 {
-                    var floatChild = (RbfFloat)child;
                     ValueTag(sb, cind, child.Name, FloatUtil.ToString(floatChild.Value));
                 }
-                if (child is RbfString)
+                if (child is RbfString stringChild)
                 {
                     ////// this doesn't seem to be used! it's always using RbfBytes child...
-
-                    var stringChild = (RbfString)child;
                     StringTag(sb, cind, stringChild.Name, stringChild.Value);
 
                     //if (stringChild.Name.Equals("content"))
                     //else if (stringChild.Name.Equals("type"))
                     //else throw new Exception("Unexpected string content");
                 }
-                if (child is RbfStructure)
+                if (child is RbfStructure rbfStruct)
                 {
-                    WriteNode(sb, cind, child as RbfStructure);
+                    WriteNode(sb, cind, rbfStruct);
                 }
-                if (child is RbfUint32)
+                if (child is RbfUint32 intChild)
                 {
-                    var intChild = (RbfUint32)child;
                     ValueTag(sb, cind, intChild.Name, UintString(intChild.Value));
                 }
-                if (child is RbfBoolean)
+                if (child is RbfBoolean booleanChild)
                 {
-                    var booleanChild = (RbfBoolean)child;
                     ValueTag(sb, cind, booleanChild.Name, booleanChild.Value.ToString());
                 }
-                if (child is RbfFloat3)
+                if (child is RbfFloat3 v3)
                 {
-                    var v3 = child as RbfFloat3;
                     SelfClosingTag(sb, cind, v3.Name + " x=\"" + FloatUtil.ToString(v3.X) + "\" y=\"" + FloatUtil.ToString(v3.Y) + "\" z=\"" + FloatUtil.ToString(v3.Z) + "\"");
                 }
 

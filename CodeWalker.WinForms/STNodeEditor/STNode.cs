@@ -715,7 +715,7 @@ namespace ST.Library.UI.NodeEditor
                 if (op.DataType == t)
                     pen.Color = this.Owner.UnknownTypeColor;
                 else
-                    brush.Color = this.Owner.TypeColor.ContainsKey(op.DataType) ? this.Owner.TypeColor[op.DataType] : this.Owner.UnknownTypeColor;
+                    brush.Color = this.Owner.TypeColor.TryGetValue(op.DataType, out Color typeColor) ? typeColor : this.Owner.UnknownTypeColor;
             }
             if (op.IsSingle) { //Single connection circle
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
@@ -819,15 +819,15 @@ namespace ST.Library.UI.NodeEditor
         /// </summary>
         /// <param name="dic">Save data</param>
         protected internal virtual void OnLoadNode(Dictionary<string, byte[]> dic) {
-            if (dic.ContainsKey("AutoSize")) this._AutoSize = dic["AutoSize"][0] == 1;
-            if (dic.ContainsKey("LockOption")) this._LockOption = dic["LockOption"][0] == 1;
-            if (dic.ContainsKey("LockLocation")) this._LockLocation = dic["LockLocation"][0] == 1;
-            if (dic.ContainsKey("Guid")) this._Guid = new Guid(dic["Guid"]);
-            if (dic.ContainsKey("Left")) this._Left = BitConverter.ToInt32(dic["Left"], 0);
-            if (dic.ContainsKey("Top")) this._Top = BitConverter.ToInt32(dic["Top"], 0);
-            if (dic.ContainsKey("Width") && !this._AutoSize) this._Width = BitConverter.ToInt32(dic["Width"], 0);
-            if (dic.ContainsKey("Height") && !this._AutoSize) this._Height = BitConverter.ToInt32(dic["Height"], 0);
-            if (dic.ContainsKey("Mark")) this.Mark = Encoding.UTF8.GetString(dic["Mark"]);
+            if (dic.TryGetValue("AutoSize", out byte[] autoSizeData)) this._AutoSize = autoSizeData[0] == 1;
+            if (dic.TryGetValue("LockOption", out byte[] lockOptionData)) this._LockOption = lockOptionData[0] == 1;
+            if (dic.TryGetValue("LockLocation", out byte[] lockLocationData)) this._LockLocation = lockLocationData[0] == 1;
+            if (dic.TryGetValue("Guid", out byte[] guidData)) this._Guid = new Guid(guidData);
+            if (dic.TryGetValue("Left", out byte[] leftData)) this._Left = BitConverter.ToInt32(leftData, 0);
+            if (dic.TryGetValue("Top", out byte[] topData)) this._Top = BitConverter.ToInt32(topData, 0);
+            if (dic.TryGetValue("Width", out byte[] widthData) && !this._AutoSize) this._Width = BitConverter.ToInt32(widthData, 0);
+            if (dic.TryGetValue("Height", out byte[] heightData) && !this._AutoSize) this._Height = BitConverter.ToInt32(heightData, 0);
+            if (dic.TryGetValue("Mark", out byte[] markData)) this.Mark = Encoding.UTF8.GetString(markData);
             Type t = this.GetType();
             foreach (var p in t.GetProperties()) {
                 var attrs = p.GetCustomAttributes(true);
@@ -841,7 +841,7 @@ namespace ST.Library.UI.NodeEditor
                     desc.Node = this;
                     desc.PropertyInfo = p;
                     try {
-                        if (dic.ContainsKey(p.Name)) desc.SetValue(dic[p.Name]);
+                        if (dic.TryGetValue(p.Name, out byte[] propData)) desc.SetValue(propData);
                     } catch (Exception ex) {
                         string strErr = "The value of attribute [" + this.Title + "." + p.Name + "] cannot be restored by overriding [STNodePropertyAttribute.GetBytesFromValue(), STNodePropertyAttribute.GetValueFromBytes(byte[])] to ensure preservation and The binary data is correct when loading";
                         Exception e = ex;
@@ -912,13 +912,13 @@ namespace ST.Library.UI.NodeEditor
                     m_ctrl_down = c;
                     if (m_ctrl_active != c) {
                         c.OnGotFocus(EventArgs.Empty);
-                        if (m_ctrl_active != null) m_ctrl_active.OnLostFocus(EventArgs.Empty);
+                        m_ctrl_active?.OnLostFocus(EventArgs.Empty);
                         m_ctrl_active = c;
                     }
                     return;
                 }
             }
-            if (m_ctrl_active != null) m_ctrl_active.OnLostFocus(EventArgs.Empty);
+            m_ctrl_active?.OnLostFocus(EventArgs.Empty);
             m_ctrl_active = null;
         }
 
@@ -935,14 +935,14 @@ namespace ST.Library.UI.NodeEditor
                 if (c.DisplayRectangle.Contains(pt)) {
                     if (m_ctrl_hover != this._Controls[i]) {
                         c.OnMouseEnter(EventArgs.Empty);
-                        if (m_ctrl_hover != null) m_ctrl_hover.OnMouseLeave(EventArgs.Empty);
+                        m_ctrl_hover?.OnMouseLeave(EventArgs.Empty);
                         m_ctrl_hover = c;
                     }
                     m_ctrl_hover.OnMouseMove(new MouseEventArgs(e.Button, e.Clicks, e.X - c.Left, pt.Y - c.Top, e.Delta));
                     return;
                 }
             }
-            if (m_ctrl_hover != null) m_ctrl_hover.OnMouseLeave(EventArgs.Empty);
+            m_ctrl_hover?.OnMouseLeave(EventArgs.Empty);
             m_ctrl_hover = null;
         }
 
@@ -1071,9 +1071,7 @@ namespace ST.Library.UI.NodeEditor
         /// <returns>Option array</returns>
         public STNodeOption[] GetInputOptions() {
             if (!this._LetGetOptions) return null;
-            STNodeOption[] ops = new STNodeOption[this._InputOptions.Count];
-            for (int i = 0; i < this._InputOptions.Count; i++) ops[i] = this._InputOptions[i];
-            return ops;
+            return this._InputOptions.ToArray();
         }
         /// <summary>
         /// Get the output Option set contained in this Node
@@ -1081,9 +1079,7 @@ namespace ST.Library.UI.NodeEditor
         /// <returns>Option array</returns>
         public STNodeOption[] GetOutputOptions() {
             if (!this._LetGetOptions) return null;
-            STNodeOption[] ops = new STNodeOption[this._OutputOptions.Count];
-            for (int i = 0; i < this._OutputOptions.Count; i++) ops[i] = this._OutputOptions[i];
-            return ops;
+            return this._OutputOptions.ToArray();
         }
         /// <summary>
         /// Set the selected state of Node

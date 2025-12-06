@@ -254,16 +254,14 @@ namespace CodeWalker.GameFiles
                 {
                     RpfEntry e = AllEntries[i];
                     e.Parent = item;
-                    if (e is RpfDirectoryEntry)
+                    if (e is RpfDirectoryEntry rde)
                     {
-                        RpfDirectoryEntry rde = e as RpfDirectoryEntry;
                         rde.Path = item.Path + "\\" + rde.NameLower;
                         item.Directories.Add(rde);
                         stack.Push(rde);
                     }
-                    else if (e is RpfFileEntry)
+                    else if (e is RpfFileEntry rfe)
                     {
-                        RpfFileEntry rfe = e as RpfFileEntry;
                         rfe.Path = item.Path + "\\" + rfe.NameLower;
                         item.Files.Add(rfe);
                     }
@@ -314,10 +312,8 @@ namespace CodeWalker.GameFiles
             {
                 try
                 {
-                    if (entry is RpfBinaryFileEntry)
+                    if (entry is RpfBinaryFileEntry binentry)
                     {
-                        RpfBinaryFileEntry binentry = entry as RpfBinaryFileEntry;
-
                         var lname = binentry.NameLower;
                         if (lname.EndsWith(".rpf") && IsValidPath(binentry.Path))
                         {
@@ -393,9 +389,8 @@ namespace CodeWalker.GameFiles
             //List<DataBlock> blocks = new List<DataBlock>();
             foreach (RpfEntry entry in AllEntries)
             {
-                if (entry is RpfBinaryFileEntry)
+                if (entry is RpfBinaryFileEntry binentry)
                 {
-                    RpfBinaryFileEntry binentry = entry as RpfBinaryFileEntry;
                     long l = binentry.GetFileSize();
 
                     //search all the sub resources for YSC files. (recurse!)
@@ -412,11 +407,8 @@ namespace CodeWalker.GameFiles
                     }
 
                 }
-                else if (entry is RpfResourceFileEntry)
+                else if (entry is RpfResourceFileEntry resentry)
                 {
-
-                    RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
-
                     string lname = resentry.NameLower;
 
                     if (lname.EndsWith(".ysc"))
@@ -707,13 +699,13 @@ namespace CodeWalker.GameFiles
             {
                 using (BinaryReader br = new BinaryReader(File.OpenRead(GetPhysicalFilePath())))
                 {
-                    if (entry is RpfBinaryFileEntry)
+                    if (entry is RpfBinaryFileEntry binEntry)
                     {
-                        return ExtractFileBinary(entry as RpfBinaryFileEntry, br);
+                        return ExtractFileBinary(binEntry, br);
                     }
-                    else if (entry is RpfResourceFileEntry)
+                    else if (entry is RpfResourceFileEntry resEntry)
                     {
-                        return ExtractFileResource(entry as RpfResourceFileEntry, br);
+                        return ExtractFileResource(resEntry, br);
                     }
                     else
                     {
@@ -886,10 +878,8 @@ namespace CodeWalker.GameFiles
 
             RpfResourceFileEntry resentry = CreateResourceFileEntry(ref data, ver);
 
-            if (file is GameFile)
+            if (file is GameFile gfile)
             {
-                GameFile gfile = file as GameFile;
-
                 var oldresentry = gfile.RpfFileEntry as RpfResourceFileEntry;
                 if (oldresentry != null) //update the existing entry with the new one
                 {
@@ -966,9 +956,8 @@ namespace CodeWalker.GameFiles
                             LastException = null;
                             if (!entry.NameLower.EndsWith(".rpf")) //don't try to extract rpf's, they will be done separately..
                             {
-                                if (entry is RpfBinaryFileEntry)
+                                if (entry is RpfBinaryFileEntry binentry)
                                 {
-                                    RpfBinaryFileEntry binentry = entry as RpfBinaryFileEntry;
                                     byte[] data = ExtractFileBinary(binentry, br);
                                     if (data == null)
                                     {
@@ -993,9 +982,8 @@ namespace CodeWalker.GameFiles
                                         ExtractedByteCount += data.Length;
                                     }
                                 }
-                                else if (entry is RpfResourceFileEntry)
+                                else if (entry is RpfResourceFileEntry resentry)
                                 {
-                                    RpfResourceFileEntry resentry = entry as RpfResourceFileEntry;
                                     byte[] data = ExtractFileResource(resentry, br);
                                     if (data == null)
                                     {

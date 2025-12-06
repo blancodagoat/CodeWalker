@@ -38,8 +38,8 @@ namespace CodeWalker
 
             var rootnodes = fdoc.GetSceneNodes();
 
-            var mlists = new List<List<FbxModel>>();
-            var mlistall = new List<FbxModel>();
+            List<List<FbxModel>> mlists = [];
+            List<FbxModel> mlistall = [];
 
             foreach (var node in rootnodes)
             {
@@ -54,12 +54,12 @@ namespace CodeWalker
                 }
             }
 
-            var mlHigh = new List<DrawableModel>();
-            var mlMed = new List<DrawableModel>();
-            var mlLow = new List<DrawableModel>();
-            var mlVlow = new List<DrawableModel>();
-            var mlUnks = new List<DrawableModel>();
-            var mlAll = new List<DrawableModel>();
+            List<DrawableModel> mlHigh = [];
+            List<DrawableModel> mlMed = [];
+            List<DrawableModel> mlLow = [];
+            List<DrawableModel> mlVlow = [];
+            List<DrawableModel> mlUnks = [];
+            List<DrawableModel> mlAll = [];
             foreach (var m in mlistall)
             {
                 var mnl = m.Name.ToLowerInvariant();
@@ -95,7 +95,7 @@ namespace CodeWalker
 
 
 
-            var allVerts = new List<Vector3>();
+            List<Vector3> allVerts = [];
             var bbMin = new Vector3(float.MaxValue);
             var bbMax = new Vector3(float.MinValue);
             var bsCen = Vector3.Zero;
@@ -131,8 +131,8 @@ namespace CodeWalker
 
 
             var sgrp = new ShaderGroup();
-            var slist = new List<ShaderFX>();
-            var smapp = new List<ushort>();
+            List<ShaderFX> slist = [];
+            List<ushort> smapp = [];
             foreach (var m in mlAll)
             {
                 if (m?.Geometries == null) continue;
@@ -203,7 +203,7 @@ namespace CodeWalker
 
         private List<FbxModel> TryConvertModels(FbxNode mnode)
         {
-            var result = new List<FbxModel>();
+            List<FbxModel> result = [];
 
             var nodemodel = TryConvertModel(mnode);
             if (nodemodel != null)
@@ -230,7 +230,7 @@ namespace CodeWalker
         {
 
             FbxNode geonode = null;
-            var matnodes = new List<FbxNode>();
+            List<FbxNode> matnodes = [];
             foreach (var cnode in mnode.Connections)
             {
                 if (cnode == null) continue;
@@ -256,12 +256,12 @@ namespace CodeWalker
             if ((fnVerts == null) || (fnIndices == null))
             { return null; } //no mesh data.. abort!
 
-            var fnNormals = new List<FbxNode>();
-            var fnBinormals = new List<FbxNode>();
-            var fnTangents = new List<FbxNode>();
-            var fnTexcoords = new List<FbxNode>();
-            var fnColours = new List<FbxNode>();
-            var fnMaterials = new List<FbxNode>();
+            List<FbxNode> fnNormals = [];
+            List<FbxNode> fnBinormals = [];
+            List<FbxNode> fnTangents = [];
+            List<FbxNode> fnTexcoords = [];
+            List<FbxNode> fnColours = [];
+            List<FbxNode> fnMaterials = [];
 
             foreach (var cnode in geonode.Nodes)
             {
@@ -286,8 +286,8 @@ namespace CodeWalker
             var nColours = fnColours.Count;
             var nMaterials = fnMaterials.Count;
 
-            var fPolys = new List<FbxPolygon>();
-            var fPolyVerts = new List<FbxVertex>();
+            List<FbxPolygon> fPolys = [];
+            List<FbxVertex> fPolyVerts = [];
             var fPolysByMat = new List<FbxPolygon>[matnodes.Count];
 
             foreach (var fnIndex in fnIndices) //build the polygons.
@@ -448,7 +448,7 @@ namespace CodeWalker
                     var matPolys = fPolysByMat[iMat];
                     if (matPolys == null)
                     {
-                        matPolys = new List<FbxPolygon>();
+                        matPolys = [];
                         fPolysByMat[iMat] = matPolys;
                     }
                     matPolys.Add(fPoly);
@@ -460,8 +460,8 @@ namespace CodeWalker
 
             var dModel = new DrawableModel();
             
-            var dGeoms = new List<DrawableGeometry>();
-            var dGeomAABBs = new List<AABB_s>();
+            List<DrawableGeometry> dGeoms = [];
+            List<AABB_s> dGeomAABBs = [];
             var dModelAABB = new AABB_s();
             for (int i = 0; i < fPolysByMat.Length; i++)
             {
@@ -475,7 +475,7 @@ namespace CodeWalker
             }
             if (dGeomAABBs.Count > 1)//need to include whole model AABB first, if more than one geometry..
             {
-                var dGeomAABBs2 = new List<AABB_s>();
+                List<AABB_s> dGeomAABBs2 = [];
                 dModelAABB.Min = new Vector4(float.MaxValue);
                 dModelAABB.Max = new Vector4(float.MinValue);
                 foreach (var aabb in dGeomAABBs)
@@ -522,8 +522,8 @@ namespace CodeWalker
             var dVertDecl = GetVertexDeclaration(dShader);
 
             var vDict = new Dictionary<FbxVertex, ushort>();
-            var vList = new List<FbxVertex>();
-            var iList = new List<ushort>();
+            List<FbxVertex> vList = [];
+            List<ushort> iList = [];
 
             foreach (var fPoly in fPolys)
             {
@@ -634,8 +634,8 @@ namespace CodeWalker
             var shader = new ShaderFX();
 
             var spsName = "default";
-            var texConns = new List<FbxNode>();
-            var texNames = new List<string>();
+            List<FbxNode> texConns = [];
+            List<string> texNames = [];
 
             #region 3dsmax/GIMS properties
             //var floatValueNames = new List<string>();
@@ -690,8 +690,8 @@ namespace CodeWalker
 
             shader.ParametersList = new ShaderParametersBlock();
             var paramsBlock = shader.ParametersList;
-            var pNames = new List<ShaderParamNames>();
-            var pVals = new List<ShaderParameter>();
+            List<ShaderParamNames> pNames = [];
+            List<ShaderParameter> pVals = [];
 
 
             shader.Unknown_Ch = 0;

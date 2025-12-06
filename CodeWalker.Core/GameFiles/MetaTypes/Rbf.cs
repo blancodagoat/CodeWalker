@@ -363,7 +363,7 @@ namespace CodeWalker.GameFiles
             writer.Write(Y);
             writer.Write(Z);
         }
-        public override string ToString() { return string.Format("{0}: X:{1}, Y:{2}, Z:{3}", Name, X, Y, Z); }
+        public override string ToString() { return $"{Name}: X:{X}, Y:{Y}, Z:{Z}"; }
     }
     [TypeConverter(typeof(ExpandableObjectConverter))] public class RbfString : IRbfType
     {

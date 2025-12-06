@@ -316,9 +316,7 @@ namespace ST.Library.UI.NodeEditor
         /// <param name="strText">Corresponding display text</param>
         /// <returns>Old text</returns>
         public string SetConnectionStatusText(ConnectionStatus status, string strText) {
-            string strOld = null;
-            if (m_dic_status_key.ContainsKey(status)) {
-                strOld = m_dic_status_key[status];
+            if (m_dic_status_key.TryGetValue(status, out string strOld)) {
                 m_dic_status_key[status] = strText;
                 return strOld;
             }

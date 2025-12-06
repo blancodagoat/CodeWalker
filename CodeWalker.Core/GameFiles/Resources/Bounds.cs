@@ -3363,7 +3363,7 @@ namespace CodeWalker.GameFiles
 
         public void AddChild(Bounds child)
         {
-            if (Children == null) Children = new ResourcePointerArray64<Bounds>();
+            Children ??= new ResourcePointerArray64<Bounds>();
 
             var children = Children.data_items?.ToList() ?? new List<Bounds>();
             var transforms1 = ChildrenTransformation1?.ToList() ?? new List<Matrix4F_s>();
@@ -3712,16 +3712,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            var s = string.Format("{0} m=\"{1}\" v1=\"{2}\" v2=\"{3}\" v3=\"{4}\" f1=\"{5}\" f2=\"{6}\" f3=\"{7}\"", 
-                Type,
-                MaterialIndex,
-                vertIndex1, 
-                vertIndex2, 
-                vertIndex3,
-                vertFlag1 ? 1 : 0,
-                vertFlag2 ? 1 : 0,
-                vertFlag3 ? 1 : 0
-                );
+            var s = $"{Type} m=\"{MaterialIndex}\" v1=\"{vertIndex1}\" v2=\"{vertIndex2}\" v3=\"{vertIndex3}\" f1=\"{(vertFlag1 ? 1 : 0)}\" f2=\"{(vertFlag2 ? 1 : 0)}\" f3=\"{(vertFlag3 ? 1 : 0)}\"";
             YbnXml.SelfClosingTag(sb, indent, s);
         }
         public override void ReadXml(XmlNode node)
@@ -3836,12 +3827,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            var s = string.Format("{0} m=\"{1}\" v=\"{2}\" radius=\"{3}\"",
-                Type,
-                MaterialIndex,
-                sphereIndex,
-                FloatUtil.ToString(sphereRadius)
-                );
+            var s = $"{Type} m=\"{MaterialIndex}\" v=\"{sphereIndex}\" radius=\"{FloatUtil.ToString(sphereRadius)}\"";
             YbnXml.SelfClosingTag(sb, indent, s);
         }
         public override void ReadXml(XmlNode node)
@@ -4006,13 +3992,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            var s = string.Format("{0} m=\"{1}\" v1=\"{2}\" v2=\"{3}\" radius=\"{4}\"",
-                Type,
-                MaterialIndex,
-                capsuleIndex1,
-                capsuleIndex2,
-                FloatUtil.ToString(capsuleRadius)
-                );
+            var s = $"{Type} m=\"{MaterialIndex}\" v1=\"{capsuleIndex1}\" v2=\"{capsuleIndex2}\" radius=\"{FloatUtil.ToString(capsuleRadius)}\"";
             YbnXml.SelfClosingTag(sb, indent, s);
         }
         public override void ReadXml(XmlNode node)
@@ -4207,14 +4187,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            var s = string.Format("{0} m=\"{1}\" v1=\"{2}\" v2=\"{3}\" v3=\"{4}\" v4=\"{5}\"",
-                Type,
-                MaterialIndex,
-                boxIndex1,
-                boxIndex2,
-                boxIndex3,
-                boxIndex4
-                );
+            var s = $"{Type} m=\"{MaterialIndex}\" v1=\"{boxIndex1}\" v2=\"{boxIndex2}\" v3=\"{boxIndex3}\" v4=\"{boxIndex4}\"";
             YbnXml.SelfClosingTag(sb, indent, s);
         }
         public override void ReadXml(XmlNode node)
@@ -4381,13 +4354,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            var s = string.Format("{0} m=\"{1}\" v1=\"{2}\" v2=\"{3}\" radius=\"{4}\"",
-                Type,
-                MaterialIndex,
-                cylinderIndex1,
-                cylinderIndex2,
-                FloatUtil.ToString(cylinderRadius)
-                );
+            var s = $"{Type} m=\"{MaterialIndex}\" v1=\"{cylinderIndex1}\" v2=\"{cylinderIndex2}\" radius=\"{FloatUtil.ToString(cylinderRadius)}\"";
             YbnXml.SelfClosingTag(sb, indent, s);
         }
         public override void ReadXml(XmlNode node)

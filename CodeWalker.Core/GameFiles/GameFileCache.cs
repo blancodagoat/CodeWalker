@@ -475,7 +475,8 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            DlcSetupFiles = DlcSetupFiles.OrderBy(s => s.order).ToList();
+            // Loop alternative: sort in-place instead of creating new list
+            DlcSetupFiles.Sort((a, b) => a.order.CompareTo(b.order));
             DlcNameList.Clear();
 
             foreach (var sfile in DlcSetupFiles)
@@ -759,22 +760,12 @@ namespace CodeWalker.GameFiles
             {
                 foreach (string overlayPath in overlayList)
                 {
-                    if (ActiveMapRpfFiles.ContainsKey(overlayPath))
-                    {
-                        ActiveMapRpfFiles.Remove(overlayPath);
-                    }
-                    else
-                    { }
+                    ActiveMapRpfFiles.Remove(overlayPath);
                 }
                 overlays.Remove(vpath);
             }
 
-            if (ActiveMapRpfFiles.ContainsKey(vpath))
-            {
-                ActiveMapRpfFiles.Remove(vpath);
-            }
-            else
-            { } //nothing to remove?
+            ActiveMapRpfFiles.Remove(vpath);
         }
         private string GetDlcRpfPhysicalPath(string path, DlcSetupFile setupfile)
         {
@@ -1336,10 +1327,7 @@ namespace CodeWalker.GameFiles
                 {
                     uint chash = JenkHash.GenHash(kvp.Key.ToLowerInvariant());
                     uint phash = JenkHash.GenHash(kvp.Value.ToLowerInvariant());
-                    if (!parentTxds.ContainsKey(chash))
-                    {
-                        parentTxds.Add(chash, phash);
-                    }
+                    parentTxds.TryAdd(chash, phash);
                 }
             });
 
@@ -1505,14 +1493,7 @@ namespace CodeWalker.GameFiles
                     {
                         UpdateStatus(entry.Path);
                         
-                        if (YtypDict.ContainsKey(ytypfile.NameHash))
-                        {
-                            YtypDict[ytypfile.NameHash] = ytypfile;
-                        }
-                        else
-                        {
-                            YtypDict.Add(ytypfile.NameHash, ytypfile);
-                        }
+                        YtypDict[ytypfile.NameHash] = ytypfile;
 
                         if (ytypfile.AllArchetypes?.Length > 0)
                         {
@@ -1558,14 +1539,7 @@ namespace CodeWalker.GameFiles
             {
                 throw new Exception("ytyp file was not in meta format.");
             }
-            if (YtypDict.ContainsKey(ytypfile.NameHash))
-            {
-                YtypDict[ytypfile.NameHash] = ytypfile; //override ytyp and continue anyway, could be unique archetypes in here still...
-            }
-            else
-            {
-                YtypDict.Add(ytypfile.NameHash, ytypfile);
-            }
+            YtypDict[ytypfile.NameHash] = ytypfile; //override ytyp and continue anyway, could be unique archetypes in here still...
 
             if ((ytypfile.AllArchetypes == null) || (ytypfile.AllArchetypes.Length == 0))
             {
@@ -1577,10 +1551,6 @@ namespace CodeWalker.GameFiles
                 {
                     uint hash = arch.Hash;
                     if (hash == 0) continue;
-                    if (archetypeDict.ContainsKey(hash))
-                    {
-                        var oldval = archetypeDict[hash]; //replace old archetype?
-                    }
                     archetypeDict[hash] = arch;
                 }
             }
@@ -1988,13 +1958,9 @@ namespace CodeWalker.GameFiles
                 if (rpffile.AllEntries == null) return;
                 foreach (var entry in rpffile.AllEntries)
                 {
-                    if (entry is RpfFileEntry)
+                    if (entry is RpfFileEntry fentry && entry.NameLower.EndsWith(".rel"))
                     {
-                        RpfFileEntry fentry = entry as RpfFileEntry;
-                        if (entry.NameLower.EndsWith(".rel"))
-                        {
-                            datrelentries[entry.NameHash] = fentry;
-                        }
+                        datrelentries[entry.NameHash] = fentry;
                     }
                 }
             }
@@ -3225,9 +3191,9 @@ namespace CodeWalker.GameFiles
                             uint un;
                             if (uint.TryParse(sn, out un))
                             {
-                                if (allids.ContainsKey(un))
+                                if (allids.TryGetValue(un, out int count))
                                 {
-                                    allids[un] = allids[un] + 1;
+                                    allids[un] = count + 1;
                                 }
                                 else
                                 {
@@ -3252,7 +3218,8 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            var skeys = allids.Keys.ToList();
+            // Loop alternative: create list directly from keys and sort
+            var skeys = new List<uint>(allids.Keys);
             skeys.Sort();
 
             List<string> hkeys = [];
@@ -5154,9 +5121,8 @@ namespace CodeWalker.GameFiles
                             drawablecount++;
                             foreach (var kvp in ydr.Drawable.VertexDecls)
                             {
-                                if (!vdecls.ContainsKey(kvp.Key))
+                                if (vdecls.TryAdd(kvp.Key, kvp.Value))
                                 {
-                                    vdecls.Add(kvp.Key, kvp.Value);
                                     vdecluse.Add(kvp.Key, 1);
                                 }
                                 else
@@ -5185,9 +5151,8 @@ namespace CodeWalker.GameFiles
                                 drawablecount++;
                                 foreach (var kvp in drawable.VertexDecls)
                                 {
-                                    if (!vdecls.ContainsKey(kvp.Key))
+                                    if (vdecls.TryAdd(kvp.Key, kvp.Value))
                                     {
-                                        vdecls.Add(kvp.Key, kvp.Value);
                                         vdecluse.Add(kvp.Key, 1);
                                     }
                                     else
@@ -5217,9 +5182,8 @@ namespace CodeWalker.GameFiles
                                 drawablecount++;
                                 foreach (var kvp in yft.Fragment.Drawable.VertexDecls)
                                 {
-                                    if (!vdecls.ContainsKey(kvp.Key))
+                                    if (vdecls.TryAdd(kvp.Key, kvp.Value))
                                     {
-                                        vdecls.Add(kvp.Key, kvp.Value);
                                         vdecluse.Add(kvp.Key, 1);
                                     }
                                     else
@@ -5235,9 +5199,8 @@ namespace CodeWalker.GameFiles
                                     drawablecount++;
                                     foreach (var kvp in cloth.Drawable.VertexDecls)
                                     {
-                                        if (!vdecls.ContainsKey(kvp.Key))
+                                        if (vdecls.TryAdd(kvp.Key, kvp.Value))
                                         {
-                                            vdecls.Add(kvp.Key, kvp.Value);
                                             vdecluse.Add(kvp.Key, 1);
                                         }
                                         else
@@ -5254,9 +5217,8 @@ namespace CodeWalker.GameFiles
                                     drawablecount++;
                                     foreach (var kvp in drawable.VertexDecls)
                                     {
-                                        if (!vdecls.ContainsKey(kvp.Key))
+                                        if (vdecls.TryAdd(kvp.Key, kvp.Value))
                                         {
-                                            vdecls.Add(kvp.Key, kvp.Value);
                                             vdecluse.Add(kvp.Key, 1);
                                         }
                                         else
@@ -5550,8 +5512,9 @@ namespace CodeWalker.GameFiles
 
 
 
-            var shaders = data.Values.ToList();
-            shaders.Sort((a, b) => { return b.GeomCount.CompareTo(a.GeomCount); });
+            // Loop alternative: create list directly from values and sort
+            var shaders = new List<ShaderXmlDataCollection>(data.Values);
+            shaders.Sort((a, b) => b.GeomCount.CompareTo(a.GeomCount));
 
 
             StringBuilder sb = new();
@@ -5575,24 +5538,23 @@ namespace CodeWalker.GameFiles
                 }
                 MetaXml.CloseTag(sb, 2, "Layout");
                 MetaXml.OpenTag(sb, 2, "Parameters");
-                var otstr = "Item name=\"{0}\" type=\"{1}\"";
                 var texparams = s.GetSortedList(s.TexParams);
                 var valparams = s.ValParams;
                 var arrparams = s.ArrParams;
                 foreach (var tp in texparams)
                 {
-                    MetaXml.SelfClosingTag(sb, 3, string.Format(otstr, ((ShaderParamNames)tp).ToString(), "Texture"));
+                    MetaXml.SelfClosingTag(sb, 3, $"Item name=\"{(ShaderParamNames)tp}\" type=\"Texture\"");
                 }
                 foreach (var vp in valparams)
                 {
                     var svp = s.GetSortedList(vp.Value);
                     var defval = svp.FirstOrDefault();
-                    MetaXml.SelfClosingTag(sb, 3, string.Format(otstr, ((ShaderParamNames)vp.Key).ToString(), "Vector") + " " + FloatUtil.GetVector4XmlString(defval));
+                    MetaXml.SelfClosingTag(sb, 3, $"Item name=\"{(ShaderParamNames)vp.Key}\" type=\"Vector\" " + FloatUtil.GetVector4XmlString(defval));
                 }
                 foreach (var ap in arrparams)
                 {
                     var defval = ap.Value.FirstOrDefault();
-                    MetaXml.OpenTag(sb, 3, string.Format(otstr, ((ShaderParamNames)ap.Key).ToString(), "Array"));
+                    MetaXml.OpenTag(sb, 3, $"Item name=\"{(ShaderParamNames)ap.Key}\" type=\"Array\"");
                     foreach (var vec in defval)
                     {
                         MetaXml.SelfClosingTag(sb, 4, "Value " + FloatUtil.GetVector4XmlString(vec));
@@ -5652,7 +5614,8 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            var shadernames = dict.Keys.ToList();
+            // Loop alternative: create list directly from keys and sort
+            var shadernames = new List<string>(dict.Keys);
             shadernames.Sort();
 
             var sb = new StringBuilder();
@@ -5667,10 +5630,9 @@ namespace CodeWalker.GameFiles
                 dict.TryGetValue(shadername, out var pdict);
                 if (pdict != null)
                 {
-                    var otstr = "Item name=\"{0}\" gen9=\"{1}\"";
                     foreach (var kvp in pdict)
                     {
-                        MetaXml.SelfClosingTag(sb, 3, string.Format(otstr, kvp.Key, kvp.Value));
+                        MetaXml.SelfClosingTag(sb, 3, $"Item name=\"{kvp.Key}\" gen9=\"{kvp.Value}\"");
                     }
                 }
                 MetaXml.CloseTag(sb, 2, "Parameters");
@@ -6133,9 +6095,9 @@ namespace CodeWalker.GameFiles
             }
             public void AddItem<T>(T t, Dictionary<T, int> d)
             {
-                if (d.ContainsKey(t))
+                if (d.TryGetValue(t, out int count))
                 {
-                    d[t]++;
+                    d[t] = count + 1;
                 }
                 else
                 {
@@ -6154,9 +6116,15 @@ namespace CodeWalker.GameFiles
             }
             public List<T> GetSortedList<T>(Dictionary<T, int> d)
             {
-                var kvps = d.ToList();
-                kvps.Sort((a, b) => { return b.Value.CompareTo(a.Value); });
-                return kvps.Select((a) => { return a.Key; }).ToList();
+                // Consolidated: sort in-place and extract keys in single pass
+                var result = new List<T>(d.Count);
+                var kvps = new List<KeyValuePair<T, int>>(d);
+                kvps.Sort((a, b) => b.Value.CompareTo(a.Value));
+                foreach (var kvp in kvps)
+                {
+                    result.Add(kvp.Key);
+                }
+                return result;
             }
         }
         private struct ShaderXmlVertexLayout

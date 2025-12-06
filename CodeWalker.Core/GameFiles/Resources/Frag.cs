@@ -1261,7 +1261,7 @@ namespace CodeWalker.GameFiles
             writer.Write(this.UnkFloat14);
             writer.Write(this.UnkFloat15);
             writer.Write(this.UnkFloat16);
-            if (VertexDeclaration == null) VertexDeclaration = CreateVertexDeclaration();
+            VertexDeclaration ??= CreateVertexDeclaration();
             if (writer.IsGen9)
             {
                 if (VertexDeclarationG9 == null)
@@ -2770,7 +2770,7 @@ namespace CodeWalker.GameFiles
 
             if (grpnames.Count > 0)
             {
-                if (GroupNames == null) GroupNames = new FragPhysGroupNamesBlock();
+                GroupNames ??= new FragPhysGroupNamesBlock();
                 GroupNames.data_items = grpnames.ToArray();
                 GroupNames.Groups = Groups?.data_items;
             }

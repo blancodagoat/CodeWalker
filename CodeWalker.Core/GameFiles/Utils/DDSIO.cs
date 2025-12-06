@@ -421,10 +421,10 @@ namespace CodeWalker.Utils
                     case DXGI_FORMAT.DXGI_FORMAT_IA44:
                     case DXGI_FORMAT.DXGI_FORMAT_P8:
                     case DXGI_FORMAT.DXGI_FORMAT_A8P8:
-                        throw new NotSupportedException(string.Format("{0} DXGI format is not supported", format.ToString()));
+                        throw new NotSupportedException($"{format} DXGI format is not supported");
                     default:
                         if (DXTex.BitsPerPixel(format) == 0)
-                            throw new NotSupportedException(string.Format("{0} DXGI format is not supported", format.ToString()));
+                            throw new NotSupportedException($"{format} DXGI format is not supported");
                         break;
                 }
                 switch (resDim)
@@ -465,7 +465,7 @@ namespace CodeWalker.Utils
                     resDim = TEX_DIMENSION.TEX_DIMENSION_TEXTURE2D;
                     // Note there's no way for a legacy Direct3D 9 DDS to express a '1D' texture
                 }
-                if (DXTex.BitsPerPixel(format) == 0) throw new Exception(string.Format("{0} DXGI format is not supported", format.ToString()));
+                if (DXTex.BitsPerPixel(format) == 0) throw new Exception($"{format} DXGI format is not supported");
             }
 
             if (isCubeMap)

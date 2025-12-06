@@ -24,7 +24,7 @@ namespace CodeWalker
         public Form Form { get { return this; } } //for DXForm/DXManager use
 
         public Renderer Renderer = null;
-        public object RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
+        public Lock RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
 
         volatile bool formopen = false;
         volatile bool running = false;
@@ -69,7 +69,7 @@ namespace CodeWalker
 
         WorldControlMode ControlMode = WorldControlMode.Free;
 
-        object MouseControlSyncRoot = new object();
+        Lock MouseControlSyncRoot = new();
         int MouseControlX = 0;
         int MouseControlY = 0;
         int MouseControlWheel = 0;
@@ -102,8 +102,8 @@ namespace CodeWalker
         List<MapMarker> SortedMarkers = new();
         List<MapMarker> MarkerBatch = new();
         bool RenderLocator = false;
-        object markersyncroot = new object();
-        object markersortedsyncroot = new object();
+        Lock markersyncroot = new();
+        Lock markersortedsyncroot = new();
 
 
 
@@ -405,7 +405,7 @@ namespace CodeWalker
 
             GameFileCache.BeginFrame();
 
-            if (!Monitor.TryEnter(Renderer.RenderSyncRoot, 50))
+            if (!Renderer.RenderSyncRoot.TryEnter(TimeSpan.FromMilliseconds(50)))
             { return; } //couldn't get a lock, try again next time
             
             // cache frequently accessed properties
@@ -470,7 +470,7 @@ namespace CodeWalker
 
             Renderer.EndRender();
 
-            Monitor.Exit(Renderer.RenderSyncRoot);
+            Renderer.RenderSyncRoot.Exit();
 
             UpdateMarkerSelectionPanelInvoke();
         }
@@ -1256,8 +1256,7 @@ namespace CodeWalker
             }
             if (CurMouseHit.ScenarioNode != null)
             {
-                var sp = CurMouseHit.ScenarioNode.MyPoint;
-                if (sp == null) sp = CurMouseHit.ScenarioNode.ClusterMyPoint;
+                var sp = CurMouseHit.ScenarioNode.MyPoint ?? CurMouseHit.ScenarioNode.ClusterMyPoint;
                 if (sp != null) //orientate the moused box for the correct scenario point direction...
                 {
                     ori = sp.Orientation;
@@ -4511,16 +4510,24 @@ namespace CodeWalker
             Cursor = Cursors.WaitCursor;
             Task.Run(() =>
             {
-                lock (Renderer.RenderSyncRoot)
+                try
                 {
-                    if (gameFileCache.SetDlcLevel(dlc, enable))
+                    lock (Renderer.RenderSyncRoot)
                     {
-                        LoadWorld();
+                        if (gameFileCache.SetDlcLevel(dlc, enable))
+                        {
+                            LoadWorld();
+                        }
                     }
+                    Invoke(new Action(()=> {
+                        Cursor = Cursors.Default;
+                    }));
                 }
-                Invoke(new Action(()=> {
-                    Cursor = Cursors.Default;
-                }));
+                catch (Exception ex)
+                {
+                    try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting DLC level: {ex.Message}"); })); }
+                    catch { }
+                }
             });
         }
 
@@ -4530,18 +4537,26 @@ namespace CodeWalker
             Cursor = Cursors.WaitCursor;
             Task.Run(() =>
             {
-                lock (Renderer.RenderSyncRoot)
+                try
                 {
-                    if (gameFileCache.SetModsEnabled(enable))
+                    lock (Renderer.RenderSyncRoot)
                     {
-                        UpdateDlcListComboBox(gameFileCache.DlcNameList);
+                        if (gameFileCache.SetModsEnabled(enable))
+                        {
+                            UpdateDlcListComboBox(gameFileCache.DlcNameList);
 
-                        LoadWorld();
+                            LoadWorld();
+                        }
                     }
+                    Invoke(new Action(() => {
+                        Cursor = Cursors.Default;
+                    }));
                 }
-                Invoke(new Action(() => {
-                    Cursor = Cursors.Default;
-                }));
+                catch (Exception ex)
+                {
+                    try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting mods enabled: {ex.Message}"); })); }
+                    catch { }
+                }
             });
         }
 
@@ -4840,7 +4855,7 @@ namespace CodeWalker
         {
             if (!MouseSelectEnabled) return null;
             
-            if (!Monitor.TryEnter(markersortedsyncroot, 1)) // dont wait long for lock
+            if (!markersortedsyncroot.TryEnter(TimeSpan.FromMilliseconds(1))) // dont wait long for lock
                 return null;
             
             try
@@ -4873,7 +4888,7 @@ namespace CodeWalker
             }
             finally
             {
-                Monitor.Exit(markersortedsyncroot);
+                markersortedsyncroot.Exit();
             }
             
             return null;

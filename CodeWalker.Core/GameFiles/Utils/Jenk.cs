@@ -168,7 +168,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            return string.Format("{0} -> {1}   ({2:0.##})", Hash, Value, Score);
+            return $"{Hash} -> {Value}   ({Score:0.##})";
         }
     }
 
@@ -186,7 +186,7 @@ namespace CodeWalker.GameFiles
         }
         public override string ToString()
         {
-            return string.Format("{0} : {1} at line {2}", Filename, Excuse, Line);
+            return $"{Filename} : {Excuse} at line {Line}";
         }
     }
 

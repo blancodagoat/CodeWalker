@@ -371,7 +371,7 @@ namespace CodeWalker.Rendering
                                 fogtex = itex;
                                 break;
                             default:
-                                if (texture == null) texture = itex;
+                                texture ??= itex;
                                 break;
                         }
                     }

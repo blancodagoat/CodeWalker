@@ -103,7 +103,7 @@ namespace CodeWalker.World
         public void BuildVertices()
         {
 
-            var vlist = new List<EditorVertex>();
+            List<EditorVertex> vlist = [];
             var v1 = new EditorVertex();
             var v2 = new EditorVertex();
             var v3 = new EditorVertex();
@@ -161,7 +161,7 @@ namespace CodeWalker.World
     {
         public string NameLabel { get; set; }
         public string Name { get; set; } //lookup from gxt2 with label..?
-        public List<PopZoneBox> Boxes { get; set; } = new List<PopZoneBox>();
+        public List<PopZoneBox> Boxes { get; set; } = [];
 
         public override string ToString()
         {

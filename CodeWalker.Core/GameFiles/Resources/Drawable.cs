@@ -5866,7 +5866,7 @@ namespace CodeWalker.GameFiles
         public void WriteXml(StringBuilder sb, int indent)
         {
             YdrXml.SelfClosingTag(sb, indent, "Position " + FloatUtil.GetVector3XmlString(Position));
-            YdrXml.SelfClosingTag(sb, indent, string.Format("Colour r=\"{0}\" g=\"{1}\" b=\"{2}\"", ColorR, ColorG, ColorB));
+            YdrXml.SelfClosingTag(sb, indent, $"Colour r=\"{ColorR}\" g=\"{ColorG}\" b=\"{ColorB}\"");
             YdrXml.ValueTag(sb, indent, "Flashiness", Flashiness.ToString());
             YdrXml.ValueTag(sb, indent, "Intensity", FloatUtil.ToString(Intensity));
             YdrXml.ValueTag(sb, indent, "Flags", Flags.ToString());
@@ -5882,7 +5882,7 @@ namespace CodeWalker.GameFiles
             YdrXml.ValueTag(sb, indent, "Unknown46", Unknown_46h.ToString());
             YdrXml.ValueTag(sb, indent, "VolumeIntensity", FloatUtil.ToString(VolumeIntensity));
             YdrXml.ValueTag(sb, indent, "VolumeSizeScale", FloatUtil.ToString(VolumeSizeScale));
-            YdrXml.SelfClosingTag(sb, indent, string.Format("VolumeOuterColour r=\"{0}\" g=\"{1}\" b=\"{2}\"", VolumeOuterColorR, VolumeOuterColorG, VolumeOuterColorB));
+            YdrXml.SelfClosingTag(sb, indent, $"VolumeOuterColour r=\"{VolumeOuterColorR}\" g=\"{VolumeOuterColorG}\" b=\"{VolumeOuterColorB}\"");
             YdrXml.ValueTag(sb, indent, "LightHash", LightHash.ToString());
             YdrXml.ValueTag(sb, indent, "VolumeOuterIntensity", FloatUtil.ToString(VolumeOuterIntensity));
             YdrXml.ValueTag(sb, indent, "CoronaSize", FloatUtil.ToString(CoronaSize));

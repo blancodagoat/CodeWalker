@@ -1228,7 +1228,7 @@ namespace CodeWalker.GameFiles
         }
         public override void Write(DataWriter w1, DataWriter w2)
         {
-            if (SpringDescription == null) SpringDescription = new ExpressionSpringDescription();
+            SpringDescription ??= new ExpressionSpringDescription();
             SpringDescription.Write(w1);
             w1.Write(BoneTrackRot);
             w1.Write(BoneTrackPos);
@@ -1237,7 +1237,7 @@ namespace CodeWalker.GameFiles
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
-            if (SpringDescription == null) SpringDescription = new ExpressionSpringDescription();
+            SpringDescription ??= new ExpressionSpringDescription();
             SpringDescription.WriteXml(sb, indent);
             YedXml.ValueTag(sb, indent, "BoneTrackRot", BoneTrackRot.ToString());
             YedXml.ValueTag(sb, indent, "BoneTrackPos", BoneTrackPos.ToString());
@@ -1359,7 +1359,7 @@ namespace CodeWalker.GameFiles
         }
         public override void Write(ResourceDataWriter writer, params object[] parameters)
         {
-            if (Spring == null) Spring = new ExpressionSpringDescription();
+            Spring ??= new ExpressionSpringDescription();
             Spring.Write(writer);
         }
 

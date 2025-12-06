@@ -1230,7 +1230,7 @@ namespace CodeWalker.GameFiles
 
         public void AddVariable(FxcVariable vari)
         {
-            if (VariablesList == null) VariablesList = new List<FxcVariable>();
+            VariablesList ??= [];
             VariablesList.Add(vari);
         }
         public void ConsolidateVariables()

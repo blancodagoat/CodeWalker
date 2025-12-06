@@ -2959,7 +2959,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            return string.Format("{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}", KeyframeTime.X, KeyframeTime.Y, KeyframeTime.Z, KeyframeTime.W, KeyframeValue.X, KeyframeValue.Y, KeyframeValue.Z, KeyframeValue.W);
+            return $"{KeyframeTime.X}, {KeyframeTime.Y}, {KeyframeTime.Z}, {KeyframeTime.W}, {KeyframeValue.X}, {KeyframeValue.Y}, {KeyframeValue.Z}, {KeyframeValue.W}";
         }
     }
 

@@ -267,7 +267,7 @@ namespace CodeWalker.GameFiles
 
         private void LogSaveWarning(string w)
         {
-            if (SaveWarnings == null) SaveWarnings = new List<string>();
+            SaveWarnings ??= [];
             SaveWarnings.Add(w);
         }
 

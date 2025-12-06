@@ -245,7 +245,7 @@ namespace ST.Library.UI.NodeEditor
             get { return _BorderColor; }
             set {
                 _BorderColor = value;
-                if (m_img_border != null) m_img_border.Dispose();
+                m_img_border?.Dispose();
                 m_img_border = this.CreateBorderImage(value);
                 this.Invalidate();
             }
@@ -260,7 +260,7 @@ namespace ST.Library.UI.NodeEditor
             get { return _BorderHoverColor; }
             set {
                 _BorderHoverColor = value;
-                if (m_img_border_hover != null) m_img_border_hover.Dispose();
+                m_img_border_hover?.Dispose();
                 m_img_border_hover = this.CreateBorderImage(value);
                 this.Invalidate();
             }
@@ -275,7 +275,7 @@ namespace ST.Library.UI.NodeEditor
             get { return _BorderSelectedColor; }
             set {
                 _BorderSelectedColor = value;
-                if (m_img_border_selected != null) m_img_border_selected.Dispose();
+                m_img_border_selected?.Dispose();
                 m_img_border_selected = this.CreateBorderImage(value);
                 this.Invalidate();
             }
@@ -290,7 +290,7 @@ namespace ST.Library.UI.NodeEditor
             get { return _BorderActiveColor; }
             set {
                 _BorderActiveColor = value;
-                if (m_img_border_active != null) m_img_border_active.Dispose();
+                m_img_border_active?.Dispose();
                 m_img_border_active = this.CreateBorderImage(value);
                 this.Invalidate();
             }
@@ -571,37 +571,37 @@ namespace ST.Library.UI.NodeEditor
         public event STNodeEditorOptionEventHandler OptionDisConnecting;
 
         protected virtual internal void OnSelectedChanged(EventArgs e) {
-            if (this.SelectedChanged != null) this.SelectedChanged(this, e);
+            this.SelectedChanged?.Invoke(this, e);
         }
         protected virtual void OnActiveChanged(EventArgs e) {
-            if (this.ActiveChanged != null) this.ActiveChanged(this, e);
+            this.ActiveChanged?.Invoke(this, e);
         }
         protected virtual void OnHoverChanged(EventArgs e) {
-            if (this.HoverChanged != null) this.HoverChanged(this, e);
+            this.HoverChanged?.Invoke(this, e);
         }
         protected internal virtual void OnNodeAdded(STNodeEditorEventArgs e) {
-            if (this.NodeAdded != null) this.NodeAdded(this, e);
+            this.NodeAdded?.Invoke(this, e);
         }
         protected internal virtual void OnNodeRemoved(STNodeEditorEventArgs e) {
-            if (this.NodeRemoved != null) this.NodeRemoved(this, e);
+            this.NodeRemoved?.Invoke(this, e);
         }
         protected virtual void OnCanvasMoved(EventArgs e) {
-            if (this.CanvasMoved != null) this.CanvasMoved(this, e);
+            this.CanvasMoved?.Invoke(this, e);
         }
         protected virtual void OnCanvasScaled(EventArgs e) {
-            if (this.CanvasScaled != null) this.CanvasScaled(this, e);
+            this.CanvasScaled?.Invoke(this, e);
         }
         protected internal virtual void OnOptionConnected(STNodeEditorOptionEventArgs e) {
-            if (this.OptionConnected != null) this.OptionConnected(this, e);
+            this.OptionConnected?.Invoke(this, e);
         }
         protected internal virtual void OnOptionDisConnected(STNodeEditorOptionEventArgs e) {
-            if (this.OptionDisConnected != null) this.OptionDisConnected(this, e);
+            this.OptionDisConnected?.Invoke(this, e);
         }
         protected internal virtual void OnOptionConnecting(STNodeEditorOptionEventArgs e) {
-            if (this.OptionConnecting != null) this.OptionConnecting(this, e);
+            this.OptionConnecting?.Invoke(this, e);
         }
         protected internal virtual void OnOptionDisConnecting(STNodeEditorOptionEventArgs e) {
-            if (this.OptionDisConnecting != null) this.OptionDisConnecting(this, e);
+            this.OptionDisConnecting?.Invoke(this, e);
         }
 
         #endregion event
@@ -1043,7 +1043,7 @@ namespace ST.Library.UI.NodeEditor
                         if (op.DataType == t)
                             m_p_line.Color = this._UnknownTypeColor;
                         else
-                            m_p_line.Color = this._TypeColor.ContainsKey(op.DataType) ? this._TypeColor[op.DataType] : this._UnknownTypeColor;//value can not be null
+                            m_p_line.Color = this._TypeColor.TryGetValue(op.DataType, out Color typeColor) ? typeColor : this._UnknownTypeColor;//value can not be null
                     }
                     foreach (var v in op.ConnectedOption) {
                         this.DrawBezier(g, m_p_line_hover, op.DotLeft + op.DotSize, op.DotTop + op.DotSize / 2,
@@ -1360,8 +1360,7 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private ConnectionStatus DisConnectionHover() {
-            if (!m_dic_gp_info.ContainsKey(m_gp_hover)) return ConnectionStatus.DisConnected;
-            ConnectionInfo ci = m_dic_gp_info[m_gp_hover];
+            if (!m_dic_gp_info.TryGetValue(m_gp_hover, out ConnectionInfo ci)) return ConnectionStatus.DisConnected;
             var ret = ci.Output.DisConnectOption(ci.Input);
             //this.OnOptionDisConnected(new STNodeOptionEventArgs(ci.Output, ci.Input, ret));
             if (ret == ConnectionStatus.DisConnected) {
@@ -1876,9 +1875,9 @@ namespace ST.Library.UI.NodeEditor
             foreach (var t in asm.GetTypes()) {
                 if (t.IsAbstract) continue;
                 if (t == m_type_node || t.IsSubclassOf(m_type_node)) {
-                    if (m_dic_type.ContainsKey(t.GUID.ToString())) continue;
-                    m_dic_type.Add(t.GUID.ToString(), t);
-                    bFound = true;
+                    if (m_dic_type.TryAdd(t.GUID.ToString(), t)) {
+                        bFound = true;
+                    }
                 }
             }
             return bFound;
@@ -2021,8 +2020,7 @@ namespace ST.Library.UI.NodeEditor
                 nIndex += nLen;
                 dic.Add(strKey, byValue);
             }
-            if (!m_dic_type.ContainsKey(strGUID)) throw new TypeLoadException("Cannot find the assembly where the type {" + strModel.Split('|')[1] + "} is located to ensure that the assembly {" + strModel.Split('|')[0] + "} has been loaded correctly by the editor. The assembly can be loaded by calling LoadAssembly()");
-            Type t = m_dic_type[strGUID]; ;
+            if (!m_dic_type.TryGetValue(strGUID, out Type t)) throw new TypeLoadException("Cannot find the assembly where the type {" + strModel.Split('|')[1] + "} is located to ensure that the assembly {" + strModel.Split('|')[0] + "} has been loaded correctly by the editor. The assembly can be loaded by calling LoadAssembly()");
             STNode node = (STNode)Activator.CreateInstance(t);
             node.OnLoadNode(dic);
             return node;
@@ -2130,12 +2128,15 @@ namespace ST.Library.UI.NodeEditor
         /// <param name="bReplace">Replace the color if it already exists</param>
         /// <returns>The set color</returns>
         public Color SetTypeColor(Type t, Color clr, bool bReplace) {
-            if (this._TypeColor.ContainsKey(t)) {
-                if (bReplace) this._TypeColor[t] = clr;
-            } else {
-                this._TypeColor.Add(t, clr);
+            if (this._TypeColor.TryGetValue(t, out Color existingColor)) {
+                if (bReplace) {
+                    this._TypeColor[t] = clr;
+                    return clr;
+                }
+                return existingColor;
             }
-            return this._TypeColor[t];
+            this._TypeColor.Add(t, clr);
+            return clr;
         }
 
         #endregion public

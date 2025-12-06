@@ -125,7 +125,7 @@ public class TimeArchetype : Archetype
             ActiveHours[i] = v;
 
             int nxth = (i < 23) ? (i + 1) : 0;
-            string hrs = string.Format("{0:00}:00 - {1:00}:00", i, nxth);
+            string hrs = $"{i:00}:00 - {nxth:00}:00";
             ActiveHoursText[i] = (hrs + (v ? " - On" : " - Off"));
         }
     }
@@ -896,7 +896,7 @@ public class MloInstanceData
         }
         else
         {
-            if (Entities == null) Entities = new YmapEntityDef[0];
+            Entities ??= [];
             var entities = Entities.ToList();
             entities.Add(e);
             Entities = entities.ToArray();
@@ -1040,7 +1040,7 @@ public class MloInstanceEntitySet
 
     public void AddEntity(YmapEntityDef ent)
     {
-        if (Entities == null) Entities = new List<YmapEntityDef>();
+        Entities ??= [];
         Entities.Add(ent);
     }
     public bool DeleteEntity(YmapEntityDef ent)

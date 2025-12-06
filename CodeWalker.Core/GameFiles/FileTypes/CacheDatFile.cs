@@ -303,13 +303,13 @@ namespace CodeWalker.GameFiles
         {
             StringBuilder sb = new();
             sb.AppendLine(MetaXmlBase.XmlHeader);
-            sb.AppendLine(string.Format("<CacheDatFile version=\"{0}\">", Version));
+            sb.AppendLine($"<CacheDatFile version=\"{Version}\">");
             sb.AppendLine(" <fileDates>");
             if (FileDates != null)
             {
                 foreach (var date in FileDates)
                 {
-                    sb.AppendLine(string.Format("  <fileDate>{0}</fileDate>", date.ToCacheFileString()));
+                    sb.AppendLine($"  <fileDate>{date.ToCacheFileString()}</fileDate>");
                 }
             }
             sb.AppendLine(" </fileDates>");
@@ -319,14 +319,14 @@ namespace CodeWalker.GameFiles
                 foreach (var mapnode in AllMapNodes)
                 {
                     sb.AppendLine("  <Item>");
-                    sb.AppendLine(string.Format("   <name>{0}</name>", mapnode.Name.ToCleanString()));
-                    sb.AppendLine(string.Format("   <parent>{0}</parent>", mapnode.ParentName.ToCleanString()));
-                    sb.AppendLine(string.Format("   <contentFlags value=\"{0}\" />", mapnode.ContentFlags.ToString()));
-                    sb.AppendLine(string.Format("   <streamingExtentsMin {0} />", FloatUtil.GetVector3XmlString(mapnode.streamingExtentsMin)));
-                    sb.AppendLine(string.Format("   <streamingExtentsMax {0} />", FloatUtil.GetVector3XmlString(mapnode.streamingExtentsMax)));
-                    sb.AppendLine(string.Format("   <entitiesExtentsMin {0} />", FloatUtil.GetVector3XmlString(mapnode.entitiesExtentsMin)));
-                    sb.AppendLine(string.Format("   <entitiesExtentsMax {0} />", FloatUtil.GetVector3XmlString(mapnode.entitiesExtentsMax)));
-                    sb.AppendLine(string.Format("   <flags unk1=\"{0}\" unk2=\"{1}\" unk3=\"{2}\" />", mapnode.Unk1, mapnode.Unk2, mapnode.Unk3));
+                    sb.AppendLine($"   <name>{mapnode.Name.ToCleanString()}</name>");
+                    sb.AppendLine($"   <parent>{mapnode.ParentName.ToCleanString()}</parent>");
+                    sb.AppendLine($"   <contentFlags value=\"{mapnode.ContentFlags}\" />");
+                    sb.AppendLine($"   <streamingExtentsMin {FloatUtil.GetVector3XmlString(mapnode.streamingExtentsMin)} />");
+                    sb.AppendLine($"   <streamingExtentsMax {FloatUtil.GetVector3XmlString(mapnode.streamingExtentsMax)} />");
+                    sb.AppendLine($"   <entitiesExtentsMin {FloatUtil.GetVector3XmlString(mapnode.entitiesExtentsMin)} />");
+                    sb.AppendLine($"   <entitiesExtentsMax {FloatUtil.GetVector3XmlString(mapnode.entitiesExtentsMax)} />");
+                    sb.AppendLine($"   <flags unk1=\"{mapnode.Unk1}\" unk2=\"{mapnode.Unk2}\" unk3=\"{mapnode.Unk3}\" />");
                     sb.AppendLine("  </Item>");
                 }
             }
@@ -337,14 +337,14 @@ namespace CodeWalker.GameFiles
                 foreach (var intprox in AllCInteriorProxies)
                 {
                     sb.AppendLine("  <Item>");
-                    sb.AppendLine(string.Format("   <name>{0}</name>", intprox.Name.ToCleanString()));
-                    sb.AppendLine(string.Format("   <parent>{0}</parent>", intprox.Parent.ToCleanString()));
-                    sb.AppendLine(string.Format("   <position {0} />", FloatUtil.GetVector3XmlString(intprox.Position)));
-                    sb.AppendLine(string.Format("   <rotation {0} />", FloatUtil.GetQuaternionXmlString(intprox.Orientation)));
-                    sb.AppendLine(string.Format("   <aabbMin {0} />", FloatUtil.GetVector3XmlString(intprox.BBMin)));
-                    sb.AppendLine(string.Format("   <aabbMax {0} />", FloatUtil.GetVector3XmlString(intprox.BBMax)));
-                    sb.AppendLine(string.Format("   <unknowns1 unk01=\"{0}\" unk03=\"{1}\" />", intprox.Unk01, intprox.Unk03));
-                    sb.AppendLine(string.Format("   <unknowns2 unk11=\"{0}\" unk12=\"{1}\" unk13=\"{2}\" unk14=\"{3}\" />", intprox.Unk11, intprox.Unk12, intprox.Unk13, intprox.Unk14));
+                    sb.AppendLine($"   <name>{intprox.Name.ToCleanString()}</name>");
+                    sb.AppendLine($"   <parent>{intprox.Parent.ToCleanString()}</parent>");
+                    sb.AppendLine($"   <position {FloatUtil.GetVector3XmlString(intprox.Position)} />");
+                    sb.AppendLine($"   <rotation {FloatUtil.GetQuaternionXmlString(intprox.Orientation)} />");
+                    sb.AppendLine($"   <aabbMin {FloatUtil.GetVector3XmlString(intprox.BBMin)} />");
+                    sb.AppendLine($"   <aabbMax {FloatUtil.GetVector3XmlString(intprox.BBMax)} />");
+                    sb.AppendLine($"   <unknowns1 unk01=\"{intprox.Unk01}\" unk03=\"{intprox.Unk03}\" />");
+                    sb.AppendLine($"   <unknowns2 unk11=\"{intprox.Unk11}\" unk12=\"{intprox.Unk12}\" unk13=\"{intprox.Unk13}\" unk14=\"{intprox.Unk14}\" />");
                     sb.AppendLine("  </Item>");
                 }
             }
@@ -355,10 +355,10 @@ namespace CodeWalker.GameFiles
                 foreach (var bndstore in AllBoundsStoreItems)
                 {
                     sb.AppendLine("  <Item>");
-                    sb.AppendLine(string.Format("   <name>{0}</name>", bndstore.Name.ToCleanString()));
-                    sb.AppendLine(string.Format("   <aabbMin {0} />", FloatUtil.GetVector3XmlString(bndstore.Min)));
-                    sb.AppendLine(string.Format("   <aabbMax {0} />", FloatUtil.GetVector3XmlString(bndstore.Max)));
-                    sb.AppendLine(string.Format("   <layer value=\"{0}\" />", bndstore.Layer));
+                    sb.AppendLine($"   <name>{bndstore.Name.ToCleanString()}</name>");
+                    sb.AppendLine($"   <aabbMin {FloatUtil.GetVector3XmlString(bndstore.Min)} />");
+                    sb.AppendLine($"   <aabbMax {FloatUtil.GetVector3XmlString(bndstore.Max)} />");
+                    sb.AppendLine($"   <layer value=\"{bndstore.Layer}\" />");
                     sb.AppendLine("  </Item>");
                 }
             }

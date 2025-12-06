@@ -680,7 +680,7 @@ namespace CodeWalker.Forms
             {
                 if (Ydr.Loaded)
                 {
-                    if (ModelArchetype == null) ModelArchetype = TryGetArchetype(ModelHash);
+                    ModelArchetype ??= TryGetArchetype(ModelHash);
 
                     Renderer.RenderDrawable(Ydr.Drawable, ModelArchetype, null, ModelHash, null, null, AnimClip);
                 }
@@ -709,7 +709,7 @@ namespace CodeWalker.Forms
                     {
                         if (!DrawableDrawFlags.ContainsKey(kvp.Value))//only render if it's checked...
                         {
-                            if (ModelArchetype == null) ModelArchetype = TryGetArchetype(kvp.Key);
+                            ModelArchetype ??= TryGetArchetype(kvp.Key);
 
                             Renderer.RenderDrawable(kvp.Value, ModelArchetype, null, kvp.Key, null, null, AnimClip);
                         }
@@ -724,7 +724,7 @@ namespace CodeWalker.Forms
                     {
                         var f = Yft.Fragment;
 
-                        if (ModelArchetype == null) ModelArchetype = TryGetArchetype(ModelHash);
+                        ModelArchetype ??= TryGetArchetype(ModelHash);
 
                         Renderer.RenderFragment(ModelArchetype, null, f, ModelHash, AnimClip);
                     }
@@ -1686,7 +1686,7 @@ namespace CodeWalker.Forms
             if (string.IsNullOrEmpty(FilePath))
             {
                 if (!editMode) saveAs = true;
-                if (rpfFileEntry == null) saveAs = true;
+                saveAs |= rpfFileEntry == null;
             }
             else
             {

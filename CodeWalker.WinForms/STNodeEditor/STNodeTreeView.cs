@@ -712,8 +712,7 @@ namespace ST.Library.UI.NodeEditor
         /// <param name="stNodeType">STNode type</param>
         /// <returns>Whether the removal is successful</returns>
         public bool RemoveNode(Type stNodeType) {
-            if (!m_dic_all_type.ContainsKey(stNodeType)) return false;
-            string strPath = m_dic_all_type[stNodeType];
+            if (!m_dic_all_type.TryGetValue(stNodeType, out string strPath)) return false;
             STNodeTreeCollection items = m_items_source;
             if (!string.IsNullOrEmpty(strPath)) {
                 string[] strKeys = strPath.Split(m_chr_splitter);
@@ -805,17 +804,12 @@ namespace ST.Library.UI.NodeEditor
             public STNodeTreeCollection this[string strKey] {
                 get {
                     if (string.IsNullOrEmpty(strKey)) return null;
-                    if (m_dic.ContainsKey(strKey)) return m_dic[strKey];
-                    return null;
+                    return m_dic.TryGetValue(strKey, out var value) ? value : null;
                 }
                 set {
                     if (string.IsNullOrEmpty(strKey)) return;
                     if (value == null) return;
-                    if (m_dic.ContainsKey(strKey)) {
-                        m_dic[strKey] = value;
-                    } else {
-                        m_dic.Add(strKey, value);
-                    }
+                    m_dic[strKey] = value;
                     value.Parent = this;
                 }
             }
@@ -837,9 +831,11 @@ namespace ST.Library.UI.NodeEditor
             /// <param name="strName">node display name</param>
             /// <returns>Added set of child nodes</returns>
             public STNodeTreeCollection Add(string strName) {
-                if (!m_dic.ContainsKey(strName))
-                    m_dic.Add(strName, new STNodeTreeCollection(strName) { Parent = this });
-                return m_dic[strName];
+                if (!m_dic.TryGetValue(strName, out var collection)) {
+                    collection = new STNodeTreeCollection(strName) { Parent = this };
+                    m_dic.Add(strName, collection);
+                }
+                return collection;
             }
             /// <summary>
             /// Delete a subcollection from the current tree node

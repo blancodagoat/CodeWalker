@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CodeWalker.World
@@ -99,7 +100,7 @@ namespace CodeWalker.World
             if (manifests == null) return;
 
             // Process manifests in parallel for better performance
-            var lockObj = new object();
+            Lock lockObj = new();
             Parallel.ForEach(manifests, manifest =>
             {
                 if (manifest == null) return;
@@ -200,7 +201,7 @@ namespace CodeWalker.World
             var ybnDict = GameFileCache.YbnDict;
 
             // Process caches in parallel for better performance
-            var lockObj = new object();
+            Lock lockObj = new();
             Parallel.ForEach(caches, cache =>
             {
                 if (cache == null) return;
@@ -210,7 +211,7 @@ namespace CodeWalker.World
                 var localInteriorProxies = new Dictionary<SpaceBoundsKey, CInteriorProxy>();
                 var localBoundsDict = new Dictionary<SpaceBoundsKey, BoundsStoreItem>();
                 var localUsedBoundsDict = new Dictionary<MetaHash, BoundsStoreItem>();
-                var localIntList = new List<BoundsStoreItem>();
+                List<BoundsStoreItem> localIntList = [];
                 var localFileDates = new Dictionary<MetaHash, CacheFileDate>();
                 var localFileDates2 = new Dictionary<uint, CacheFileDate>();
 
@@ -308,7 +309,7 @@ namespace CodeWalker.World
             if (maprpfs != null)
             {
                 // Pre-filter entries to reduce string comparisons
-                var uncachedEntries = new List<(RpfEntry entry, bool isYmap)>();
+                List<(RpfEntry entry, bool isYmap)> uncachedEntries = [];
                 
                 foreach (var maprpf in maprpfs.Values)
                 {
@@ -574,8 +575,8 @@ namespace CodeWalker.World
 
 
             //build the links arrays.
-            if(tlinks==null) tlinks = new List<YndLink>();
-            if(nlinks==null) nlinks = new List<YndLink>();
+            tlinks ??= [];
+            nlinks ??= [];
             tlinks.Clear();
             for (int i = 0; i < nodecount; i++)
             {
@@ -633,7 +634,7 @@ namespace CodeWalker.World
                 }
             }
 
-            if (tverts == null) tverts = new List<EditorVertex>(estimatedVertCount);
+            tverts ??= new List<EditorVertex>(estimatedVertCount);
             tverts.Clear();
             if (estimatedVertCount > 0) tverts.Capacity = Math.Max(tverts.Capacity, estimatedVertCount);
 
@@ -1898,10 +1899,7 @@ namespace CodeWalker.World
 
         public void Add(MapDataStoreNode item)
         {
-            if (Items == null)
-            {
-                Items = new List<MapDataStoreNode>();
-            }
+            Items ??= [];
             BBMin = Vector3.Min(BBMin, item.streamingExtentsMin);
             BBMax = Vector3.Max(BBMax, item.streamingExtentsMax);
             Items.Add(item);
@@ -1914,7 +1912,7 @@ namespace CodeWalker.World
 
             Children = new SpaceMapDataStoreNode[4];
 
-            var newItems = new List<MapDataStoreNode>();
+            List<MapDataStoreNode> newItems = [];
 
             var ncen = (BBMax + BBMin) * 0.5f;
             var next = (BBMax - BBMin) * 0.5f;
@@ -2106,10 +2104,7 @@ namespace CodeWalker.World
 
         public void Add(BoundsStoreItem item)
         {
-            if (Items == null)
-            {
-                Items = new List<BoundsStoreItem>();
-            }
+            Items ??= [];
             BBMin = Vector3.Min(BBMin, item.Min);
             BBMax = Vector3.Max(BBMax, item.Max);
             Items.Add(item);
@@ -2122,7 +2117,7 @@ namespace CodeWalker.World
 
             Children = new SpaceBoundsStoreNode[4];
 
-            var newItems = new List<BoundsStoreItem>();
+            List<BoundsStoreItem> newItems = [];
 
             var ncen = (BBMax + BBMin) * 0.5f;
             var next = (BBMax - BBMin) * 0.5f;

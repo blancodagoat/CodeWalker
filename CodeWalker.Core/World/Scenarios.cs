@@ -1605,9 +1605,9 @@ namespace CodeWalker.World
             if (LoadSavePoint != null) LoadSavePoint.Position = position;
             if (ClusterMyPoint != null) ClusterMyPoint.Position = position;
             if (ClusterLoadSavePoint != null) ClusterLoadSavePoint.Position = position;
-            if ((Cluster != null) && (ClusterMyPoint == null) && (ClusterLoadSavePoint == null)) Cluster.Position = position;
+            if (Cluster != null && ClusterMyPoint == null && ClusterLoadSavePoint == null) Cluster.Position = position;
             if (EntityPoint != null) EntityPoint.Position = position;
-            if ((Entity != null) && (EntityPoint == null)) Entity.Position = position;
+            if (Entity != null && EntityPoint == null) Entity.Position = position;
             if (ChainingNode != null) ChainingNode.Position = position;
         }
         public void SetOrientation(Quaternion orientation)

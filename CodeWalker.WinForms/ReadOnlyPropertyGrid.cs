@@ -44,10 +44,7 @@ namespace CodeWalker.WinForms
 
         protected override void OnSelectedObjectsChanged(EventArgs e)
         {
-            if (providedObject != null)
-            {
-                SetObjectAsReadOnly(providedObject, false);
-            }
+            if (providedObject != null) SetObjectAsReadOnly(providedObject, false);
             SetObjectAsReadOnly(SelectedObject, _readOnly);
             base.OnSelectedObjectsChanged(e);
         }
