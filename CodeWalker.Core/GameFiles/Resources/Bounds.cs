@@ -1579,6 +1579,11 @@ namespace CodeWalker.GameFiles
         }
         protected void RayIntersectPolygons(ref Ray ray, ref SpaceRayIntersectResult res, int startIndex, int endIndex)
         {
+            if (Polygons == null || Polygons.Length == 0) return;
+            if (startIndex < 0) startIndex = 0;
+            if (endIndex > Polygons.Length) endIndex = Polygons.Length;
+            if (startIndex >= endIndex) return;
+
             var box = new BoundingBox();
             var tsph = new BoundingSphere();
             var rayt = new Ray();
@@ -1590,6 +1595,7 @@ namespace CodeWalker.GameFiles
             for (int p = startIndex; p < endIndex; p++)
             {
                 var polygon = Polygons[p];
+                if (polygon == null) continue;
                 float polyhittestdist = float.MaxValue;
                 bool polyhit = false;
                 switch (polygon.Type)
