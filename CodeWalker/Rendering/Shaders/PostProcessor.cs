@@ -461,6 +461,8 @@ namespace CodeWalker.Rendering
 
         private void ProcessLuminance(DeviceContext context)
         {
+            if (LumBlendResult == null || Reduction0 == null || Reduction1 == null) return;
+
             var srv = SceneColourSRV;
 
             uint dimx, dimy;
@@ -526,6 +528,8 @@ namespace CodeWalker.Rendering
         }
         private void ProcessBloom(DeviceContext context)
         {
+            if (LumBlendResult == null || Bloom0 == null || Bloom1 == null || Bloom == null) return;
+
             if (EnableBloom)
             {
                 var srv = SceneColourSRV;
@@ -567,6 +571,8 @@ namespace CodeWalker.Rendering
         }
         private void FinalPass(DeviceContext context)
         {
+            if (LumBlendResult == null || Bloom == null) return;
+
             context.Rasterizer.SetViewport(Viewport);
             context.VertexShader.Set(FinalPassVS);
             context.PixelShader.Set(FinalPassPS);
