@@ -602,7 +602,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         {
             Log("", statusCallback);
             Log("PHASE 1: LOADING COLLISION GEOMETRY", statusCallback);
-            Log("=".PadRight(80, =), statusCallback);
+            Log("=".PadRight(80, '='), statusCallback);
             
             if (gameFileCache == null || boundsStore == null)
             {
@@ -908,7 +908,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
             return collisionOctree.RayIntersect(origin, direction, maxDistance);
         }
->
+
         public List<NavGenTri> GetTrianglesInBounds(Vector3 min, Vector3 max)
         {
             if (collisionOctree == null)
@@ -949,7 +949,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 
                 Log($"NavMesh Generation Log - {DateTime.Now}");
                 Log($"Log file: {logPath}");
-                Log("=".PadRight(80, =));
+                Log("=".PadRight(80, '='));
             }
             catch (Exception ex)
             {
@@ -961,7 +961,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         {
             if (logWriter != null)
             {
-                Log("=".PadRight(80, =));
+                Log("=".PadRight(80, '='));
                 Log($"Log completed at {DateTime.Now}");
                 logWriter.Close();
                 logWriter = null;
@@ -983,7 +983,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         {
             Log("", statusCallback);
             Log("PHASE 2: HEIGHT SAMPLING", statusCallback);
-            Log("=".PadRight(80, =), statusCallback);
+            Log("=".PadRight(80, '='), statusCallback);
             
             if (collisionOctree == null)
             {
@@ -3916,7 +3916,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
             PlaneDistance = Vector3.Dot(Normal, v0);
         }
->
+
         public float CalculateArea()
         {
             if (Nodes == null || Nodes.Length < 3) return 0f;
@@ -4550,7 +4550,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             var key = new EdgeKey(v1, v2);
             edges[key] = edge;
         }
->
+
         public void RemoveEdge(Vector3 v1, Vector3 v2)
         {
             var key = new EdgeKey(v1, v2);
