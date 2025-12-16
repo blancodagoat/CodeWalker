@@ -108,9 +108,9 @@ namespace CodeWalker.Rendering
             Vector3 xdir = ori.Multiply(Vector3.UnitX);
             Vector3 ydir = ori.Multiply(Vector3.UnitY);
             Vector3 zdir = ori.Multiply(Vector3.UnitZ);
-            Color4 xcolour = new(0.8f, 0.0f, 0.0f, 1.0f);
-            Color4 ycolour = new(0.8f, 0.0f, 0.0f, 1.0f);
-            Color4 zcolour = new(0.5f, 0.5f, 0.5f, 1.0f);
+            Color4 xcolour = new Color4(0.8f, 0.0f, 0.0f, 1.0f);
+            Color4 ycolour = new Color4(0.8f, 0.0f, 0.0f, 1.0f);
+            Color4 zcolour = new Color4(0.5f, 0.5f, 0.5f, 1.0f);
 
             Vector3[] axes = { xdir, ydir, zdir };
             Vector3[] sides = { ydir, xdir, xdir };
@@ -165,11 +165,11 @@ namespace CodeWalker.Rendering
             Vector3 xdir = ori.Multiply(Vector3.UnitX);
             Vector3 ydir = ori.Multiply(Vector3.UnitY);
             Vector3 zdir = ori.Multiply(Vector3.UnitZ);
-            Color4 xcolour = new(1.0f, 0.0f, 0.0f, 1.0f);
-            Color4 ycolour = new(0.0f, 1.0f, 0.0f, 1.0f);
-            Color4 zcolour = new(0.0f, 0.0f, 1.0f, 1.0f);
-            Color4 selaxcol = new(1.0f, 1.0f, 0.0f, 1.0f);
-            Color4 selplcol = new(1.0f, 1.0f, 0.0f, 0.5f);
+            Color4 xcolour = new Color4(1.0f, 0.0f, 0.0f, 1.0f);
+            Color4 ycolour = new Color4(0.0f, 1.0f, 0.0f, 1.0f);
+            Color4 zcolour = new Color4(0.0f, 0.0f, 1.0f, 1.0f);
+            Color4 selaxcol = new Color4(1.0f, 1.0f, 0.0f, 1.0f);
+            Color4 selplcol = new Color4(1.0f, 1.0f, 0.0f, 0.5f);
 
             Vector3[] axes = { xdir, ydir, zdir };
             Vector3[] sides1 = { ydir, zdir, xdir };
@@ -302,12 +302,12 @@ namespace CodeWalker.Rendering
             Vector3 xdir = ori.Multiply(Vector3.UnitX);
             Vector3 ydir = ori.Multiply(Vector3.UnitY);
             Vector3 zdir = ori.Multiply(Vector3.UnitZ);
-            Color4 xcolour = new(1.0f, 0.0f, 0.0f, 1.0f);
-            Color4 ycolour = new(0.0f, 1.0f, 0.0f, 1.0f);
-            Color4 zcolour = new(0.0f, 0.0f, 1.0f, 1.0f);
-            Color4 icolour = new(0.5f, 0.5f, 0.5f, 1.0f);
-            Color4 ocolour = new(0.7f, 0.7f, 0.7f, 1.0f);
-            Color4 scolour = new(1.0f, 1.0f, 0.0f, 1.0f);
+            Color4 xcolour = new Color4(1.0f, 0.0f, 0.0f, 1.0f);
+            Color4 ycolour = new Color4(0.0f, 1.0f, 0.0f, 1.0f);
+            Color4 zcolour = new Color4(0.0f, 0.0f, 1.0f, 1.0f);
+            Color4 icolour = new Color4(0.5f, 0.5f, 0.5f, 1.0f);
+            Color4 ocolour = new Color4(0.7f, 0.7f, 0.7f, 1.0f);
+            Color4 scolour = new Color4(1.0f, 1.0f, 0.0f, 1.0f);
 
             Vector3[] axes = { xdir, ydir, zdir };
             Vector3[] sides = { ydir, xdir, xdir };
@@ -431,11 +431,11 @@ namespace CodeWalker.Rendering
             Vector3 xdir = ori.Multiply(Vector3.UnitX);
             Vector3 ydir = ori.Multiply(Vector3.UnitY);
             Vector3 zdir = ori.Multiply(Vector3.UnitZ);
-            Color4 xcolour = new(1.0f, 0.0f, 0.0f, 1.0f);
-            Color4 ycolour = new(0.0f, 1.0f, 0.0f, 1.0f);
-            Color4 zcolour = new(0.0f, 0.0f, 1.0f, 1.0f);
-            Color4 selaxcol = new(1.0f, 1.0f, 0.0f, 1.0f);
-            Color4 selplcol = new(1.0f, 1.0f, 0.0f, 0.5f);
+            Color4 xcolour = new Color4(1.0f, 0.0f, 0.0f, 1.0f);
+            Color4 ycolour = new Color4(0.0f, 1.0f, 0.0f, 1.0f);
+            Color4 zcolour = new Color4(0.0f, 0.0f, 1.0f, 1.0f);
+            Color4 selaxcol = new Color4(1.0f, 1.0f, 0.0f, 1.0f);
+            Color4 selplcol = new Color4(1.0f, 1.0f, 0.0f, 0.5f);
 
             Vector3[] axes = { xdir, ydir, zdir };
             Vector3[] sides1 = { ydir, zdir, xdir };

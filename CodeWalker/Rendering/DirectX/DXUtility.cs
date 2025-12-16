@@ -19,7 +19,7 @@ namespace CodeWalker.Rendering
 
         public static Buffer CreateBuffer(Device device, int size, ResourceUsage usage, BindFlags bindFlags, CpuAccessFlags cpuAccessFlags, ResourceOptionFlags miscFlags, int structByteStride)
         {
-            BufferDescription desc = new();
+            BufferDescription desc = new BufferDescription();
             desc.SizeInBytes = size;
 	        desc.Usage = usage;
 	        desc.BindFlags = bindFlags;
@@ -27,7 +27,7 @@ namespace CodeWalker.Rendering
             desc.OptionFlags = miscFlags;
             desc.StructureByteStride = structByteStride;
 
-            Buffer b = new(device, desc);
+            Buffer b = new Buffer(device, desc);
 
             //D3D11_SUBRESOURCE_DATA srd;
             //srd.pSysMem = data;
@@ -41,7 +41,7 @@ namespace CodeWalker.Rendering
 
         public static Texture2D CreateTexture2D(Device device, int width, int height, int mipLevels, int arraySize, Format format, int sampleCount, int sampleQuality, ResourceUsage usage, BindFlags bindFlags, CpuAccessFlags cpuAccessFlags, ResourceOptionFlags miscFlags)
         {
-            Texture2DDescription td = new();
+            Texture2DDescription td = new Texture2DDescription();
             td.Width = width;
             td.Height = height;
             td.MipLevels = mipLevels;
@@ -52,7 +52,7 @@ namespace CodeWalker.Rendering
             td.BindFlags = bindFlags;
             td.CpuAccessFlags = cpuAccessFlags;
             td.OptionFlags = miscFlags;
-            Texture2D t = new(device, td);
+            Texture2D t = new Texture2D(device, td);
             return t;
         }
         //static ComPtr<ID3D11Texture2D> CreateTexture2D(UINT width, UINT height, UINT mipLevels, UINT arraySize, DXGI_FORMAT format, UINT sampleCount, UINT sampleQuality, D3D11_USAGE usage, UINT bindFlags, UINT cpuAccessFlags, UINT miscFlags, const void* data, const string& name)
@@ -82,7 +82,7 @@ namespace CodeWalker.Rendering
 
         public static SamplerState CreateSamplerState(Device device, TextureAddressMode addressU, TextureAddressMode addressV, TextureAddressMode addressW, RawColor4 border, Comparison comparisonFunc, Filter filter, int maxAnisotropy, float maxLOD, float minLOD, float mipLODBias)
         {
-            SamplerStateDescription smpDesc = new();
+            SamplerStateDescription smpDesc = new SamplerStateDescription();
             smpDesc.AddressU = addressU;
             smpDesc.AddressV = addressV;
             smpDesc.AddressW = addressW;
@@ -93,7 +93,7 @@ namespace CodeWalker.Rendering
             smpDesc.MaximumLod = maxLOD;
             smpDesc.MinimumLod = minLOD;
             smpDesc.MipLodBias = mipLODBias;
-            SamplerState smp = new(device, smpDesc);
+            SamplerState smp = new SamplerState(device, smpDesc);
             return smp;
         }
         public static SamplerState CreateSamplerState(Device device, TextureAddressMode address, RawColor4 border, Comparison comparisonFunc, Filter filter, int maxAnisotropy, float maxLOD, float minLOD, float mipLODBias)
@@ -103,7 +103,7 @@ namespace CodeWalker.Rendering
 
         public static ShaderResourceView CreateShaderResourceView(Device device, Resource resource, Format format, ShaderResourceViewDimension viewDimension, int mipLevels, int mostDetailedMip, int arraySize, int firstArraySlice)
         {
-            ShaderResourceViewDescription srvd = new();
+            ShaderResourceViewDescription srvd = new ShaderResourceViewDescription();
             srvd.Format = format;
             srvd.Dimension = viewDimension;
             switch (viewDimension)
@@ -139,13 +139,13 @@ namespace CodeWalker.Rendering
                 default:
                     throw new Exception(); //not implemented....
             }
-            ShaderResourceView srv = new(device, resource, srvd);
+            ShaderResourceView srv = new ShaderResourceView(device, resource, srvd);
             return srv;
         }
 
         public static UnorderedAccessView CreateUnorderedAccessView(Device device, Resource resource, Format format, UnorderedAccessViewDimension viewDimension, int firstElement, int numElements, UnorderedAccessViewBufferFlags flags, int mipSlice)
         {
-            UnorderedAccessViewDescription uavd = new();
+            UnorderedAccessViewDescription uavd = new UnorderedAccessViewDescription();
             uavd.Format = format;
             uavd.Dimension = viewDimension;
 
@@ -189,7 +189,7 @@ namespace CodeWalker.Rendering
         public static RenderTargetView CreateRenderTargetView(Device device, Resource renderTarget, Format format, RenderTargetViewDimension viewDimension, int mipSlice, int arraySize, int firstArraySlice)
         {
             RenderTargetView rtv;
-            RenderTargetViewDescription rtvd = new();
+            RenderTargetViewDescription rtvd = new RenderTargetViewDescription();
             rtvd.Format = format;
             rtvd.Dimension = viewDimension;
             switch(viewDimension) 
@@ -227,24 +227,24 @@ namespace CodeWalker.Rendering
 
         public static DepthStencilView CreateDepthStencilView(Device device, Texture2D depthStencil, Format format, DepthStencilViewDimension viewDimension)
         {
-            DepthStencilViewDescription dsvd = new();
+            DepthStencilViewDescription dsvd = new DepthStencilViewDescription();
             dsvd.Format = format;
             dsvd.Flags = 0;
             dsvd.Dimension = viewDimension;
             dsvd.Texture2D.MipSlice = 0;
-            DepthStencilView dsv = new(device, depthStencil, dsvd);
+            DepthStencilView dsv = new DepthStencilView(device, depthStencil, dsvd);
             return dsv;
         }
         public static DepthStencilView CreateDepthStencilView(Device device, Texture2D depthStencil, Format format, int arraySlice)
         {
-            DepthStencilViewDescription dsvd = new();
+            DepthStencilViewDescription dsvd = new DepthStencilViewDescription();
             dsvd.Format = format;
             dsvd.Flags = 0;
             dsvd.Dimension = DepthStencilViewDimension.Texture2DArray;// D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
             dsvd.Texture2DArray.ArraySize = 1;
             dsvd.Texture2DArray.FirstArraySlice = arraySlice;
             dsvd.Texture2DArray.MipSlice = 0;
-            DepthStencilView dsv = new(device, depthStencil, dsvd);
+            DepthStencilView dsv = new DepthStencilView(device, depthStencil, dsvd);
             return dsv;
         }
 
@@ -260,13 +260,13 @@ namespace CodeWalker.Rendering
             dsd.StencilWriteMask = stencilWriteMask;
             dsd.FrontFace = frontFace;
             dsd.BackFace = backFace;
-            DepthStencilState s = new(device, dsd);
+            DepthStencilState s = new DepthStencilState(device, dsd);
             return s;
         }
         public static DepthStencilState CreateDepthStencilState(Device device, bool depthEnable, DepthWriteMask writeMask)
         {
-            DepthStencilOperationDescription frontFace = new();
-            DepthStencilOperationDescription backFace = new();
+            DepthStencilOperationDescription frontFace = new DepthStencilOperationDescription();
+            DepthStencilOperationDescription backFace = new DepthStencilOperationDescription();
             bool stencil = false;//depthEnable;
             byte rm = 0;
             byte wm = 0;
@@ -293,7 +293,7 @@ namespace CodeWalker.Rendering
 
         public static RasterizerState CreateRasterizerState(Device device, FillMode fillMode, CullMode cullMode, bool depthClipEnable, bool scissorEnable, bool multisampleEnable, int depthBias, float depthBiasClamp, float slopeScaledDepthBias)
         {
-            RasterizerStateDescription drd = new();
+            RasterizerStateDescription drd = new RasterizerStateDescription();
             drd.FillMode = fillMode; //D3D11_FILL_MODE FillMode;
             drd.CullMode = cullMode;//D3D11_CULL_MODE CullMode;
             drd.IsFrontCounterClockwise = false; //BOOL FrontCounterClockwise;
@@ -304,7 +304,7 @@ namespace CodeWalker.Rendering
             drd.IsScissorEnabled = scissorEnable;//BOOL ScissorEnable;
             drd.IsMultisampleEnabled = multisampleEnable;//BOOL MultisampleEnable;
             drd.IsAntialiasedLineEnabled = false;//BOOL AntialiasedLineEnable;        
-            RasterizerState rs = new(device, drd);
+            RasterizerState rs = new RasterizerState(device, drd);
             return rs;
         }
         public static RasterizerState CreateRasterizerState(Device device, FillMode fillMode, CullMode cullMode, bool depthClipEnable, bool scissorEnable, bool multisampleEnable)
@@ -322,7 +322,7 @@ namespace CodeWalker.Rendering
 
         public static BlendState CreateBlendState(Device device, bool blendEnable, BlendOperation op, BlendOption src, BlendOption dst, BlendOperation opAlpha, BlendOption srcAlpha, BlendOption dstAlpha, ColorWriteMaskFlags writeMask)
         {
-            BlendStateDescription bsd = new();
+            BlendStateDescription bsd = new BlendStateDescription();
             //ZeroMemory(&bsd, sizeof(bsd));
             bsd.RenderTarget[0].IsBlendEnabled = blendEnable;
             bsd.RenderTarget[0].BlendOperation = op;
@@ -332,7 +332,7 @@ namespace CodeWalker.Rendering
             bsd.RenderTarget[0].SourceAlphaBlend = srcAlpha;
             bsd.RenderTarget[0].DestinationAlphaBlend = dstAlpha;
             bsd.RenderTarget[0].RenderTargetWriteMask = writeMask;
-            BlendState bs = new(device, bsd);
+            BlendState bs = new BlendState(device, bsd);
             return bs;
         }
 

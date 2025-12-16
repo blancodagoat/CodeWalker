@@ -44,9 +44,9 @@ namespace CodeWalker.Rendering
 
 
 
-            List<Vector4> verts = new();
-            Dictionary<Vector4, int> vdict = new();
-            List<Tri> curtris = new();
+            List<Vector4> verts = new List<Vector4>();
+            Dictionary<Vector4, int> vdict = new Dictionary<Vector4, int>();
+            List<Tri> curtris = new List<Tri>();
 
             verts.Add(new Vector4(0.0f, 0.0f, 0.0f, 0.0f));//top end (translated by VS!)
             verts.Add(new Vector4(0.0f, -1.0f, 0.0f, 0.0f));//top normal
@@ -88,7 +88,7 @@ namespace CodeWalker.Rendering
 
 
 
-            List<uint> idata = new();
+            List<uint> idata = new List<uint>();
             foreach (var tri in curtris)
             {
                 idata.Add((uint)tri.v1);

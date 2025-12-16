@@ -180,7 +180,7 @@ namespace CodeWalker.Rendering
         Matrix3_s[] defaultBoneMatrices;
         bool defaultBoneMatricesBound = false;
 
-        private Dictionary<VertexType, InputLayout> layouts = new();
+        private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
 
         public BasicShader(Device device)
         {
@@ -674,10 +674,10 @@ namespace CodeWalker.Rendering
                             case ShaderParamNames.FlowSampler:
                             case ShaderParamNames.FogSampler:
                             case ShaderParamNames.FoamSampler:
-                                texture ??= itex;
+                                if (texture == null) texture = itex;
                                 break;
                             default:
-                                texture ??= itex;
+                                if (texture == null) texture = itex;
                                 break;
                         }
                     }

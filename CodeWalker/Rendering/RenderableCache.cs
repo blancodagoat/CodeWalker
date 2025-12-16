@@ -94,14 +94,14 @@ namespace CodeWalker.Rendering
         }
 
 
-        private RenderableCacheLookup<DrawableBase, Renderable> renderables = new(Settings.Default.GPUGeometryCacheSize, Settings.Default.GPUCacheTime);
-        private RenderableCacheLookup<Texture, RenderableTexture> textures = new(Settings.Default.GPUTextureCacheSize, Settings.Default.GPUCacheTime);
-        private RenderableCacheLookup<Bounds, RenderableBoundComposite> boundcomps = new(Settings.Default.GPUBoundCompCacheSize, Settings.Default.GPUCacheTime);
-        private RenderableCacheLookup<YmapGrassInstanceBatch, RenderableInstanceBatch> instbatches = new(67108864, Settings.Default.GPUCacheTime); //64MB - todo: make this a setting
-        private RenderableCacheLookup<YmapFile, RenderableLODLights> lodlights = new(33554432, Settings.Default.GPUCacheTime); //32MB - todo: make this a setting
-        private RenderableCacheLookup<YmapDistantLODLights, RenderableDistantLODLights> distlodlights = new(33554432, Settings.Default.GPUCacheTime); //32MB - todo: make this a setting
-        private RenderableCacheLookup<BasePathData, RenderablePathBatch> pathbatches = new(536870912 /*33554432*/, Settings.Default.GPUCacheTime); // 512MB /*32MB*/ - todo: make this a setting
-        private RenderableCacheLookup<WaterQuad, RenderableWaterQuad> waterquads = new(4194304, Settings.Default.GPUCacheTime); //4MB - todo: make this a setting
+        private RenderableCacheLookup<DrawableBase, Renderable> renderables = new RenderableCacheLookup<DrawableBase, Renderable>(Settings.Default.GPUGeometryCacheSize, Settings.Default.GPUCacheTime);
+        private RenderableCacheLookup<Texture, RenderableTexture> textures = new RenderableCacheLookup<Texture, RenderableTexture>(Settings.Default.GPUTextureCacheSize, Settings.Default.GPUCacheTime);
+        private RenderableCacheLookup<Bounds, RenderableBoundComposite> boundcomps = new RenderableCacheLookup<Bounds, RenderableBoundComposite>(Settings.Default.GPUBoundCompCacheSize, Settings.Default.GPUCacheTime);
+        private RenderableCacheLookup<YmapGrassInstanceBatch, RenderableInstanceBatch> instbatches = new RenderableCacheLookup<YmapGrassInstanceBatch, RenderableInstanceBatch>(67108864, Settings.Default.GPUCacheTime); //64MB - todo: make this a setting
+        private RenderableCacheLookup<YmapFile, RenderableLODLights> lodlights = new RenderableCacheLookup<YmapFile, RenderableLODLights>(33554432, Settings.Default.GPUCacheTime); //32MB - todo: make this a setting
+        private RenderableCacheLookup<YmapDistantLODLights, RenderableDistantLODLights> distlodlights = new RenderableCacheLookup<YmapDistantLODLights, RenderableDistantLODLights>(33554432, Settings.Default.GPUCacheTime); //32MB - todo: make this a setting
+        private RenderableCacheLookup<BasePathData, RenderablePathBatch> pathbatches = new RenderableCacheLookup<BasePathData, RenderablePathBatch>(536870912 /*33554432*/, Settings.Default.GPUCacheTime); // 512MB /*32MB*/ - todo: make this a setting
+        private RenderableCacheLookup<WaterQuad, RenderableWaterQuad> waterquads = new RenderableCacheLookup<WaterQuad, RenderableWaterQuad>(4194304, Settings.Default.GPUCacheTime); //4MB - todo: make this a setting
 
 
         private object updateSyncRoot = new object();
@@ -272,11 +272,11 @@ namespace CodeWalker.Rendering
 
     public class RenderableCacheLookup<TKey, TVal> where TVal: RenderableCacheItem<TKey>, new()
     {
-        private ConcurrentQueue<TVal> itemsToLoad = new();
-        private ConcurrentQueue<TVal> itemsToUnload = new();
-        private ConcurrentQueue<TKey> keysToInvalidate = new();
-        private LinkedList<TVal> loadeditems = new();//only use from content thread!
-        private Dictionary<TKey, TVal> cacheitems = new();//only use from render thread!
+        private ConcurrentQueue<TVal> itemsToLoad = new ConcurrentQueue<TVal>();
+        private ConcurrentQueue<TVal> itemsToUnload = new ConcurrentQueue<TVal>();
+        private ConcurrentQueue<TKey> keysToInvalidate = new ConcurrentQueue<TKey>();
+        private LinkedList<TVal> loadeditems = new LinkedList<TVal>();//only use from content thread!
+        private Dictionary<TKey, TVal> cacheitems = new Dictionary<TKey, TVal>();//only use from render thread!
         public long CacheLimit;
         public long CacheUse = 0;
         public double CacheTime;

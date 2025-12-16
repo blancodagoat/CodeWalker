@@ -54,9 +54,9 @@ namespace CodeWalker.Rendering
 
         public bool shadows = Settings.Default.Shadows;
         public Shadowmap Shadowmap { get; set; }
-        List<RenderableGeometryInst> shadowcasters = new();
-        List<RenderableGeometryInst> shadowbatch = new();
-        List<ShaderBatch> shadowbatches = new();
+        List<RenderableGeometryInst> shadowcasters = new List<RenderableGeometryInst>();
+        List<RenderableGeometryInst> shadowbatch = new List<RenderableGeometryInst>();
+        List<ShaderBatch> shadowbatches = new List<ShaderBatch>();
         int shadowcastercount = 0; //total casters rendered
 
         public bool deferred = Settings.Default.Deferred;
@@ -68,14 +68,14 @@ namespace CodeWalker.Rendering
         private bool disposed = false;
 
 
-        public List<ShaderRenderBucket> RenderBuckets = new();
-        public List<RenderableBoundGeometryInst> RenderBoundGeoms = new();
-        public List<RenderableInstanceBatchInst> RenderInstBatches = new();
-        public List<RenderableLightInst> RenderLights = new();
-        public List<RenderableLODLights> RenderLODLights = new();
-        public List<RenderableDistantLODLights> RenderDistLODLights = new();
-        public List<RenderablePathBatch> RenderPathBatches = new();
-        public List<RenderableWaterQuad> RenderWaterQuads = new();
+        public List<ShaderRenderBucket> RenderBuckets = new List<ShaderRenderBucket>();
+        public List<RenderableBoundGeometryInst> RenderBoundGeoms = new List<RenderableBoundGeometryInst>();
+        public List<RenderableInstanceBatchInst> RenderInstBatches = new List<RenderableInstanceBatchInst>();
+        public List<RenderableLightInst> RenderLights = new List<RenderableLightInst>();
+        public List<RenderableLODLights> RenderLODLights = new List<RenderableLODLights>();
+        public List<RenderableDistantLODLights> RenderDistLODLights = new List<RenderableDistantLODLights>();
+        public List<RenderablePathBatch> RenderPathBatches = new List<RenderablePathBatch>();
+        public List<RenderableWaterQuad> RenderWaterQuads = new List<RenderableWaterQuad>();
 
         public bool AnisotropicFiltering = true;
         public WorldRenderMode RenderMode = WorldRenderMode.Default;
@@ -87,7 +87,7 @@ namespace CodeWalker.Rendering
         public float CurrentElapsedTime = 0;
 
         private Camera Camera;
-        public ShaderGlobalLights GlobalLights = new();
+        public ShaderGlobalLights GlobalLights = new ShaderGlobalLights();
         public bool PathsDepthClip = true;//false;//
 
         private GameFileCache GameFileCache;
@@ -137,7 +137,7 @@ namespace CodeWalker.Rendering
             Widgets = new WidgetShader(device);
 
 
-            RasterizerStateDescription rsd = new()
+            RasterizerStateDescription rsd = new RasterizerStateDescription()
             {
                 CullMode = CullMode.Back,
                 DepthBias = 0,
@@ -159,7 +159,7 @@ namespace CodeWalker.Rendering
             rsSolidDblSided = new RasterizerState(device, rsd);
 
 
-            BlendStateDescription bsd = new()
+            BlendStateDescription bsd = new BlendStateDescription()
             {
                 AlphaToCoverageEnable = false,//true,
                 IndependentBlendEnable = false,
@@ -184,7 +184,7 @@ namespace CodeWalker.Rendering
             bsd.RenderTarget[0].DestinationBlend = BlendOption.One;
             bsAdd = new BlendState(device, bsd);
 
-            DepthStencilStateDescription dsd = new()
+            DepthStencilStateDescription dsd = new DepthStencilStateDescription()
             {
                 BackFace = new DepthStencilOperationDescription()
                 {
@@ -870,7 +870,7 @@ namespace CodeWalker.Rendering
             var bucket = EnsureRenderBucket(b);
 
             ShaderBatch batch = null;
-            ShaderKey key = new();
+            ShaderKey key = new ShaderKey();
             key.ShaderName = (shader!=null) ? shader.Name : new MetaHash(0);
             key.ShaderFile = (shader!=null) ? shader.FileName : new MetaHash(0);
 
@@ -1054,20 +1054,20 @@ namespace CodeWalker.Rendering
     public class ShaderRenderBucket
     {
         public int Index;
-        public Dictionary<ShaderKey, ShaderBatch> Batches = new();
+        public Dictionary<ShaderKey, ShaderBatch> Batches = new Dictionary<ShaderKey, ShaderBatch>();
 
-        public List<ShaderBatch> BasicBatches = new();
-        public List<ShaderBatch> DecalBatches = new();
-        public List<ShaderBatch> WaterBatches = new();
-        public List<ShaderBatch> Water2Batches = new();
-        public List<ShaderBatch> AlphaBatches = new();
-        public List<ShaderBatch> GlassBatches = new();
-        public List<ShaderBatch> CutoutBatches = new();
-        public List<ShaderBatch> TerrainBatches = new();
-        public List<ShaderBatch> TreesLodBatches = new();
-        public List<ShaderBatch> CableBatches = new();
-        public List<ShaderBatch> ClothBatches = new();
-        public List<ShaderBatch> VehicleBatches = new();
+        public List<ShaderBatch> BasicBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> DecalBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> WaterBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> Water2Batches = new List<ShaderBatch>();
+        public List<ShaderBatch> AlphaBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> GlassBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> CutoutBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> TerrainBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> TreesLodBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> CableBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> ClothBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> VehicleBatches = new List<ShaderBatch>();
 
 
         public ShaderRenderBucket(int index)
@@ -1408,7 +1408,7 @@ namespace CodeWalker.Rendering
     public class ShaderBatch
     {
         public ShaderKey Key;
-        public List<RenderableGeometryInst> Geometries = new();
+        public List<RenderableGeometryInst> Geometries = new List<RenderableGeometryInst>();
 
         public ShaderBatch(ShaderKey key)
         {

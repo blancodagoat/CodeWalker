@@ -24,7 +24,7 @@ namespace CodeWalker
         public Form Form { get { return this; } } //for DXForm/DXManager use
 
         public Renderer Renderer = null;
-        public Lock RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
+        public Lock RenderSyncRoot { get { return (Lock)Renderer.RenderSyncRoot; } }
 
         volatile bool formopen = false;
         volatile bool running = false;
@@ -405,7 +405,7 @@ namespace CodeWalker
 
             GameFileCache.BeginFrame();
 
-            if (!Renderer.RenderSyncRoot.TryEnter(TimeSpan.FromMilliseconds(50)))
+            if (!Monitor.TryEnter(Renderer.RenderSyncRoot, 50))
             { return; } //couldn't get a lock, try again next time
             
             // cache frequently accessed properties
@@ -470,7 +470,7 @@ namespace CodeWalker
 
             Renderer.EndRender();
 
-            Renderer.RenderSyncRoot.Exit();
+            Monitor.Exit(Renderer.RenderSyncRoot);
 
             UpdateMarkerSelectionPanelInvoke();
         }
@@ -4855,7 +4855,7 @@ namespace CodeWalker
         {
             if (!MouseSelectEnabled) return null;
             
-            if (!markersortedsyncroot.TryEnter(TimeSpan.FromMilliseconds(1))) // dont wait long for lock
+            if (!Monitor.TryEnter(markersortedsyncroot, 1)) // dont wait long for lock
                 return null;
             
             try
@@ -4888,7 +4888,7 @@ namespace CodeWalker
             }
             finally
             {
-                markersortedsyncroot.Exit();
+                Monitor.Exit(markersortedsyncroot);
             }
             
             return null;
