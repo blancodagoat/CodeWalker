@@ -8,6 +8,12 @@
     <Setting Name="GTAFolder" Type="System.String" Scope="User">
       <Value Profile="(Default)">C:\Program Files (x86)\Steam\SteamApps\common\Grand Theft Auto V</Value>
     </Setting>
+    <Setting Name="GTAFolderLegacy" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="GTAFolderEnhanced" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
     <Setting Name="CompiledScriptFolder" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

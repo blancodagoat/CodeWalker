@@ -50,6 +50,30 @@ namespace CodeWalker.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string GTAFolderLegacy {
+            get {
+                return ((string)(this["GTAFolderLegacy"]));
+            }
+            set {
+                this["GTAFolderLegacy"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string GTAFolderEnhanced {
+            get {
+                return ((string)(this["GTAFolderEnhanced"]));
+            }
+            set {
+                this["GTAFolderEnhanced"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string CompiledScriptFolder {
             get {
                 return ((string)(this["CompiledScriptFolder"]));

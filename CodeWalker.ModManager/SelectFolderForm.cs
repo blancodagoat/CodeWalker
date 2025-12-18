@@ -135,6 +135,13 @@ namespace CodeWalker.ModManager
         private void EnhancedRadioButton_CheckedChanged(object sender, EventArgs e)
         {
             IsGen9 = EnhancedRadioButton.Checked;
+            
+            // Switch to the saved path for the selected mode
+            var savedPath = IsGen9 ? Settings.GameFolderEnhanced : Settings.GameFolderLegacy;
+            if (!string.IsNullOrEmpty(savedPath))
+            {
+                FolderTextBox.Text = savedPath;
+            }
         }
 
         private void CancelButt_Click(object sender, EventArgs e)
@@ -152,6 +159,17 @@ namespace CodeWalker.ModManager
 
             Settings.GameFolder = SelectedFolder;
             Settings.IsGen9 = IsGen9;
+            
+            // Save to the appropriate path based on mode
+            if (IsGen9)
+            {
+                Settings.GameFolderEnhanced = SelectedFolder;
+            }
+            else
+            {
+                Settings.GameFolderLegacy = SelectedFolder;
+            }
+            
             Settings.Save();
 
             DialogResult = DialogResult.OK;

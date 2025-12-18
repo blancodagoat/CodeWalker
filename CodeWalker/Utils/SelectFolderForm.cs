@@ -56,6 +56,13 @@ namespace CodeWalker.Utils
         private void EnhancedRadioButton_CheckedChanged(object sender, EventArgs e)
         {
             IsGen9 = EnhancedRadioButton.Checked;
+            
+            // Switch to the saved path for the selected mode
+            var savedPath = IsGen9 ? Settings.Default.GTAFolderEnhanced : Settings.Default.GTAFolderLegacy;
+            if (!string.IsNullOrEmpty(savedPath))
+            {
+                FolderTextBox.Text = savedPath;
+            }
         }
 
         private void CancelButton_Click(object sender, EventArgs e)

@@ -14,8 +14,53 @@ namespace CodeWalker
 {
     public static class GTAFolder
     {
-        public static string CurrentGTAFolder { get; private set; } = Settings.Default.GTAFolder;
-        public static bool IsGen9 { get; private set; } = Settings.Default.GTAGen9;
+        private static string _currentGTAFolder = string.Empty;
+        private static bool _isGen9 = Settings.Default.GTAGen9;
+        
+        public static string CurrentGTAFolder 
+        { 
+            get => _currentGTAFolder;
+            private set => _currentGTAFolder = value;
+        }
+        
+        public static bool IsGen9 
+        { 
+            get => _isGen9;
+            private set => _isGen9 = value;
+        }
+        
+        static GTAFolder()
+        {
+            // Load settings and migrate old single folder to separate paths if needed
+            LoadSettings();
+        }
+        
+        private static void LoadSettings()
+        {
+            _isGen9 = Settings.Default.GTAGen9;
+            
+            // Migrate old single GTAFolder to separate paths if needed
+            if (!string.IsNullOrEmpty(Settings.Default.GTAFolder))
+            {
+                if (_isGen9 && string.IsNullOrEmpty(Settings.Default.GTAFolderEnhanced))
+                {
+                    Settings.Default.GTAFolderEnhanced = Settings.Default.GTAFolder;
+                }
+                else if (!_isGen9 && string.IsNullOrEmpty(Settings.Default.GTAFolderLegacy))
+                {
+                    Settings.Default.GTAFolderLegacy = Settings.Default.GTAFolder;
+                }
+            }
+            
+            // Set current folder based on mode
+            _currentGTAFolder = _isGen9 ? Settings.Default.GTAFolderEnhanced : Settings.Default.GTAFolderLegacy;
+            
+            // Fallback to old GTAFolder if separate paths are empty
+            if (string.IsNullOrEmpty(_currentGTAFolder))
+            {
+                _currentGTAFolder = Settings.Default.GTAFolder ?? string.Empty;
+            }
+        }
 
         public static bool IsGen9Folder(string folder)
         {
@@ -127,6 +172,17 @@ namespace CodeWalker
                 IsGen9 = gen9;
                 Settings.Default.GTAFolder = folder;
                 Settings.Default.GTAGen9 = gen9;
+                
+                // Save to the appropriate path based on mode
+                if (gen9)
+                {
+                    Settings.Default.GTAFolderEnhanced = folder;
+                }
+                else
+                {
+                    Settings.Default.GTAFolderLegacy = folder;
+                }
+                
                 Settings.Default.Save();
                 return true;
             }

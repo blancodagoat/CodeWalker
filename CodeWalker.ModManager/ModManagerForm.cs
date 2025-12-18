@@ -65,15 +65,6 @@ namespace CodeWalker.ModManager
             Task.Run(() =>
             {
 
-                if (Settings.FileExists == false)
-                {
-                    var msg1 = $"Unable to load {Settings.FileName}.";
-                    var msg2 = "Please make sure you have installed CodeWalker Mod Manager correctly.";
-                    var msg3 = "The exe should be running from its installation folder, and not the zip file.";
-                    initFail($"{msg1}\n{msg2}\n{msg3}", "Settings file not found");
-                    return;
-                }
-
                 if (Settings.GameFolderOk == false)
                 {
                     showSelectFolderForm();

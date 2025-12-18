@@ -8,11 +8,31 @@ using System.Threading.Tasks;
 
 namespace CodeWalker.ModManager
 {
-    public class SettingsFile : SimpleKvpFile
+    public class SettingsFile
     {
-        public string GameFolder;
-        public bool IsGen9;
-        public string AESKey;
+        private Properties.Settings Settings => Properties.Settings.Default;
+        
+        public string GameFolder { get; set; }
+        public string GameFolderLegacy
+        {
+            get => Settings.GameFolderLegacy;
+            set => Settings.GameFolderLegacy = value;
+        }
+        public string GameFolderEnhanced
+        {
+            get => Settings.GameFolderEnhanced;
+            set => Settings.GameFolderEnhanced = value;
+        }
+        public bool IsGen9
+        {
+            get => Settings.IsGen9;
+            set => Settings.IsGen9 = value;
+        }
+        public string AESKey
+        {
+            get => Settings.AESKey ?? string.Empty;
+            set => Settings.AESKey = value;
+        }
 
         public string GameName => GameFolderOk ? IsGen9 ? "GTAV (Enhanced)" : "GTAV (Legacy)" : "(None selected)";
         public string GameTitle => IsGen9 ? "GTAV Enhanced" : "GTAV Legacy";
@@ -29,45 +49,48 @@ namespace CodeWalker.ModManager
             }
         }
 
-
         public SettingsFile()
         {
-            FileName = "CodeWalker.ModManager.ini";
-            OnlySaveIfFileExists = true;//only try and overwrite an existing settings file, as it is used to check if the exe is running in the correct directory!
             try
             {
-                FilePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), FileName);
                 Load();
             }
             catch (Exception ex)
             {
-                FileError = ex;
+                // Log error if needed
+                System.Diagnostics.Debug.WriteLine($"Error loading settings: {ex.Message}");
             }
         }
 
-        public override void Load()
+        public void Load()
         {
-            base.Load();
-            GameFolder = GetItem("GameFolder");
-            bool.TryParse(GetItem("IsGen9"), out IsGen9);
-            AESKey = GetItem("AESKey");
+            // Reload settings from App.config
+            Settings.Reload();
+            
+            // Set GameFolder to the appropriate path based on current mode
+            GameFolder = IsGen9 ? GameFolderEnhanced : GameFolderLegacy;
+            
+            // Ensure we have non-null values
+            if (string.IsNullOrEmpty(GameFolder))
+            {
+                GameFolder = string.Empty;
+            }
         }
-        public override void Save()
+
+        public void Save()
         {
-            Items.Clear();
-            SetItem("GameFolder", GameFolder);
-            SetItem("IsGen9", IsGen9.ToString());
-            SetItem("AESKey", AESKey);
-            base.Save();
+            // Save settings to App.config
+            Settings.Save();
         }
 
         public void Reset()
         {
-            GameFolder = null;
+            GameFolder = string.Empty;
+            GameFolderLegacy = string.Empty;
+            GameFolderEnhanced = string.Empty;
             IsGen9 = false;
-            AESKey = null;
+            AESKey = string.Empty;
             Save();
         }
-
     }
 }
