@@ -23,8 +23,8 @@ namespace CodeWalker.Rendering
         public DXManager DXMan { get { return dxman; } }
         private Device currentdevice;
         public Device Device { get { return currentdevice; } }
-        private object rendersyncroot = new object();
-        public object RenderSyncRoot { get { return rendersyncroot; } }
+        private Lock rendersyncroot = new Lock();
+        public Lock RenderSyncRoot { get { return rendersyncroot; } }
 
         public ShaderManager shaders;
 

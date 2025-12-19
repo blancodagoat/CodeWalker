@@ -25,7 +25,7 @@ namespace CodeWalker
         public Form Form { get { return this; } } //for DXForm/DXManager use
 
         public Renderer Renderer = null;
-        public Lock RenderSyncRoot { get { return (Lock)Renderer.RenderSyncRoot; } }
+        public Lock RenderSyncRoot { get { return Renderer.RenderSyncRoot; } }
 
         volatile bool formopen = false;
         volatile bool running = false;
