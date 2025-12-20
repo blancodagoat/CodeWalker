@@ -54,4 +54,16 @@
     </None>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <BuildOutputFiles Include="$(OutDir)**\*.*" />
+      <IconFiles Include="$(ProjectDir)..\icons\**\*.*" />
+      <ShaderFiles Include="$(ProjectDir)..\Shaders\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BuildOutputFiles)" DestinationFolder="$(ProjectDir)..\x64\$(Configuration)\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(IconFiles)" DestinationFolder="$(ProjectDir)..\x64\$(Configuration)\icons\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ShaderFiles)" DestinationFolder="$(ProjectDir)..\x64\$(Configuration)\Shaders\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Text="Copied build output, icons, and shaders to x64\$(Configuration)" Importance="high" />
+  </Target>
+
 </Project>
