@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -585,19 +586,50 @@ namespace CodeWalker.GameFiles
 
             var path = System.Reflection.Assembly.GetExecutingAssembly().Location;
             var dir = Path.GetDirectoryName(path);
-            var fpath = Path.Combine(dir, "strings.txt");
-            if (File.Exists(fpath))
+            
+            // Try strings.dat (gzip compressed) first, fallback to strings.txt
+            var datPath = Path.Combine(dir, "strings.dat");
+            var txtPath = Path.Combine(dir, "strings.txt");
+            
+            string[] lines = null;
+            
+            if (File.Exists(datPath))
             {
-                var lines = File.ReadAllLines(fpath);
-                if (lines != null)
+                try
                 {
-                    foreach (var line in lines)
+                    using (var fileStream = File.OpenRead(datPath))
+                    using (var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress))
+                    using (var reader = new StreamReader(gzipStream, Encoding.UTF8))
                     {
-                        var str = line?.Trim();
-                        if (string.IsNullOrEmpty(str)) continue;
-                        if (str.StartsWith("//")) continue;
-                        JenkIndex.Ensure(str);
+                        var linesList = new List<string>();
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            linesList.Add(line);
+                        }
+                        lines = linesList.ToArray();
                     }
+                }
+                catch
+                {
+                    // If decompression fails, fall back to strings.txt
+                    lines = null;
+                }
+            }
+            
+            if (lines == null && File.Exists(txtPath))
+            {
+                lines = File.ReadAllLines(txtPath);
+            }
+            
+            if (lines != null)
+            {
+                foreach (var line in lines)
+                {
+                    var str = line?.Trim();
+                    if (string.IsNullOrEmpty(str)) continue;
+                    if (str.StartsWith("//")) continue;
+                    JenkIndex.Ensure(str);
                 }
             }
 
