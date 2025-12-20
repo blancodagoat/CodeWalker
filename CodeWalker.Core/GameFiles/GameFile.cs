@@ -41,7 +41,39 @@ public abstract class GameFile : Cacheable<GameFileCacheKey>
 
     public override string ToString()
     {
-        return (string.IsNullOrEmpty(Name)) ? JenkIndex.GetString(Key.Hash) : Name;
+        Ydd = 0,
+        Ydr = 1,
+        Yft = 2,
+        Ymap = 3,
+        Ymf = 4,
+        Ymt = 5,
+        Ytd = 6,
+        Ytyp = 7,
+        Ybn = 8,
+        Ycd = 9,
+        Ypt = 10,
+        Ynd = 11,
+        Ynv = 12,
+        Rel = 13,
+        Ywr = 14,
+        Yvr = 15,
+        Gtxd = 16,
+        Vehicles = 17,
+        CarCols = 18,
+        CarModCols = 19,
+        CarVariations = 20,
+        VehicleLayouts = 21,
+        Peds = 22,
+        Ped = 23,
+        Yed = 24,
+        Yld = 25,
+        Yfd = 26,
+        Heightmap = 27,
+        Watermap = 28,
+        Mrf = 29,
+        DistantLights = 30,
+        Ypdb = 31,
+        AudioWorldSectors = 32,
     }
 
 
