@@ -1372,10 +1372,11 @@ namespace CodeWalker.Rendering
                         b = CutoutBatches;
                         break;
                     #endregion
-                    #region TODO/unused batches
+                    #region grass_fur batches
                     case 3333227093://{grass_fur.sps}
                     case 4256676773://{grass_fur_mask.sps}
-                        break;//todo: grass_fur
+                        b = CutoutBatches; //grass_fur renders similar to cutout with alpha
+                        break;
 
                     case 83630553://{cpv_only.sps}
                     case 1238547107://{decal_shadow_only.sps}

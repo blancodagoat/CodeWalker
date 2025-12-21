@@ -419,6 +419,8 @@ namespace CodeWalker.Rendering
 
         public void Clear(DeviceContext context)
         {
+            if (Primary == null) return;
+            
             Color4 clearColour = new Color4(0.2f, 0.4f, 0.6f, 0.0f);
             //Color4 clearColour = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -426,16 +428,22 @@ namespace CodeWalker.Rendering
         }
         public void ClearDepth(DeviceContext context)
         {
+            if (Primary == null) return;
             Primary.ClearDepth(context);
         }
         public void SetPrimary(DeviceContext context)
         {
+            if (Primary == null) return;
             Primary.SetRenderTarget(context);
             context.Rasterizer.SetViewport(Viewport);
         }
 
         public void Render(DXManager dxman, float elapsed, DeferredScene defScene)
         {
+            if (Primary == null || Reduction0 == null || Reduction1 == null || 
+                LumBlendResult == null || Bloom0 == null || Bloom1 == null || Bloom == null)
+                return;
+                
             ElapsedTime = elapsed;
             DefScene = defScene;
             UsePrimary = ((defScene?.SSAASampleCount ?? 2) > 1) || (defScene?.SceneColour == null);

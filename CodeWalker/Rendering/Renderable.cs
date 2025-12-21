@@ -976,6 +976,10 @@ namespace CodeWalker.Rendering
                     case 100720695://{ped_hair_spiked.sps}
                         isHair = true;
                         break;
+                    case 3333227093://{grass_fur.sps}
+                    case 4256676773://{grass_fur_mask.sps}
+                        EnableWind = false;
+                        break;
                 }
 
 

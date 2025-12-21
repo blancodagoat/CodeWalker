@@ -138,6 +138,8 @@ namespace CodeWalker.World
 
         public CloudHatFrag FindFrag(string name)
         {
+            if (CloudHatFrags == null) return null;
+            
             for (int i = 0; i < CloudHatFrags.Length; i++)
             {
                 CloudHatFrag f = CloudHatFrags[i];

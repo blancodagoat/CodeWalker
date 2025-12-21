@@ -5930,15 +5930,18 @@ namespace CodeWalker
 
         private void SetFullscreen(bool fullscreen)
         {
-            if (fullscreen)
+            lock (Renderer.RenderSyncRoot)
             {
-                FormBorderStyle = FormBorderStyle.None;
-                WindowState = FormWindowState.Maximized;
-            }
-            else
-            {
-                WindowState = FormWindowState.Normal;
-                FormBorderStyle = FormBorderStyle.Sizable;
+                if (fullscreen)
+                {
+                    FormBorderStyle = FormBorderStyle.None;
+                    WindowState = FormWindowState.Maximized;
+                }
+                else
+                {
+                    WindowState = FormWindowState.Normal;
+                    FormBorderStyle = FormBorderStyle.Sizable;
+                }
             }
         }
 

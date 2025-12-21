@@ -383,16 +383,22 @@ namespace CodeWalker.Rendering
         {
             if (Multisampled)
             {
-                context.ClearRenderTargetView(MSRTV, colour);
-                if (UseDepth)
+                if (MSRTV != null)
+                {
+                    context.ClearRenderTargetView(MSRTV, colour);
+                }
+                if (UseDepth && MSDSV != null)
                 {
                     context.ClearDepthStencilView(MSDSV, DepthStencilClearFlags.Depth, 0.0f, 0);
                 }
             }
             else
             {
-                context.ClearRenderTargetView(RTV, colour);
-                if (UseDepth)
+                if (RTV != null)
+                {
+                    context.ClearRenderTargetView(RTV, colour);
+                }
+                if (UseDepth && DSV != null)
                 {
                     context.ClearDepthStencilView(DSV, DepthStencilClearFlags.Depth, 0.0f, 0);
                 }
@@ -404,11 +410,17 @@ namespace CodeWalker.Rendering
             if (!UseDepth) return;
             if (Multisampled)
             {
-                context.ClearDepthStencilView(MSDSV, DepthStencilClearFlags.Depth, 0.0f, 0);
+                if (MSDSV != null)
+                {
+                    context.ClearDepthStencilView(MSDSV, DepthStencilClearFlags.Depth, 0.0f, 0);
+                }
             }
             else
             {
-                context.ClearDepthStencilView(DSV, DepthStencilClearFlags.Depth, 0.0f, 0);
+                if (DSV != null)
+                {
+                    context.ClearDepthStencilView(DSV, DepthStencilClearFlags.Depth, 0.0f, 0);
+                }
             }
         }
 
@@ -416,11 +428,17 @@ namespace CodeWalker.Rendering
         {
             if (Multisampled)
             {
-                context.OutputMerger.SetRenderTargets(UseDepth ? MSDSV : null, MSRTV);
+                if (MSRTV != null)
+                {
+                    context.OutputMerger.SetRenderTargets(UseDepth ? MSDSV : null, MSRTV);
+                }
             }
             else
             {
-                context.OutputMerger.SetRenderTargets(UseDepth ? DSV : null, RTV);
+                if (RTV != null)
+                {
+                    context.OutputMerger.SetRenderTargets(UseDepth ? DSV : null, RTV);
+                }
             }
         }
 
@@ -567,11 +585,15 @@ namespace CodeWalker.Rendering
 
         public void Clear(DeviceContext context, Color4 colour)
         {
+            if (RTVs == null) return;
             for (int i = 0; i < Count; i++)
             {
-                context.ClearRenderTargetView(RTVs[i], colour);
+                if (RTVs[i] != null)
+                {
+                    context.ClearRenderTargetView(RTVs[i], colour);
+                }
             }
-            if (UseDepth)
+            if (UseDepth && DSV != null)
             {
                 context.ClearDepthStencilView(DSV, DepthStencilClearFlags.Depth, 0.0f, 0);
             }
@@ -579,12 +601,13 @@ namespace CodeWalker.Rendering
 
         public void ClearDepth(DeviceContext context)
         {
-            if (!UseDepth) return;
+            if (!UseDepth || DSV == null) return;
             context.ClearDepthStencilView(DSV, DepthStencilClearFlags.Depth, 0.0f, 0);
         }
 
         public void SetRenderTargets(DeviceContext context)
         {
+            if (RTVs == null) return;
             context.OutputMerger.SetRenderTargets(UseDepth ? DSV : null, RTVs);
         }
 

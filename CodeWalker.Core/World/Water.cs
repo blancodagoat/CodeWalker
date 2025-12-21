@@ -21,18 +21,19 @@ namespace CodeWalker.World
         {
             GameFileCache = gameFileCache;
 
-
-            WaterQuads.Clear();
-            CalmingQuads.Clear();
-            WaveQuads.Clear();
-
-            LoadWaterXml("common.rpf\\data\\levels\\gta5\\water.xml");
-            
-            if (GameFileCache.EnableDlc)
+            lock (this)
             {
-                LoadWaterXml("update\\update.rpf\\common\\data\\levels\\gta5\\water_heistisland.xml");
-            }
+                WaterQuads.Clear();
+                CalmingQuads.Clear();
+                WaveQuads.Clear();
 
+                LoadWaterXml("common.rpf\\data\\levels\\gta5\\water.xml");
+                
+                if (GameFileCache.EnableDlc)
+                {
+                    LoadWaterXml("update\\update.rpf\\common\\data\\levels\\gta5\\water_heistisland.xml");
+                }
+            }
 
             Inited = true;
         }
@@ -78,8 +79,15 @@ namespace CodeWalker.World
 
             if (!Inited) return quads;
 
+            // Create a snapshot to avoid collection modification during enumeration
+            List<T> snapshot;
+            lock (this)
+            {
+                snapshot = allQuads.ToList();
+            }
+
             var vf = camera.ViewFrustum;
-            foreach (var quad in allQuads)
+            foreach (var quad in snapshot)
             {
                 Vector3 camrel = quad.BSCenter - camera.Position;
                 if (vf.ContainsSphereNoClipNoOpt(ref camrel, quad.BSRadius))

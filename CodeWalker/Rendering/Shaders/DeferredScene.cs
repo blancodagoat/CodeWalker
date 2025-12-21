@@ -356,27 +356,32 @@ namespace CodeWalker.Rendering
 
         public void Clear(DeviceContext context)
         {
+            if (GBuffers == null || SceneColour == null) return;
             GBuffers.Clear(context, new Color4(0.0f, 0.0f, 0.0f, 0.0f));
             SceneColour.Clear(context, new Color4(0.2f, 0.4f, 0.6f, 0.0f));
         }
         public void ClearDepth(DeviceContext context)
         {
+            if (GBuffers == null || SceneColour == null) return;
             GBuffers.ClearDepth(context);
             SceneColour.ClearDepth(context);
         }
         public void SetGBuffers(DeviceContext context)
         {
+            if (GBuffers == null) return;
             GBuffers.SetRenderTargets(context);
             context.Rasterizer.SetViewport(Viewport);
         }
         public void SetSceneColour(DeviceContext context)
         {
+            if (SceneColour == null) return;
             SceneColour.SetRenderTarget(context);
             context.Rasterizer.SetViewport(Viewport);
         }
 
         public void RenderLights(DeviceContext context, Camera camera, Shadowmap globalShadows, ShaderGlobalLights globalLights)
         {
+            if (GBuffers == null) return;
 
             //first full-screen directional light pass, for sun/moon
             //discard pixels where scene depth is 0, since nothing was rendered there
@@ -430,6 +435,8 @@ namespace CodeWalker.Rendering
 
         public void RenderLights(DeviceContext context, Camera camera, List<RenderableLODLights> lodlights)
         {
+            if (GBuffers == null) return;
+            
             //instanced rendering of all other lights, using appropriate shapes
             //blend mode: additive
 
@@ -510,6 +517,8 @@ namespace CodeWalker.Rendering
 
         public void RenderLights(DeviceContext context, Camera camera, List<RenderableLightInst> lights)
         {
+            if (GBuffers == null) return;
+            
             //instanced rendering of all other lights, using appropriate shapes
             //blend mode: additive
 
@@ -610,6 +619,8 @@ namespace CodeWalker.Rendering
 
         public void SSAAPass(DeviceContext context)
         {
+            if (SceneColour == null) return;
+            
             //do antialiasing from SceneColour
 
             context.VertexShader.Set(FinalVS);

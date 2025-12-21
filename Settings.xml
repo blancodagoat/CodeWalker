@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Settings>
+  <!-- GTA Folder Paths -->
+  <GTAFolder>C:\Program Files (x86)\Steam\SteamApps\common\Grand Theft Auto V</GTAFolder>
+  <GTAFolderLegacy></GTAFolderLegacy>
+  <GTAFolderEnhanced></GTAFolderEnhanced>
+  <CompiledScriptFolder></CompiledScriptFolder>
+  <DecompiledScriptFolder></DecompiledScriptFolder>
+  <GTAExeDumpFile></GTAExeDumpFile>
+  <ExtractedTexturesFolder></ExtractedTexturesFolder>
+  <ExtractedRawFilesFolder></ExtractedRawFilesFolder>
+  <ExtractedShadersFolder></ExtractedShadersFolder>
+  <Key></Key>
+  
+  <!-- Display Settings -->
+  <FullScreen>False</FullScreen>
+  <Wireframe>False</Wireframe>
+  <Skydome>True</Skydome>
+  <ShowTimedEntities>True</ShowTimedEntities>
+  <ShowCollisionMeshes>False</ShowCollisionMeshes>
+  <CollisionMeshRange>4</CollisionMeshRange>
+  <DynamicLOD>True</DynamicLOD>
+  <DetailDist>5</DetailDist>
+  <MarkerStyle>Glokon Marker</MarkerStyle>
+  <LocatorStyle>Glokon Debug</LocatorStyle>
+  <MarkerDepthClip>False</MarkerDepthClip>
+  <BoundsStyle>None</BoundsStyle>
+  <BoundsDepthClip>True</BoundsDepthClip>
+  <BoundsRange>100</BoundsRange>
+  <ShowErrorConsole>False</ShowErrorConsole>
+  <Shadows>True</Shadows>
+  <ShadowCascades>6</ShadowCascades>
+  <Grass>True</Grass>
+  <ShowStatusBar>True</ShowStatusBar>
+  <WaitForChildren>True</WaitForChildren>
+  <WindowMaximized>False</WindowMaximized>
+  
+  <!-- Cache Settings (in bytes) -->
+  <CacheSize>2147483648</CacheSize>
+  <CacheTime>10</CacheTime>
+  <GPUGeometryCacheSize>536870912</GPUGeometryCacheSize>
+  <GPUTextureCacheSize>1073741824</GPUTextureCacheSize>
+  <GPUBoundCompCacheSize>134217728</GPUBoundCompCacheSize>
+  <GPUCacheTime>1</GPUCacheTime>
+  <GPUCacheFlushTime>0.1</GPUCacheFlushTime>
+  
+  <!-- Camera Settings -->
+  <CameraSmoothing>10</CameraSmoothing>
+  <CameraSensitivity>0.005</CameraSensitivity>
+  <CameraFieldOfView>1</CameraFieldOfView>
+  
+  <!-- Render Settings -->
+  <RenderMode>Default</RenderMode>
+  <RenderTextureSampler>DiffuseSampler</RenderTextureSampler>
+  <RenderTextureSamplerCoord>Texture coord 1</RenderTextureSamplerCoord>
+  <ExcludeFolders>Installers;_CommonRedist</ExcludeFolders>
+  <AnisotropicFiltering>True</AnisotropicFiltering>
+  <HDR>True</HDR>
+  <Deferred>True</Deferred>
+  
+  <!-- Mods -->
+  <EnableMods>False</EnableMods>
+  <DLC></DLC>
+  
+  <!-- Input Settings -->
+  <XInputLThumbInvert>True</XInputLThumbInvert>
+  <XInputRThumbInvert>False</XInputRThumbInvert>
+  <XInputLThumbSensitivity>2</XInputLThumbSensitivity>
+  <XInputRThumbSensitivity>2</XInputRThumbSensitivity>
+  <XInputZoomSpeed>2</XInputZoomSpeed>
+  <XInputMoveSpeed>15</XInputMoveSpeed>
+  <MouseInvert>False</MouseInvert>
+  <RememberGTAFolder>True</RememberGTAFolder>
+  
+  <!-- Theme Settings -->
+  <ProjectWindowTheme>Blue</ProjectWindowTheme>
+  <ExplorerWindowTheme>Windows</ExplorerWindowTheme>
+  
+  <!-- Editor Settings -->
+  <SnapRotationDegrees>5</SnapRotationDegrees>
+  <SnapGridSize>10</SnapGridSize>
+  <JumpListInitialised>False</JumpListInitialised>
+  
+  <!-- RPF Explorer Settings -->
+  <RPFExplorerStartInEditMode>False</RPFExplorerStartInEditMode>
+  <RPFExplorerSelectedFolder></RPFExplorerSelectedFolder>
+  <RPFExplorerExtraFolders></RPFExplorerExtraFolders>
+  <RPFExplorerStartFolder></RPFExplorerStartFolder>
+  
+  <!-- World Settings -->
+  <TimeOfDay>720</TimeOfDay>
+  <LODLights>True</LODLights>
+  <Region>Global</Region>
+  <Clouds>contrails</Clouds>
+  <Weather>EXTRASUNNY</Weather>
+  <NaturalAmbientLight>True</NaturalAmbientLight>
+  <ArtificialAmbientLight>True</ArtificialAmbientLight>
+  
+  <!-- Key Bindings -->
+  <KeyBindings>
+    <Item>Move Forwards: W</Item>
+    <Item>Move Backwards: S</Item>
+    <Item>Move Left: A</Item>
+    <Item>Move Right: D</Item>
+    <Item>Move Up: R</Item>
+    <Item>Move Down: F</Item>
+    <Item>Move Slower / Zoom In: Z</Item>
+    <Item>Move Faster / Zoom Out: X</Item>
+    <Item>Toggle Mouse Select: C</Item>
+    <Item>Toggle Toolbar: T</Item>
+    <Item>Exit Edit Mode: Q</Item>
+    <Item>Edit Position: W</Item>
+    <Item>Edit Rotation: E</Item>
+    <Item>Edit Scale: R</Item>
+  </KeyBindings>
+  
+  <!-- Position Settings -->
+  <StartPosition>0, 0, 100</StartPosition>
+  <SavePosition>True</SavePosition>
+  <SaveTimeOfDay>True</SaveTimeOfDay>
+  <GTAGen9>False</GTAGen9>
+  
+  <!-- Color Picker Settings -->
+  <ColourPickerCustomColours></ColourPickerCustomColours>
+  <ColourPickerRecentColours></ColourPickerRecentColours>
+</Settings>
