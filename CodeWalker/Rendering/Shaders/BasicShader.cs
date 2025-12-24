@@ -737,7 +737,7 @@ namespace CodeWalker.Rendering
                     break;
                 case 3880384844://{decal_spec_only.sps}
                 case 2842248626://{spec_decal.sps}
-                    decalflag = 4;
+                    decalflag = 1;
                     break;
                 case 600733812://{decal_amb_only.sps}
                     //if (RenderMode == WorldRenderMode.Default) usediff = false;
