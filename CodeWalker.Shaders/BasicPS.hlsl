@@ -1,6 +1,4 @@
 #include "BasicPS.hlsli"
-#include "Lighting.hlsli"
-#include "ParallaxMapping.hlsli"
 
 
 float4 main(VS_OUTPUT input) : SV_TARGET
@@ -81,54 +79,9 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     if (RenderMode == 0)
     {
-        // Base texture coordinates
-        float2 texCoord = input.Texcoord0;
 
-        // GTA V pxm shaders use dedicated height map (R channel = height, G channel = specular)
-        if (EnableParallax && EnableNormalMap)
-        {
-            // Sample height map to get height data (R channel)
-            float4 initialHeight = Heightmap.Sample(TextureSS, texCoord);
-
-            // Calculate view direction in tangent space for parallax
-            float3 viewDirWorld = normalize(input.CamRelPos);
-            float3 viewDirTangent;
-            viewDirTangent.x = dot(viewDirWorld, input.Tangent.xyz);
-            viewDirTangent.y = dot(viewDirWorld, input.Bitangent.xyz);
-            viewDirTangent.z = dot(viewDirWorld, input.Normal.xyz);
-
-            // Apply parallax offset
-            float2 parallaxTexCoord;
-            if (parallaxNumSteps > 0)
-            {
-                // Steep parallax (higher quality)
-                float4 unused = CalculateParallaxSteep(
-                    viewDirTangent,
-                    initialHeight,
-                    texCoord,
-                    Heightmap,
-                    TextureSS,
-                    parallaxScale,
-                    parallaxNumSteps,
-                    parallaxTexCoord);
-            }
-            else
-            {
-                // Standard parallax (faster)
-                // Use R channel for height (GTA V pxm format)
-                parallaxTexCoord = CalculateParallaxStandard(
-                    viewDirTangent,
-                    initialHeight.r,
-                    parallaxScale,
-                    parallaxBias,
-                    texCoord);
-            }
-
-            texCoord = parallaxTexCoord;
-        }
-
-        float4 nv = Bumpmap.Sample(TextureSS, texCoord);  //sample r1.xyzw, v2.xyxx, t3.xyzw, s3  (BumpSampler)
-        float4 sv = Specmap.Sample(TextureSS, texCoord);  //sample r2.xyzw, v2.xyxx, t4.xyzw, s4  (SpecSampler)
+        float4 nv = Bumpmap.Sample(TextureSS, input.Texcoord0);  //sample r1.xyzw, v2.xyxx, t3.xyzw, s3  (BumpSampler)
+        float4 sv = Specmap.Sample(TextureSS, input.Texcoord0);  //sample r2.xyzw, v2.xyxx, t4.xyzw, s4  (SpecSampler)
 
 
         float2 nmv = nv.xy;
@@ -138,8 +91,8 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         {
             if (EnableDetailMap)
             {
-                //detail normalmapp (use parallax-adjusted coords if enabled)
-                r0.xy = texCoord * detailSettings.zw;    //mul r0.xy, v2.xyxx, detailSettings.zwzz
+                //detail normalmapp
+                r0.xy = input.Texcoord0 * detailSettings.zw;    //mul r0.xy, v2.xyxx, detailSettings.zwzz
                 r0.zw = r0.xy * 3.17;       //mul r0.zw, r0.xxxy, l(0.000000, 0.000000, 3.170000, 3.170000)
                 r0.xy = Detailmap.Sample(TextureSS, r0.xy).xy - 0.5;    //sample r1.xyzw, r0.xyxx, t2.xyzw, s2  (DetailSampler)    //mad r0.xy, r1.xyxx, l(2.000000, 2.000000, 0.000000, 0.000000), l(-1.000000, -1.000000, 0.000000, 0.000000)
                 r0.zw = Detailmap.Sample(TextureSS, r0.zw).xy - 0.5;    //sample r1.xyzw, r0.zwzz, t2.xyzw, s2  (DetailSampler)    //mad r0.zw, r1.xxxy, l(0.000000, 0.000000, 2.000000, 2.000000), l(0.000000, 0.000000, -1.000000, -1.000000) //r0.zw = r0.zw*0.5;          //mul r0.zw, r0.zzzw, l(0.000000, 0.000000, 0.500000, 0.500000)
@@ -189,35 +142,18 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         r0.y = r0.y * wetnessMultiplier;    //mul r0.y, r0.y, wetnessMultiplier
         r0.z = 1 - r0.z*0.5;    //mad r0.z, r0.z, l(-0.500000), l(1.000000)
 
-        // Resample diffuse texture with parallax-adjusted coordinates if parallax was applied
-        if (EnableParallax && EnableNormalMap && EnableTexture > 0)
-        {
-            c = Colourmap.Sample(TextureSS, texCoord);
-        }
-
         float3 tc = c.rgb * r0.x;
         c.rgb = tc * r0.z; //diffuse factors...
 
-        // Enhanced specular using the new lighting system
         float3 incident = normalize(input.CamRelPos);
-
-        // Calculate specular using improved Blinn-Phong
-        float specularPower = r3.y * 512.0; // Convert back from normalized value
-        float3 specColor = float3(sv.x, sv.y, r0.z); // Use specular map values
-
-        spec = CalculateSpecular(
-            norm,
-            normalize(GlobalLights.LightDir.xyz),
-            -incident,
-            specColor,
-            r3.x, // specular intensity
-            specularPower,
-            1.0); // light intensity (shadow applied later)
+        float3 refl = normalize(reflect(incident, norm));
+        float specb = saturate(dot(refl, GlobalLights.LightDir));
+        float specp = max(exp(specb * 10) - 1, 0);
+        spec += GlobalLights.LightDirColour.rgb * 0.00006 * specp * r0.z * sv.x * specularIntensityMult;// ((specularIntensityMult != 0) ? 1 : 0);
 
         if (SpecOnly == 1)
         {
-            float specLuminance = dot(spec, float3(0.299, 0.587, 0.114));
-            c.a *= (EnableSpecMap == 0) ? nv.a : saturate(specLuminance);
+            c.a *= (EnableSpecMap == 0) ? nv.a : saturate(specp);
         }
 
     }
