@@ -1831,7 +1831,17 @@ namespace CodeWalker.Rendering
                 RenderablePathBatch rnd = renderableCache.GetRenderablePathBatch(scenario.ScenarioRegion);
                 if ((rnd != null) && (rnd.IsLoaded))
                 {
-                    shaders.Enqueue(rnd);
+                    shaders.Enqueue(rnd); // Still render paths and triangles
+                }
+
+                // Render scenario nodes as ped models instead of white cubes
+                var scenarioRegion = scenario?.ScenarioRegion;
+                if ((scenarioRegion != null) && (scenarioRegion.Nodes != null))
+                {
+                    foreach (var node in scenarioRegion.Nodes)
+                    {
+                        RenderScenarioNode(node);
+                    }
                 }
             }
         }
@@ -3448,6 +3458,66 @@ namespace CodeWalker.Rendering
                 SelectedCarGenEntity.SetOrientation(ori);
 
                 RenderFragment(null, SelectedCarGenEntity, caryft.Fragment, carhash);
+            }
+        }
+
+        public void RenderScenarioNode(ScenarioNode node)
+        {
+            if (node == null) return;
+
+            var vpoint = node.MyPoint ?? node.ClusterMyPoint;
+
+            // Skip vehicle scenarios - they're rendered differently when selected
+            if ((vpoint != null) && (vpoint?.Type?.IsVehicle ?? false))
+            {
+                return;
+            }
+
+            // Render as ped model
+            var pedhash = (uint)0;
+            var modelSetHash = vpoint?.ModelSet?.NameHash ?? 0;
+
+            if ((modelSetHash != 0) && (modelSetHash != 493038497)) // "none"
+            {
+                // Get ped model from the model set
+                var stypes = Scenarios.ScenarioTypes;
+                if (stypes != null)
+                {
+                    var modelset = stypes.GetPedModelSet(modelSetHash);
+                    if ((modelset != null) && (modelset.Models != null) && (modelset.Models.Length > 0))
+                    {
+                        pedhash = JenkHash.GenHash(modelset.Models[0].NameLower);
+                    }
+                }
+            }
+
+            // Default to mp_m_freemode_01 if no model found
+            if (pedhash == 0)
+            {
+                pedhash = JenkHash.GenHash("mp_m_freemode_01");
+            }
+
+            RenderScenarioPed(node.Position, node.Orientation, pedhash, vpoint);
+        }
+
+        public void RenderScenarioPed(Vector3 pos, Quaternion ori, MetaHash pedHash, MCScenarioPoint point = null)
+        {
+            if (pedHash == 0)
+            {
+                pedHash = JenkHash.GenHash("mp_m_freemode_01");
+            }
+
+            YftFile pedyft = gameFileCache.GetYft(pedHash);
+            if ((pedyft != null) && (pedyft.Loaded) && (pedyft.Fragment != null))
+            {
+                // Align ped to ground similar to vehicle
+                float minz = pedyft.Fragment.PhysicsLODGroup?.PhysicsLOD1?.Bound?.BoxMin.Z ?? 0.0f;
+                pos.Z -= minz;
+
+                SelectedCarGenEntity.SetPosition(pos);
+                SelectedCarGenEntity.SetOrientation(ori);
+
+                RenderFragment(null, SelectedCarGenEntity, pedyft.Fragment, pedHash);
             }
         }
 
