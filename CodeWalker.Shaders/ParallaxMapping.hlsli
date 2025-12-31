@@ -15,19 +15,15 @@ float2 CalculateParallaxStandard(
     // Normalize view direction in tangent space
     float3 tanView = normalize(viewDirTangent);
 
-    // Improved parallax offset with height-based displacement
-    // GTA V uses inverted height, where darker = deeper
-    float h = (heightValue * parallaxScale) - (parallaxScale * 0.5);
-    h += parallaxBias;
+    // Simple parallax offset
+    // height is typically 0-1, we scale and bias it
+    float h = heightValue * parallaxScale + parallaxBias;
 
-    // Perspective-correct parallax with safer division
-    // Use max to prevent extreme values at grazing angles
-    float2 offset = h * (tanView.xy / max(abs(tanView.z), 0.2));
+    // Divide by Z for proper perspective-correct parallax
+    // This is the correct parallax mapping formula
+    float2 offset = h * (tanView.xy / (tanView.z + 0.01)); // Add small value to prevent division by zero
 
-    // Clamp offset to prevent excessive distortion
-    offset = clamp(offset, -0.1, 0.1);
-
-    return texCoord - offset;
+    return texCoord + offset;
 }
 
 float4 CalculateParallaxSteep(
@@ -43,68 +39,32 @@ float4 CalculateParallaxSteep(
     // Normalize view direction in tangent space
     float3 tanView = normalize(viewDirTangent);
 
-    // Clamp numSteps to reasonable range
-    numSteps = clamp(numSteps, 4, 32);
-
     // Calculate step size and delta per iteration
-    // Scale by tanView.z to get perspective-correct depth
     float stepSize = 1.0 / float(numSteps);
-    float2 texDelta = (tanView.xy / max(abs(tanView.z), 0.1)) * parallaxScale * stepSize;
+    float2 texDelta = (-tanView.xy) * parallaxScale / float(numSteps);
 
-    // Start at the surface - use R channel for GTA V pxm format
-    float currentLayerDepth = 0.0;
+    // Start at the surface
+    float currentHeight = 1.0;
     float2 currentTexCoord = texCoord;
-    float currentDepthMapValue = saturate(initialHeightSample.r); // Ensure valid range [0,1]
+    float4 currentSample = initialHeightSample;
 
-    // Ray march through the height field
-    [unroll(32)]
+    // Step through the height field
     for (int i = 0; i < numSteps; i++)
     {
-        // Check if current point is below the surface
-        if (currentLayerDepth < currentDepthMapValue)
+        // Check if we're below the surface
+        if (currentSample.a < currentHeight)
         {
-            // Move along ray
-            currentTexCoord -= texDelta;
+            // Step down
+            currentHeight -= stepSize;
+            currentTexCoord += texDelta;
 
-            // Sample and validate height value
-            float sampledHeight = heightTexture.Sample(heightSampler, currentTexCoord).r;
-            currentDepthMapValue = saturate(sampledHeight); // Clamp to [0,1]
-
-            currentLayerDepth += stepSize;
+            // Sample new height
+            currentSample = heightTexture.Sample(heightSampler, currentTexCoord);
         }
     }
 
-    // Parallax occlusion mapping with offset limiting (interpolation)
-    float2 prevTexCoord = currentTexCoord + texDelta;
-
-    // Get depth values before and after collision point for interpolation
-    float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = heightTexture.Sample(heightSampler, prevTexCoord).r - (currentLayerDepth - stepSize);
-
-    // Interpolation weight with safety check to prevent division by zero
-    float depthDiff = afterDepth - beforeDepth;
-    float weight = 0.0;
-
-    // Only interpolate if we have valid depth difference
-    if (abs(depthDiff) > 0.0001)
-    {
-        weight = saturate(afterDepth / depthDiff);
-    }
-
-    // Interpolate texture coordinates
-    outTexCoord = lerp(currentTexCoord, prevTexCoord, weight);
-
-    // Clamp texture coordinates to prevent extreme offsets
-    // Allow some wrapping but prevent going too far out of bounds
-    float2 offsetFromOriginal = outTexCoord - texCoord;
-    const float maxOffset = 0.15; // Maximum 15% texture coordinate shift
-    offsetFromOriginal = clamp(offsetFromOriginal, -maxOffset, maxOffset);
-    outTexCoord = texCoord + offsetFromOriginal;
-
-    // Sample at final interpolated position
-    float4 finalSample = heightTexture.Sample(heightSampler, outTexCoord);
-
-    return finalSample;
+    outTexCoord = currentTexCoord;
+    return currentSample;
 }
 
 float4 CalculateParallaxRelief(
@@ -118,7 +78,7 @@ float4 CalculateParallaxRelief(
     int numRefinementSteps,
     out float2 outTexCoord)
 {
-    // First pass: steep parallax occlusion mapping
+    // First pass: steep parallax
     float2 steepTexCoord;
     float4 steepSample = CalculateParallaxSteep(
         viewDirTangent,
@@ -130,32 +90,30 @@ float4 CalculateParallaxRelief(
         numSteps,
         steepTexCoord);
 
-    // Second pass: binary search refinement for higher quality
+    // Second pass: binary search refinement
     float3 tanView = normalize(viewDirTangent);
-    float stepSize = 1.0 / float(numSteps);
-    float2 texDelta = (tanView.xy / max(abs(tanView.z), 0.1)) * parallaxScale * stepSize;
+    float2 texDelta = (-tanView.xy) * parallaxScale / float(numSteps);
 
-    float2 currentTexCoord = steepTexCoord;
-    float currentLayerDepth = steepSample.r;
+    float currentHeight = (numSteps - 1) * (1.0 / float(numSteps));
+    float2 currentTexCoord = steepTexCoord - texDelta;
 
-    // Binary search refinement
-    numRefinementSteps = clamp(numRefinementSteps, 0, 8);
-    float2 halfDelta = texDelta * 0.5;
-
-    [unroll(8)]
+    // Binary search for better precision
+    float searchStep = 1.0 / float(numSteps);
     for (int i = 0; i < numRefinementSteps; i++)
     {
-        // Sample at midpoint
-        float2 testTexCoord = currentTexCoord + halfDelta;
-        float testHeight = heightTexture.Sample(heightSampler, testTexCoord).r;
+        searchStep *= 0.5;
+        float4 refineSample = heightTexture.Sample(heightSampler, currentTexCoord);
 
-        // Refine based on height comparison
-        if (testHeight > currentLayerDepth)
+        if (refineSample.a < currentHeight)
         {
-            currentTexCoord = testTexCoord;
+            currentHeight -= searchStep;
+            currentTexCoord += texDelta * searchStep;
         }
-
-        halfDelta *= 0.5;
+        else
+        {
+            currentHeight += searchStep;
+            currentTexCoord -= texDelta * searchStep;
+        }
     }
 
     outTexCoord = currentTexCoord;

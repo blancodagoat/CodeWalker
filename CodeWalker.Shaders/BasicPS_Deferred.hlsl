@@ -1,5 +1,4 @@
 #include "BasicPS.hlsli"
-#include "ParallaxMapping.hlsli"
 
 
 PS_OUTPUT main(VS_OUTPUT input)
@@ -15,59 +14,6 @@ PS_OUTPUT main(VS_OUTPUT input)
                 texc = input.Texcoord1;
             else if (RenderSamplerCoord == 3)
                 texc = input.Texcoord2;
-        }
-
-        // Apply parallax mapping in deferred renderer (same as forward renderer)
-        if (EnableParallax && EnableNormalMap && RenderMode == 0)
-        {
-            // Calculate view direction in tangent space for parallax
-            float3 viewDirWorld = normalize(input.CamRelPos);
-            float3 viewDirTangent;
-            viewDirTangent.x = dot(viewDirWorld, input.Tangent.xyz);
-            viewDirTangent.y = dot(viewDirWorld, input.Bitangent.xyz);
-            viewDirTangent.z = dot(viewDirWorld, input.Normal.xyz);
-
-            // Fade out parallax at grazing angles to reduce noise/artifacts
-            float viewDotNormal = saturate(abs(viewDirTangent.z));
-            float parallaxFade = smoothstep(0.0, 0.3, viewDotNormal);
-
-            if (parallaxFade > 0.01)
-            {
-                // Sample height map to get height data (R channel)
-                float4 initialHeight = Heightmap.Sample(TextureSS, texc);
-
-                // Scale parallax intensity by fade factor
-                float scaledParallaxScale = parallaxScale * parallaxFade;
-
-                // Apply parallax offset
-                float2 parallaxTexCoord;
-                if (parallaxNumSteps > 0)
-                {
-                    // Steep parallax (higher quality)
-                    float4 unused = CalculateParallaxSteep(
-                        viewDirTangent,
-                        initialHeight,
-                        texc,
-                        Heightmap,
-                        TextureSS,
-                        scaledParallaxScale,
-                        parallaxNumSteps,
-                        parallaxTexCoord);
-                }
-                else
-                {
-                    // Standard parallax (faster)
-                    // Use R channel for height (GTA V pxm format)
-                    parallaxTexCoord = CalculateParallaxStandard(
-                        viewDirTangent,
-                        initialHeight.r,
-                        scaledParallaxScale,
-                        parallaxBias,
-                        texc);
-                }
-
-                texc = parallaxTexCoord;
-            }
         }
 
         c = Colourmap.Sample(TextureSS, texc);
@@ -138,62 +84,9 @@ PS_OUTPUT main(VS_OUTPUT input)
 
     if (RenderMode == 0)
     {
-        // Calculate parallax-adjusted coordinates for normal/specular maps (same logic as diffuse)
-        float2 normalSpecTexCoord = input.Texcoord0;
 
-        if (EnableParallax && EnableNormalMap)
-        {
-            // Calculate view direction in tangent space for parallax
-            float3 viewDirWorld = normalize(input.CamRelPos);
-            float3 viewDirTangent;
-            viewDirTangent.x = dot(viewDirWorld, input.Tangent.xyz);
-            viewDirTangent.y = dot(viewDirWorld, input.Bitangent.xyz);
-            viewDirTangent.z = dot(viewDirWorld, input.Normal.xyz);
-
-            // Fade out parallax at grazing angles to reduce noise/artifacts
-            float viewDotNormal = saturate(abs(viewDirTangent.z));
-            float parallaxFade = smoothstep(0.0, 0.3, viewDotNormal);
-
-            if (parallaxFade > 0.01)
-            {
-                // Sample height map to get height data (R channel)
-                float4 initialHeight = Heightmap.Sample(TextureSS, normalSpecTexCoord);
-
-                // Scale parallax intensity by fade factor
-                float scaledParallaxScale = parallaxScale * parallaxFade;
-
-                // Apply parallax offset
-                float2 parallaxTexCoord;
-                if (parallaxNumSteps > 0)
-                {
-                    // Steep parallax (higher quality)
-                    float4 unused = CalculateParallaxSteep(
-                        viewDirTangent,
-                        initialHeight,
-                        normalSpecTexCoord,
-                        Heightmap,
-                        TextureSS,
-                        scaledParallaxScale,
-                        parallaxNumSteps,
-                        parallaxTexCoord);
-                }
-                else
-                {
-                    // Standard parallax (faster)
-                    parallaxTexCoord = CalculateParallaxStandard(
-                        viewDirTangent,
-                        initialHeight.r,
-                        scaledParallaxScale,
-                        parallaxBias,
-                        normalSpecTexCoord);
-                }
-
-                normalSpecTexCoord = parallaxTexCoord;
-            }
-        }
-
-        float4 nv = Bumpmap.Sample(TextureSS, normalSpecTexCoord);
-        float4 sv = Specmap.Sample(TextureSS, normalSpecTexCoord);
+        float4 nv = Bumpmap.Sample(TextureSS, input.Texcoord0);
+        float4 sv = Specmap.Sample(TextureSS, input.Texcoord0);
 
 
         float2 nmv = nv.xy;
@@ -203,8 +96,8 @@ PS_OUTPUT main(VS_OUTPUT input)
         {
             if (EnableDetailMap)
             {
-                //detail normalmapp (use parallax-adjusted coords if enabled)
-                r0.xy = normalSpecTexCoord * detailSettings.zw;
+                //detail normalmapp
+                r0.xy = input.Texcoord0 * detailSettings.zw;
                 r0.zw = r0.xy * 3.17;
                 r0.xy = Detailmap.Sample(TextureSS, r0.xy).xy - 0.5;
                 r0.zw = Detailmap.Sample(TextureSS, r0.zw).xy - 0.5;

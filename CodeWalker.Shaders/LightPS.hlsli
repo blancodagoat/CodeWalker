@@ -108,24 +108,11 @@ float3 DeferredDirectionalLight(float3 camRel, float3 norm, float4 diffuse, floa
     float3 refl = GetReflectedDir(camRel, norm);
     float specb = saturate(dot(refl, GlobalLights.LightDir));
     float specp = max(exp(specb * 10) - 1, 0);
-
-    // Prevent specular overexposure at grazing angles (especially with height maps)
-    float3 incident = normalize(camRel);
-    float NdotV = saturate(dot(norm, -incident));
-    float grazingAngleFactor = saturate(NdotV * 2.0);
-
-    float3 spec = GlobalLights.LightDirColour.rgb * 0.00006 * specp * specular.r * grazingAngleFactor;
-    spec = min(spec, float3(10.0, 10.0, 10.0)); // Clamp specular to prevent overexposure
-
+    float3 spec = GlobalLights.LightDirColour.rgb * 0.00006 * specp * specular.r;
     float4 lightspacepos;
     float shadowdepth = ShadowmapSceneDepth(camRel, lightspacepos);
     float3 c = FullLighting(diffuse.rgb, spec, norm, irradiance, GlobalLights, EnableShadows, shadowdepth, lightspacepos);
     c += diffuse.rgb * irradiance.b; //emissive multiplier
-
-    // Clamp final output to reasonable HDR range
-    c = max(c, 0);
-    c = min(c, 100.0);
-
     return c;
 }
 
@@ -144,13 +131,13 @@ float4 DeferredLODLight(float3 camRel, float3 norm, float4 diffuse, float4 specu
 
     if (ldist > lodlight.Falloff) return 0; //out of range of the light...
     if (ldist <= 0) return 0;
-
+    
     float4 rgbi = Unpack4x8UNF(lodlight.Colour).gbar;
     float3 lcol = rgbi.rgb * rgbi.a * 96.0f;
     float3 ldir = srpos / ldist;
     float pclit = saturate(dot(ldir, norm));
     float lamt = 1;
-
+    
     if (LightType == 1)//point (sphere)
     {
         lamt *= GetAttenuation(ldist, lodlight.Falloff, lodlight.FalloffExponent);
@@ -168,24 +155,17 @@ float4 DeferredLODLight(float3 camRel, float3 norm, float4 diffuse, float4 specu
     {
         lamt *= GetAttenuation(ldist, lodlight.Falloff, lodlight.FalloffExponent); //TODO! proper capsule lighting... (use point-line dist!)
     }
-
+    
     pclit *= lamt;
-
+    
     if (pclit <= 0) return 0;
-
-    // Prevent specular overexposure at grazing angles
-    float3 incident = normalize(camRel);
-    float NdotV = saturate(dot(norm, -incident));
-    float grazingAngleFactor = saturate(NdotV * 2.0);
-
+    
     float3 refl = GetReflectedDir(camRel, norm);
     float specb = saturate(dot(refl, ldir));
     float specp = max(exp(specb * 10) - 1, 0);
-    float3 spec = lcol * (0.00006 * specp * specular.r * lamt * grazingAngleFactor);
-    spec = min(spec, float3(10.0, 10.0, 10.0)); // Clamp specular
+    float3 spec = lcol * (0.00006 * specp * specular.r * lamt);
 
     lcol = lcol * diffuse.rgb * pclit + spec;
-    lcol = min(lcol, 100.0); // Clamp to reasonable HDR range
 
     return float4(lcol, 1);
 }
@@ -213,7 +193,7 @@ float4 DeferredLight(float3 camRel, float3 norm, float4 diffuse, float4 specular
     float3 ldir = srpos / ldist;
     float pclit = saturate(dot(ldir, norm));
     float lamt = 1;
-
+    
     if (InstType == 1)//point (sphere)
     {
         lamt *= GetAttenuation(ldist, InstFalloff, InstFalloffExponent);
@@ -231,24 +211,17 @@ float4 DeferredLight(float3 camRel, float3 norm, float4 diffuse, float4 specular
     {
         lamt *= GetAttenuation(ldist, InstFalloff, InstFalloffExponent);
     }
-
+    
     pclit *= lamt;
-
+    
     if (pclit <= 0) return 0;
-
-    // Prevent specular overexposure at grazing angles
-    float3 incident = normalize(camRel);
-    float NdotV = saturate(dot(norm, -incident));
-    float grazingAngleFactor = saturate(NdotV * 2.0);
-
+    
     float3 refl = GetReflectedDir(camRel, norm);
     float specb = saturate(dot(refl, ldir));
     float specp = max(exp(specb * 10) - 1, 0);
-    float3 spec = lcol * (0.00006 * specp * specular.r * lamt * grazingAngleFactor);
-    spec = min(spec, float3(10.0, 10.0, 10.0)); // Clamp specular
+    float3 spec = lcol * (0.00006 * specp * specular.r * lamt);
 
     lcol = lcol * diffuse.rgb * pclit + spec;
-    lcol = min(lcol, 100.0); // Clamp to reasonable HDR range
 
     return float4(lcol, 1);
 }
