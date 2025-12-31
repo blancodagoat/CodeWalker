@@ -1,5 +1,4 @@
 #include "WaterPS.hlsli"
-#include "Lighting.hlsli"
 
 
 float4 main(VS_OUTPUT input) : SV_TARGET
@@ -71,19 +70,10 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         c.rgb = tc;// *r0.z; //diffuse factors...
 
         float3 incident = normalize(input.CamRelPos);
-
-        // Water has high specular (shiny surface)
-        float waterSpecularPower = 128.0; // High for water reflections
-        float waterSpecularIntensity = SpecularIntensity * 2.0; // Boost for water
-
-        spec = CalculateSpecular(
-            norm,
-            normalize(GlobalLights.LightDir.xyz),
-            -incident,
-            float3(1.0, 1.0, 1.0), // White specular for water
-            waterSpecularIntensity,
-            waterSpecularPower,
-            1.0); // light intensity
+        float3 refl = normalize(reflect(incident, norm));
+        float specb = saturate(dot(refl, GlobalLights.LightDir));
+        float specp = max(exp(specb * 10) - 1, 0);
+        spec += GlobalLights.LightDirColour.rgb * 0.00006 * specp * SpecularIntensity;
 
         if (ShaderMode == 1) //river foam
         {

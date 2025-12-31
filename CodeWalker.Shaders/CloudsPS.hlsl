@@ -1,5 +1,6 @@
 #include "Clouds.hlsli"
 
+
 Texture2D<float4> DensitySampler : register(t0);
 Texture2D<float4> NormalSampler : register(t1);
 Texture2D<float4> DetailDensitySampler : register(t2);
@@ -44,8 +45,8 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     float dv = saturate((1.0 - d.g) * input.o1.w);
 
-    float3 dc = gSunColor;
 
+    float3 dc = gSunColor;
     return float4(dc, saturate(dv));
 }
 

@@ -76,10 +76,6 @@ namespace CodeWalker.Rendering
         public float wetnessMultiplier;
         public uint SpecOnly;
         public Vector4 TextureAlphaMask;
-        public uint EnableParallax;
-        public float parallaxScale;
-        public float parallaxBias;
-        public uint parallaxNumSteps;
     }
     public struct BasicShaderInstGlobalMatrix
     {
@@ -789,13 +785,6 @@ namespace CodeWalker.Rendering
             PSGeomVars.Vars.wetnessMultiplier = geom.wetnessMultiplier;
             PSGeomVars.Vars.SpecOnly = geom.SpecOnly ? 1u : 0u;
             PSGeomVars.Vars.TextureAlphaMask = textureAlphaMask;
-
-            // Parallax/height mapping parameters
-            PSGeomVars.Vars.EnableParallax = usebump ? 1u : 0u; // Enable if bump mapping is enabled
-            PSGeomVars.Vars.parallaxScale = 0.08f; // Height scale (increased for more visible effect)
-            PSGeomVars.Vars.parallaxBias = -0.04f; // Height bias (typically -parallaxScale/2)
-            PSGeomVars.Vars.parallaxNumSteps = 0; // 0=standard, 8-16=steep parallax
-
             PSGeomVars.Update(context);
             PSGeomVars.SetPSCBuffer(context, 2);
 

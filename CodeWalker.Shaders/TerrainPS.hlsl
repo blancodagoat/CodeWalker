@@ -1,5 +1,4 @@
 #include "TerrainPS.hlsli"
-#include "TerrainCommon.hlsli"
 
 
 float4 main(VS_OUTPUT input) : SV_TARGET
@@ -214,7 +213,9 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     }
 
     float3 spec = 0;
+
     tv.rgb = FullLighting(tv.rgb, spec, norm, vc0, GlobalLights, EnableShadows, input.Shadows.x, input.LightShadow);
+
 
     return float4(tv.rgb, saturate(tv.a));
 }
