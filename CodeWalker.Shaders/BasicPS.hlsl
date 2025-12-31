@@ -7,7 +7,11 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 {
     float4 c = float4(0.5, 0.5, 0.5, 1);
     if (RenderMode == 0) c = float4(1, 1, 1, 1);
-    if (EnableTexture > 0)
+    // Note: When parallax is enabled in RenderMode 0, texture sampling will be deferred
+    // until after parallax coordinates are calculated (see line ~140)
+    bool parallaxWillResample = (RenderMode == 0 && EnableParallax && EnableNormalMap && EnableTexture > 0);
+
+    if (EnableTexture > 0 && !parallaxWillResample)
     {
         float2 texc = input.Texcoord0;
         if (RenderMode >= 5)
@@ -83,13 +87,11 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     {
         // Base texture coordinates
         float2 texCoord = input.Texcoord0;
+        float2 normalSpecTexCoord = input.Texcoord0;
 
         // GTA V pxm shaders use dedicated height map (R channel = height, G channel = specular)
         if (EnableParallax && EnableNormalMap)
         {
-            // Sample height map to get height data (R channel)
-            float4 initialHeight = Heightmap.Sample(TextureSS, texCoord);
-
             // Calculate view direction in tangent space for parallax
             float3 viewDirWorld = normalize(input.CamRelPos);
             float3 viewDirTangent;
@@ -97,38 +99,101 @@ float4 main(VS_OUTPUT input) : SV_TARGET
             viewDirTangent.y = dot(viewDirWorld, input.Bitangent.xyz);
             viewDirTangent.z = dot(viewDirWorld, input.Normal.xyz);
 
-            // Apply parallax offset
-            float2 parallaxTexCoord;
-            if (parallaxNumSteps > 0)
-            {
-                // Steep parallax (higher quality)
-                float4 unused = CalculateParallaxSteep(
-                    viewDirTangent,
-                    initialHeight,
-                    texCoord,
-                    Heightmap,
-                    TextureSS,
-                    parallaxScale,
-                    parallaxNumSteps,
-                    parallaxTexCoord);
-            }
-            else
-            {
-                // Standard parallax (faster)
-                // Use R channel for height (GTA V pxm format)
-                parallaxTexCoord = CalculateParallaxStandard(
-                    viewDirTangent,
-                    initialHeight.r,
-                    parallaxScale,
-                    parallaxBias,
-                    texCoord);
-            }
+            // Fade out parallax at grazing angles to reduce noise/artifacts
+            float viewDotNormal = saturate(abs(viewDirTangent.z));
+            float parallaxFade = smoothstep(0.0, 0.3, viewDotNormal);
 
-            texCoord = parallaxTexCoord;
+            if (parallaxFade > 0.01)
+            {
+                // Sample height map to get height data (R channel)
+                float4 initialHeight = Heightmap.Sample(TextureSS, texCoord);
+
+                // Validate height map - check if it contains reasonable data
+                // If all channels are 0 or 1, the heightmap might not be valid
+                bool hasValidHeightmap = (initialHeight.r > 0.01 && initialHeight.r < 0.99);
+
+                if (hasValidHeightmap)
+                {
+                    // Scale parallax intensity by fade factor
+                    float scaledParallaxScale = parallaxScale * parallaxFade;
+
+                    // Apply parallax offset
+                    float2 parallaxTexCoord;
+                    if (parallaxNumSteps > 0)
+                    {
+                        // Steep parallax (higher quality)
+                        float4 unused = CalculateParallaxSteep(
+                            viewDirTangent,
+                            initialHeight,
+                            texCoord,
+                            Heightmap,
+                            TextureSS,
+                            scaledParallaxScale,
+                            parallaxNumSteps,
+                            parallaxTexCoord);
+                    }
+                    else
+                    {
+                        // Standard parallax (faster)
+                        // Use R channel for height (GTA V pxm format)
+                        parallaxTexCoord = CalculateParallaxStandard(
+                            viewDirTangent,
+                            initialHeight.r,
+                            scaledParallaxScale,
+                            parallaxBias,
+                            texCoord);
+                    }
+
+                    texCoord = parallaxTexCoord;
+                    normalSpecTexCoord = parallaxTexCoord;
+                }
+            }
         }
 
-        float4 nv = Bumpmap.Sample(TextureSS, texCoord);  //sample r1.xyzw, v2.xyxx, t3.xyzw, s3  (BumpSampler)
-        float4 sv = Specmap.Sample(TextureSS, texCoord);  //sample r2.xyzw, v2.xyxx, t4.xyzw, s4  (SpecSampler)
+        // Sample diffuse texture (either with or without parallax-adjusted coordinates)
+        // This MUST happen outside the parallax block to prevent white artifacts
+        if (EnableTexture > 0)
+        {
+            c = Colourmap.Sample(TextureSS, texCoord);
+
+            // Reapply texture processing
+            if (EnableTexture > 1)
+            {
+                float4 c2 = Colourmap2.Sample(TextureSS, input.Texcoord1);
+                c = c2.a * c2 + (1 - c2.a) * c;
+            }
+            if (EnableTint == 2)
+            {
+                float tx = (round(c.a * 255.009995) - 32.0) * 0.007813;
+                float ty = 0.03125 * 0.5;
+                float4 c3 = TintPalette.Sample(TextureSS, float2(tx, ty));
+                c.rgb *= c3.rgb;
+                c.a = 1;
+            }
+            if (IsDistMap) c = float4(c.rgb * 2, (c.r + c.g + c.b) - 1);
+            if ((IsDecal == 0) && (c.a <= 0.33)) discard;
+            if ((IsDecal == 1) && (c.a <= 0.0)) discard;
+            if (IsDecal == 0) c.a = 1;
+            if (IsDecal == 2)
+            {
+                float4 mask = TextureAlphaMask * c;
+                c.a = saturate(mask.r + mask.g + mask.b + mask.a);
+                c.rgb = 0;
+            }
+            c.a = saturate(c.a * AlphaScale);
+
+            if (EnableTint == 1)
+            {
+                c.rgb *= input.Tint.rgb;
+            }
+            if (IsDecal == 1)
+            {
+                c.a *= input.Colour0.a;
+            }
+        }
+
+        float4 nv = Bumpmap.Sample(TextureSS, normalSpecTexCoord);  //sample r1.xyzw, v2.xyxx, t3.xyzw, s3  (BumpSampler)
+        float4 sv = Specmap.Sample(TextureSS, normalSpecTexCoord);  //sample r2.xyzw, v2.xyxx, t4.xyzw, s4  (SpecSampler)
 
 
         float2 nmv = nv.xy;
@@ -189,12 +254,6 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         r0.y = r0.y * wetnessMultiplier;    //mul r0.y, r0.y, wetnessMultiplier
         r0.z = 1 - r0.z*0.5;    //mad r0.z, r0.z, l(-0.500000), l(1.000000)
 
-        // Resample diffuse texture with parallax-adjusted coordinates if parallax was applied
-        if (EnableParallax && EnableNormalMap && EnableTexture > 0)
-        {
-            c = Colourmap.Sample(TextureSS, texCoord);
-        }
-
         float3 tc = c.rgb * r0.x;
         c.rgb = tc * r0.z; //diffuse factors...
 
@@ -205,14 +264,21 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         float specularPower = r3.y * 512.0; // Convert back from normalized value
         float3 specColor = float3(sv.x, sv.y, r0.z); // Use specular map values
 
+        // Prevent specular overexposure at grazing angles (common with parallax/height maps)
+        float NdotV = saturate(dot(norm, -incident));
+        float grazingAngleFactor = saturate(NdotV * 2.0); // Fade out specular at grazing angles
+
         spec = CalculateSpecular(
             norm,
             normalize(GlobalLights.LightDir.xyz),
             -incident,
             specColor,
-            r3.x, // specular intensity
+            r3.x * grazingAngleFactor, // specular intensity with grazing angle attenuation
             specularPower,
             1.0); // light intensity (shadow applied later)
+
+        // Clamp specular to prevent HDR overexposure
+        spec = min(spec, float3(10.0, 10.0, 10.0));
 
         if (SpecOnly == 1)
         {
@@ -236,7 +302,10 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     {
     }
 
-    //c.rgb = max(c.rgb, 0);
+    // Clamp to reasonable HDR range to prevent extreme overexposure
+    // HDR post-processor will handle tone mapping, but prevent infinity/NaN
+    c.rgb = max(c.rgb, 0);
+    c.rgb = min(c.rgb, 100.0); // Reasonable HDR ceiling
     c.a = saturate(c.a);
     return c;
 }

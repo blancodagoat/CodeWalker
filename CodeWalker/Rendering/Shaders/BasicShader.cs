@@ -613,6 +613,7 @@ namespace CodeWalker.Rendering
             RenderableTexture bumptex = null;
             RenderableTexture spectex = null;
             RenderableTexture detltex = null;
+            RenderableTexture heighttex = null;
             bool isdistmap = false;
 
             float tntpalind = 0.0f;
@@ -668,6 +669,9 @@ namespace CodeWalker.Rendering
                                 texture2 = itex;
                                 break;
                             case ShaderParamNames.heightSampler:
+                            case ShaderParamNames.HeightMapSampler:
+                                heighttex = itex;
+                                break;
                             case ShaderParamNames.EnvironmentSampler:
                             //case MetaName.SnowSampler0:
                             //case MetaName.SnowSampler1:
@@ -791,7 +795,9 @@ namespace CodeWalker.Rendering
             PSGeomVars.Vars.TextureAlphaMask = textureAlphaMask;
 
             // Parallax/height mapping parameters
-            PSGeomVars.Vars.EnableParallax = usebump ? 1u : 0u; // Enable if bump mapping is enabled
+            // Only enable parallax if we have both bump mapping AND a height texture
+            bool useheight = (heighttex != null);
+            PSGeomVars.Vars.EnableParallax = (usebump && useheight) ? 1u : 0u;
             PSGeomVars.Vars.parallaxScale = 0.08f; // Height scale (increased for more visible effect)
             PSGeomVars.Vars.parallaxBias = -0.04f; // Height bias (typically -parallaxScale/2)
             PSGeomVars.Vars.parallaxNumSteps = 0; // 0=standard, 8-16=steep parallax
@@ -838,6 +844,10 @@ namespace CodeWalker.Rendering
             if (pstintflag == 2)
             {
                 tintpal.SetPSResource(context, 6);
+            }
+            if (useheight)
+            {
+                heighttex.SetPSResource(context, 7);
             }
 
 
