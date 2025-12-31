@@ -1,5 +1,7 @@
+#ifndef __COMMON_HLSLI__
+#define __COMMON_HLSLI__
 
-
+#include "TreeWind.hlsli"
 
 struct ShaderGlobalLightParams
 {
@@ -65,35 +67,7 @@ float DepthFunc(float2 zw)
 
 float3 GeomWindMotion(float3 ipos, float3 vc0, float4 windvec, float4 overrideparams)
 {
-
-    //lt r1.x, r0.x, l(1.000000)
-    //mul r1.yzw, v2.xxxz, cb12[0].xxxy //umGlobalParams
-    //mul r1.yzw, r1.yyzw, cb9[13].xxxy //umGlobalOverrideParams
-    //add r2.x, v2.y, cb9[0].w          //_worldPlayerPos_umGlobalPhaseShift
-    //mul r2.x, |r2.x|, l(6.283185)
-    //mul r2.yzw, cb9[13].zzzw, cb12[0].zzzw  //umGlobalOverrideParams, umGlobalParams
-    //mad r2.xyz, cb2[12].xxxx, r2.yzwy, r2.xxxx  //globalScalars2
-    //sincos r2.xyz, null, r2.xyzx
-    //mad r1.yzw, r2.xxyz, r1.yyzw, v0.xxyz
-    //movc r1.xyz, r1.xxxx, r1.yzwy, v0.xyzx
-    //add r1.w, -r0.x, l(1.000000)
-    //mul r0.xyz, r0.yzwy, r0.xxxx
-    //mad r0.xyz, r1.wwww, r1.xyzx, r0.xyzx
-    //mul r1.xyzw, r0.yyyy, cb1[9].xyzw
-    //mad r1.xyzw, r0.xxxx, cb1[8].xyzw, r1.xyzw
-    //mad r0.xyzw, r0.zzzz, cb1[10].xyzw, r1.xyzw
-    //add o0.xyzw, r0.xyzw, cb1[11].xyzw    //screen pos out
-    //mov o1.xy, v4.xyxx
-
-    float3 f1 = vc0.xxz * windvec.xxy * overrideparams.xxy;
-    float phase = vc0.y + 0.0; //playerpos/global phase shift?
-    float phrad = abs(phase)*6.283185;
-    float3 f2 = windvec.zzw * overrideparams.zzw + phrad; //globalScalars2
-    f2 = sin(f2);
-    f1 = f2*f1 + ipos;
-    return f1;
-
-    //return ipos;
+    return SimpleWindMotion(ipos, vc0, windvec, overrideparams, 0.0);
 }
 
 
@@ -147,9 +121,7 @@ float3 GlobalLighting(float3 diff, float3 norm, float4 vc0, float lf, uniform Sh
     return c;
 }
 
-
-
-
+#endif // __COMMON_HLSLI__
 
 
 

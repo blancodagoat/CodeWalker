@@ -6,6 +6,7 @@ Texture2D<float4> Specmap : register(t3);
 Texture2D<float4> Detailmap : register(t4);
 Texture2D<float4> Colourmap2 : register(t5);
 Texture2D<float4> TintPalette : register(t6);
+Texture2D<float4> Heightmap : register(t7); // Height map for parallax (R=height, G=spec)
 SamplerState TextureSS : register(s0);
 
 
@@ -38,7 +39,11 @@ cbuffer PSGeomVars : register(b2)
     float specularFresnel;
     float wetnessMultiplier;
     uint SpecOnly;
-	float4 TextureAlphaMask;
+    float4 TextureAlphaMask;
+    uint EnableParallax;           // Enable parallax/height mapping
+    float parallaxScale;           // Height scale for parallax (typically 0.02-0.1)
+    float parallaxBias;            // Height bias for parallax (typically -0.5 * scale)
+    uint parallaxNumSteps;         // Steps for steep parallax (8-16, 0=standard mode)
 }
 
 
