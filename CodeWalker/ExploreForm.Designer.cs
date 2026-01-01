@@ -1361,7 +1361,7 @@
             this.MainMenuStrip = this.MainMenu;
             this.Name = "ExploreForm";
             this.Text = "RPF Explorer - CodeWalker by dexyfex";
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.ExploreForm_FormClosed);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.ExploreForm_FormClosing);
             this.Load += new System.EventHandler(this.ExploreForm_Load);
             this.MainMenu.ResumeLayout(false);
             this.MainMenu.PerformLayout();

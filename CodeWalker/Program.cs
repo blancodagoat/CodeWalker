@@ -49,19 +49,19 @@ static class Program
                 }
             }
 
-            EnsureJumpList();
-
             //Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-
-            // Always check the GTA folder first thing
+            // Check the GTA folder first - do this before JumpList to fail faster
             if (!GTAFolder.UpdateGTAFolder(Properties.Settings.Default.RememberGTAFolder))
             {
                 MessageBox.Show("Could not load CodeWalker because no valid GTA 5 folder was selected. CodeWalker will now exit.", "GTA 5 Folder Not Found", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
             }
+
+            // Initialize JumpList after GTA folder validation (only needed once)
+            EnsureJumpList();
 #if !DEBUG
             try
             {

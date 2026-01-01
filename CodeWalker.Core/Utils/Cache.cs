@@ -17,6 +17,8 @@ namespace CodeWalker
         private LinkedList<TVal> loadedList = new();
         private Dictionary<TKey, LinkedListNode<TVal>> loadedListDict = new();
         private readonly object cacheLock = new();
+        private int frameCounter = 0;
+        private const int CompactInterval = 60; // Compact every 60 frames (~1 second at 60fps)
 
         public int Count
         {
@@ -41,7 +43,14 @@ namespace CodeWalker
         public void BeginFrame()
         {
             CurrentTime = DateTime.Now;
-            Compact();
+            frameCounter++;
+
+            // Only compact periodically or when memory pressure is high
+            if (frameCounter >= CompactInterval || (CurrentMemoryUsage > MaxMemoryUsage * 0.8))
+            {
+                Compact();
+                frameCounter = 0;
+            }
         }
 
         public TVal? TryGet(TKey key)
@@ -51,8 +60,7 @@ namespace CodeWalker
                 LinkedListNode<TVal>? lln = null;
                 if (loadedListDict.TryGetValue(key, out lln))
                 {
-                    loadedList.Remove(lln);
-                    loadedList.AddLast(lln);
+                    // Only update timestamp, avoid expensive LinkedList reordering
                     lln.Value.LastUseTime = CurrentTime;
                 }
                 return (lln != null) ? lln.Value : null;
@@ -75,35 +83,57 @@ namespace CodeWalker
                 }
                 else
                 {
-                    //cache full, check the front of the list for oldest..
-                    var oldlln = loadedList.First;
+                    // Cache full - batch evict old items in a single pass
+                    long memoryNeeded = item.MemoryUsage;
+                    long memoryToFree = memoryNeeded + (MaxMemoryUsage / 10); // Free 10% extra headroom
+                    long memoryFreed = 0;
                     var cachetime = CacheTime;
-                    int iter = 0, maxiter = 2;
-                    while (!CanAdd() && (iter<maxiter))
+
+                    // Collect items to remove in a single pass
+                    List<LinkedListNode<TVal>> toRemove = new();
+                    var oldlln = loadedList.First;
+
+                    while (oldlln != null && memoryFreed < memoryToFree)
                     {
-                        while ((!CanAdd()) && (oldlln != null) && ((CurrentTime - oldlln.Value.LastUseTime).TotalSeconds > cachetime))
+                        if ((CurrentTime - oldlln.Value.LastUseTime).TotalSeconds > cachetime)
                         {
-                            Interlocked.Add(ref CurrentMemoryUsage, -oldlln.Value.MemoryUsage);
-                            loadedListDict.Remove(oldlln.Value.Key);
-                            loadedList.Remove(oldlln); //gc should free up memory later..
-                            oldlln.Value = default!;
-                            oldlln = null;
-                            //GC.Collect();
-                            oldlln = loadedList.First;
+                            toRemove.Add(oldlln);
+                            memoryFreed += oldlln.Value.MemoryUsage;
                         }
-                        cachetime *= 0.5;
-                        iter++;
+                        oldlln = oldlln.Next;
                     }
-                    if (CanAdd()) //see if there's enough memory now...
+
+                    // If not enough freed with current cachetime, try more aggressive eviction
+                    if (memoryFreed < memoryNeeded && toRemove.Count > 0)
+                    {
+                        cachetime *= 0.5;
+                        oldlln = loadedList.First;
+                        while (oldlln != null && memoryFreed < memoryToFree)
+                        {
+                            if ((CurrentTime - oldlln.Value.LastUseTime).TotalSeconds > cachetime && !toRemove.Contains(oldlln))
+                            {
+                                toRemove.Add(oldlln);
+                                memoryFreed += oldlln.Value.MemoryUsage;
+                            }
+                            oldlln = oldlln.Next;
+                        }
+                    }
+
+                    // Batch remove all collected items
+                    foreach (var node in toRemove)
+                    {
+                        Interlocked.Add(ref CurrentMemoryUsage, -node.Value.MemoryUsage);
+                        loadedListDict.Remove(node.Value.Key);
+                        loadedList.Remove(node);
+                        node.Value = default!;
+                    }
+
+                    if (CanAdd())
                     {
                         var newlln = loadedList.AddLast(item);
                         loadedListDict.Add(key, newlln);
                         Interlocked.Add(ref CurrentMemoryUsage, item.MemoryUsage);
                         return true;
-                    }
-                    else
-                    {
-                        //really shouldn't get here, but it's possible under stress.
                     }
                 }
                 return false;
