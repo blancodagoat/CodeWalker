@@ -31,10 +31,6 @@ namespace CodeWalker
         volatile bool pauserendering = false;
         volatile bool initialised = false;
 
-        // Event signaling for efficient content thread wakeup
-        private readonly SemaphoreSlim contentThreadSignal = new(0, 1);
-        private readonly SemaphoreSlim renderThreadSignal = new(0, 1);
-
         Stopwatch frametimer = new();
         Space space = new();
         Camera camera;
@@ -4627,7 +4623,7 @@ namespace CodeWalker
             EnableDLCModsUI();
 
 
-            Task.Run(async () => {
+            Task.Run(() => {
                 while (formopen && !IsDisposed) //renderer content loop
                 {
 #if !DEBUG
@@ -4637,15 +4633,8 @@ namespace CodeWalker
                         bool rcItemsPending = Renderer.ContentThreadProc();
                         if (!rcItemsPending)
                         {
-                            // Use efficient async waiting instead of Thread.Sleep(1)
-                            // Wait up to 50ms for signal, or continue if signaled earlier
-                            try
-                            {
-                                await renderThreadSignal.WaitAsync(50);
-                            }
-                            catch (ObjectDisposedException) { break; }
+                            Thread.Sleep(1); //sleep if there's nothing to do
                         }
-                        // If items are pending, loop immediately without sleeping
 #if !DEBUG
                     }
                     catch (Exception ex)
@@ -4667,15 +4656,8 @@ namespace CodeWalker
                     bool fcItemsPending = gameFileCache.ContentThreadProc();
                     if (!fcItemsPending)
                     {
-                        // Use efficient async waiting instead of Thread.Sleep(1)
-                        // Wait up to 50ms for signal, or continue if signaled earlier
-                        try
-                        {
-                            contentThreadSignal.Wait(50);
-                        }
-                        catch (ObjectDisposedException) { break; }
+                        Thread.Sleep(1); //sleep if there's nothing to do
                     }
-                    // If items are pending, loop immediately without sleeping
 #if !DEBUG
                 }
                 catch (Exception ex)
@@ -6392,10 +6374,6 @@ namespace CodeWalker
         private void WorldForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             SaveSettings();
-
-            // Dispose semaphores
-            contentThreadSignal?.Dispose();
-            renderThreadSignal?.Dispose();
         }
 
         private void WorldForm_MouseDown(object sender, MouseEventArgs e)
