@@ -3603,31 +3603,45 @@ namespace CodeWalker.Rendering
                 float minz = ped.Yft.Fragment?.PhysicsLODGroup?.PhysicsLOD1?.Bound?.BoxMin.Z ?? 0.0f;
                 pos.Z -= minz;
 
-                // Offset ped up by 1 meter, unless they're sitting
-                bool isSitting = false;
+                // Offset ped up by 1 meter, unless they're sitting or an animal
+                bool skipOffset = false;
 
-                // Check scenario type name
-                if (!string.IsNullOrEmpty(scenarioTypeName))
+                // Check model set for animal
+                if (point?.ModelSet != null)
+                {
+                    var modelSetName = JenkIndex.TryGetString(point.ModelSet.NameHash);
+                    if (!string.IsNullOrEmpty(modelSetName))
+                    {
+                        var modelSetLower = modelSetName.ToLowerInvariant();
+                        if (modelSetLower.Contains("animal") || modelSetLower.Contains("bird"))
+                        {
+                            skipOffset = true;
+                        }
+                    }
+                }
+
+                // Check scenario type name for sitting
+                if (!skipOffset && !string.IsNullOrEmpty(scenarioTypeName))
                 {
                     var scenarioLower = scenarioTypeName.ToLowerInvariant();
-                    isSitting = scenarioLower.Contains("sit") || scenarioLower.Contains("seat");
+                    skipOffset = scenarioLower.Contains("sit") || scenarioLower.Contains("seat");
                 }
 
-                // Check clip dictionary name
-                if (!isSitting && !string.IsNullOrEmpty(clipDictName))
+                // Check clip dictionary name for sitting
+                if (!skipOffset && !string.IsNullOrEmpty(clipDictName))
                 {
                     var clipDictLower = clipDictName.ToLowerInvariant();
-                    isSitting = clipDictLower.Contains("sit") || clipDictLower.Contains("seat");
+                    skipOffset = clipDictLower.Contains("sit") || clipDictLower.Contains("seat");
                 }
 
-                // Check animation clip name
-                if (!isSitting && animClip != null)
+                // Check animation clip name for sitting
+                if (!skipOffset && animClip != null)
                 {
                     var animName = JenkIndex.TryGetString(animClip.Hash)?.ToLowerInvariant() ?? "";
-                    isSitting = animName.Contains("sit") || animName.Contains("seat");
+                    skipOffset = animName.Contains("sit") || animName.Contains("seat");
                 }
 
-                if (!isSitting)
+                if (!skipOffset)
                 {
                     pos.Z += 1.0f;
                 }
