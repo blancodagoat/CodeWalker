@@ -437,6 +437,9 @@ namespace CodeWalker
 
             Renderer.SelectedDrawable = SelectedItem.Drawable;
 
+            // Set the selected scenario node position to exclude its cube from rendering
+            Renderer.shaders.SelectedScenarioNodePosition = SelectedItem.ScenarioNode?.Position;
+
             if (renderworld)
             {
                 RenderWorld();
