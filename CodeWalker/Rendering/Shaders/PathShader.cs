@@ -154,20 +154,19 @@ namespace CodeWalker.Rendering
             }
 
 
-            // Disabled white cube rendering - nodes now rendered as ped models
-            //context.VertexShader.Set(boxvs);
-            //context.PixelShader.Set(boxps);
+            context.VertexShader.Set(boxvs);
+            context.PixelShader.Set(boxps);
 
-            //VSSceneVars.SetVSCBuffer(context, 0);
+            VSSceneVars.SetVSCBuffer(context, 0);
 
-            //foreach (var batch in batches)
-            //{
-            //    if (batch.NodeBuffer == null) continue;
+            foreach (var batch in batches)
+            {
+                if (batch.NodeBuffer == null) continue;
 
-            //    context.VertexShader.SetShaderResource(0, batch.NodeBuffer.SRV);
+                context.VertexShader.SetShaderResource(0, batch.NodeBuffer.SRV);
 
-            //    cube.DrawInstanced(context, batch.Nodes.Length);
-            //}
+                cube.DrawInstanced(context, batch.Nodes.Length);
+            }
 
             UnbindResources(context);
         }

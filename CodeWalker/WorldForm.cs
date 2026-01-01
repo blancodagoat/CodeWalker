@@ -1458,6 +1458,11 @@ namespace CodeWalker
 
                     Renderer.RenderCar(sn.Position, sn.Orientation, 0, vhash, true);
                 }
+                else
+                {
+                    // Render ped model for non-vehicle scenarios
+                    Renderer.RenderScenarioNode(sn);
+                }
 
             }
             if (selectionItem.ScenarioEdge != null)

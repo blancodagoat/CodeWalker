@@ -1649,6 +1649,7 @@ namespace CodeWalker.World
         private Dictionary<uint, AmbientModelSet> PedModelSets { get; set; }
         private Dictionary<uint, AmbientModelSet> VehicleModelSets { get; set; }
         private Dictionary<uint, ConditionalAnimsGroup> AnimGroups { get; set; }
+        private Dictionary<uint, string> ClipSets { get; set; } // Maps ClipSet name hash to clipDictionaryName
 
 
 
@@ -1662,6 +1663,7 @@ namespace CodeWalker.World
                 PedModelSets = LoadModelSets(gfc, "common:\\data\\ai\\ambientpedmodelsets.meta");
                 VehicleModelSets = LoadModelSets(gfc, "common:\\data\\ai\\vehiclemodelsets.meta");
                 AnimGroups = LoadAnimGroups(gfc, "common:\\data\\ai\\conditionalanims.meta");
+                ClipSets = LoadClipSets(gfc, "update:\\x64\\data\\anim\\clip_sets\\clip_sets.ymt");
 
                 TypeRefs = new Dictionary<uint, ScenarioTypeRef>();
                 foreach (var kvp in Types)
@@ -1849,6 +1851,67 @@ namespace CodeWalker.World
             return groups;
         }
 
+        private Dictionary<uint, string> LoadClipSets(GameFileCache gfc, string filename)
+        {
+            Dictionary<uint, string> clipsets = new();
+
+            try
+            {
+                string usestr = filename.Replace("update:", "update\\update.rpf").Replace("common:", "common.rpf");
+
+                var ymt = gfc.RpfMan.GetFile<YmtFile>(usestr);
+
+                if ((ymt != null) && (ymt.Pso != null))
+                {
+                    // The PSO file contains a fwClipSetManager structure at the root
+                    // We need to extract the clipSets map which maps ClipSet name -> fwClipSet
+                    // Each fwClipSet contains a clipDictionaryName field which is what we need
+
+                    // Export to XML and parse it to extract clipDictionaryName mappings
+                    var xml = PsoXml.GetXml(ymt.Pso);
+
+                    if (!string.IsNullOrEmpty(xml))
+                    {
+                        var doc = new XmlDocument();
+                        doc.LoadXml(xml);
+
+                        // Navigate to clipSets map
+                        var clipSetsNodes = doc.SelectNodes("//clipSets/Item");
+
+                        if (clipSetsNodes != null && clipSetsNodes.Count > 0)
+                        {
+                            foreach (XmlNode itemNode in clipSetsNodes)
+                            {
+                                // The key is an attribute on the Item node
+                                var keyAttr = itemNode.Attributes?["key"];
+                                var dictNameNode = itemNode.SelectSingleNode("clipDictionaryName");
+
+                                if ((keyAttr != null) && (dictNameNode != null))
+                                {
+                                    var clipSetName = keyAttr.Value;
+                                    var clipDictName = dictNameNode.InnerText;
+
+                                    if (!string.IsNullOrEmpty(clipSetName) && !string.IsNullOrEmpty(clipDictName))
+                                    {
+                                        JenkIndex.Ensure(clipSetName);
+                                        JenkIndex.Ensure(clipSetName.ToLowerInvariant());
+                                        uint hash = JenkHash.GenHash(clipSetName.ToLowerInvariant());
+                                        clipsets[hash] = clipDictName;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail if we can't load the clip sets
+            }
+
+            return clipsets;
+        }
+
 
 
 
@@ -1940,6 +2003,16 @@ namespace CodeWalker.World
                 return ag;
             }
         }
+        public string GetClipSet(uint hash)
+        {
+            lock (SyncRoot)
+            {
+                if (ClipSets == null) return null;
+                string clipDictName;
+                ClipSets.TryGetValue(hash, out clipDictName);
+                return clipDictName;
+            }
+        }
 
         public ScenarioTypeRef[] GetScenarioTypeRefs()
         {
@@ -2013,6 +2086,8 @@ namespace CodeWalker.World
         public bool IsVehicle => IsGroup ? false : Type.IsVehicle; // groups don't support vehicle infos, so always false
         public string VehicleModelSet => IsGroup ? null : Type.VehicleModelSet;
         public MetaHash VehicleModelSetHash => IsGroup ? 0 : Type.VehicleModelSetHash;
+        public string ConditionalAnimsGroupName => IsGroup ? null : Type.ConditionalAnimsGroupName;
+        public MetaHash ConditionalAnimsGroupHash => IsGroup ? 0 : Type.ConditionalAnimsGroupHash;
 
         public bool IsGroup { get; }
         public ScenarioType Type { get; }
@@ -2048,6 +2123,8 @@ namespace CodeWalker.World
         public bool IsVehicle { get; set; }
         public string VehicleModelSet { get; set; }
         public MetaHash VehicleModelSetHash { get; set; }
+        public string ConditionalAnimsGroupName { get; set; }
+        public MetaHash ConditionalAnimsGroupHash { get; set; }
 
 
         public virtual void Load(XmlNode node)
@@ -2066,6 +2143,17 @@ namespace CodeWalker.World
                     VehicleModelSetHash = JenkHash.GenHash(VehicleModelSet.ToLowerInvariant());
                 }
             }
+
+            // Load ConditionalAnimsGroup
+            var animGroupNode = node.SelectSingleNode("ConditionalAnimsGroup/Name");
+            if (animGroupNode != null)
+            {
+                ConditionalAnimsGroupName = animGroupNode.InnerText;
+                if (!string.IsNullOrEmpty(ConditionalAnimsGroupName))
+                {
+                    ConditionalAnimsGroupHash = JenkHash.GenHash(ConditionalAnimsGroupName.ToLowerInvariant());
+                }
+            }
         }
 
         public override string ToString()
@@ -2075,10 +2163,26 @@ namespace CodeWalker.World
     }
     [TypeConverter(typeof(ExpandableObjectConverter))] public class ScenarioTypePlayAnims : ScenarioType
     {
+        public List<string> BaseAnimClipSets { get; set; } = new List<string>();
 
         public override void Load(XmlNode node)
         {
             base.Load(node);
+
+            // Parse BaseAnims clipsets directly from the scenario type
+            // The structure is: ConditionalAnimsGroup/ConditionalAnims/Item/BaseAnims/Item/ClipSet
+            var conditionalAnimNodes = node.SelectNodes("ConditionalAnimsGroup/ConditionalAnims/Item/BaseAnims/Item/ClipSet");
+            if (conditionalAnimNodes != null && conditionalAnimNodes.Count > 0)
+            {
+                foreach (XmlNode clipSetNode in conditionalAnimNodes)
+                {
+                    var clipSetName = clipSetNode.InnerText;
+                    if (!string.IsNullOrEmpty(clipSetName) && !BaseAnimClipSets.Contains(clipSetName))
+                    {
+                        BaseAnimClipSets.Add(clipSetName);
+                    }
+                }
+            }
         }
     }
 
@@ -2191,6 +2295,7 @@ namespace CodeWalker.World
         public string OuterXml { get; set; }
         public string Name { get; set; }
         public string NameLower { get; set; }
+        public List<string> BaseAnimClipSets { get; set; } = new List<string>();
 
 
         public void Load(XmlNode node)
@@ -2198,6 +2303,28 @@ namespace CodeWalker.World
             OuterXml = node.OuterXml;
             Name = Xml.GetChildInnerText(node, "Name");
             NameLower = Name.ToLowerInvariant();
+
+            // Parse ConditionalAnims to extract base animations
+            var conditionalAnimsNodes = node.SelectNodes("ConditionalAnims/Item");
+            if (conditionalAnimsNodes != null)
+            {
+                foreach (XmlNode animNode in conditionalAnimsNodes)
+                {
+                    // Get BaseAnims clipsets
+                    var baseAnimNodes = animNode.SelectNodes("BaseAnims/Item/ClipSet");
+                    if (baseAnimNodes != null)
+                    {
+                        foreach (XmlNode clipSetNode in baseAnimNodes)
+                        {
+                            var clipSetName = clipSetNode.InnerText;
+                            if (!string.IsNullOrEmpty(clipSetName) && !BaseAnimClipSets.Contains(clipSetName))
+                            {
+                                BaseAnimClipSets.Add(clipSetName);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         public override string ToString()
