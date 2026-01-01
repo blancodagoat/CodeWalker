@@ -3534,11 +3534,16 @@ namespace CodeWalker.Rendering
                 }
 
                 // Try to load scenario-specific animation
+                string scenarioTypeName = null;
+                string clipDictName = null;
 
                 if (point?.Type != null)
                 {
                     var stypes = Scenarios.ScenarioTypes;
                     List<string> clipSetNames = null;
+
+                    // Get the scenario type name for sitting detection
+                    scenarioTypeName = JenkIndex.TryGetString(point.Type.NameHash);
 
                     // Check if this is a ScenarioTypePlayAnims with direct BaseAnimClipSets
                     if (!point.Type.IsGroup && point.Type.Type is ScenarioTypePlayAnims playAnimsType && playAnimsType.BaseAnimClipSets != null && playAnimsType.BaseAnimClipSets.Count > 0)
@@ -3566,7 +3571,7 @@ namespace CodeWalker.Rendering
                         var clipSetHash = JenkHash.GenHash(clipSetName.ToLowerInvariant());
 
                         // Look up the actual clipDictionaryName from clip_sets.ymt
-                        var clipDictName = stypes.GetClipSet(clipSetHash);
+                        clipDictName = stypes.GetClipSet(clipSetHash);
 
                         if (!string.IsNullOrEmpty(clipDictName))
                         {
@@ -3598,8 +3603,34 @@ namespace CodeWalker.Rendering
                 float minz = ped.Yft.Fragment?.PhysicsLODGroup?.PhysicsLOD1?.Bound?.BoxMin.Z ?? 0.0f;
                 pos.Z -= minz;
 
-                // Offset ped up by 1 meter
-                pos.Z += 1.0f;
+                // Offset ped up by 1 meter, unless they're sitting
+                bool isSitting = false;
+
+                // Check scenario type name
+                if (!string.IsNullOrEmpty(scenarioTypeName))
+                {
+                    var scenarioLower = scenarioTypeName.ToLowerInvariant();
+                    isSitting = scenarioLower.Contains("sit") || scenarioLower.Contains("seat");
+                }
+
+                // Check clip dictionary name
+                if (!isSitting && !string.IsNullOrEmpty(clipDictName))
+                {
+                    var clipDictLower = clipDictName.ToLowerInvariant();
+                    isSitting = clipDictLower.Contains("sit") || clipDictLower.Contains("seat");
+                }
+
+                // Check animation clip name
+                if (!isSitting && animClip != null)
+                {
+                    var animName = JenkIndex.TryGetString(animClip.Hash)?.ToLowerInvariant() ?? "";
+                    isSitting = animName.Contains("sit") || animName.Contains("seat");
+                }
+
+                if (!isSitting)
+                {
+                    pos.Z += 1.0f;
+                }
 
                 ped.Position = pos;
                 ped.Rotation = ori;
