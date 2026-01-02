@@ -224,7 +224,8 @@ namespace CodeWalker
                 {
                     if (FileCache.IsInited)
                     {
-                        FileCache.BeginFrame();
+                        // Don't call BeginFrame() - ExploreForm has no render loop,
+                        // and calling it 100x/sec causes unnecessary overhead
 
                         bool fcItemsPending = FileCache.ContentThreadProc();
 
@@ -237,6 +238,16 @@ namespace CodeWalker
                     {
                         Thread.Sleep(20);
                     }
+                }
+
+                // Cleanup after thread exits
+                if (FileCache != null)
+                {
+                    try
+                    {
+                        FileCache.Clear();
+                    }
+                    catch { }
                 }
             });
         }
@@ -253,7 +264,7 @@ namespace CodeWalker
                         {
                             UpdateStatus("Loading file cache...");
                             var allRpfs = AllRpfs;
-                            FileCache.Init(UpdateStatus, UpdateErrorLog, allRpfs); //inits main dicts and archetypes only...
+                            FileCache.Init(UpdateStatus, UpdateErrorLog, allRpfs);
 
                             UpdateStatus("Loading materials...");
                             BoundsMaterialTypes.Init(FileCache);
@@ -3804,10 +3815,18 @@ namespace CodeWalker
             Init();
         }
 
-        private void ExploreForm_FormClosed(object sender, FormClosedEventArgs e)
+        private void ExploreForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            CleanupDropFolder();
-            SaveSettings();
+            // Save settings before exit
+            try
+            {
+                CleanupDropFolder();
+                SaveSettings();
+            }
+            catch { }
+
+            // Terminate immediately to avoid Windows Forms disposal lag
+            Environment.Exit(0);
         }
 
         private void MainTreeView_AfterSelect(object sender, TreeViewEventArgs e)

@@ -19,9 +19,10 @@ namespace CodeWalker.GameFiles
         public RpfManager? RpfMan;
         private Action<string>? UpdateStatus;
         private Action<string>? ErrorLog;
-        public int MaxItemsPerLoop = 4; //increased from 1 to process more items per loop for better performance
+        public int MaxItemsPerLoop = 32; // Increased from 4 to 32 for better throughput
 
         private ConcurrentQueue<GameFile> requestQueue = new();
+        private const int MaxQueueSize = 500; // Increased from 10 to 500
 
         ////dynamic cache
         private Cache<GameFileCacheKey, GameFile> mainCache = null!;
@@ -36,6 +37,12 @@ namespace CodeWalker.GameFiles
         private object updateSyncRoot = new object();
         private object requestSyncRoot = new object();
         private object textureSyncRoot = new object(); //for the texture lookup.
+
+        // Separate locks for different file type categories to reduce contention
+        private object drawableSyncRoot = new object(); // For Ydr, Ydd, Yft
+        private object textureDictSyncRoot = new object(); // For Ytd
+        private object boundsSyncRoot = new object(); // For Ybn
+        private object miscSyncRoot = new object(); // For Ycd, Yed, Ynv, Yld
 
 
         private Dictionary<GameFileCacheKey, GameFile> projectFiles = new(); //for cache files loaded in project window: ydr,ydd,ytd,yft
@@ -299,6 +306,13 @@ namespace CodeWalker.GameFiles
 
             InitAsync(status, errors, allRpfs, CancellationToken.None).GetAwaiter().GetResult();
         }
+        public void Init(Action<string> updateStatus, Action<string> errorLog, List<RpfFile> allRpfs, CancellationToken cancellationToken)
+        {
+            var status = updateStatus is null ? null : new Progress<string>(updateStatus);
+            var errors = errorLog is null ? null : new Progress<string>(errorLog);
+
+            InitAsync(status, errors, allRpfs, cancellationToken).GetAwaiter().GetResult();
+        }
 
         private async Task InitGlobalAsync(IProgress<string> status, CancellationToken ct)
         {
@@ -311,17 +325,23 @@ namespace CodeWalker.GameFiles
 
         private async Task InitDlcAsync(IProgress<string> status, CancellationToken ct)
         {
+            // Sequential phases that depend on each other
             await PhaseAsync(status, ct, "Building DLC List...", InitDlcList);
             await PhaseAsync(status, ct, "Building active RPF dictionary...", InitActiveMapRpfFiles);
             await PhaseAsync(status, ct, "Building map dictionaries...", InitMapDicts);
             await PhaseAsync(status, ct, "Loading manifests...", InitManifestDicts);
             await PhaseAsync(status, ct, "Loading global texture list...", InitGtxds);
             await PhaseAsync(status, ct, "Loading cache...", InitMapCaches);
-            await PhaseAsync(status, ct, "Loading archetypes...", InitArchetypeDicts);
-            await PhaseAsync(status, ct, "Loading strings...", InitStringDicts);
-            await PhaseAsync(status, ct, "Loading vehicles...", InitVehicles);
-            await PhaseAsync(status, ct, "Loading peds...", InitPeds);
-            await PhaseAsync(status, ct, "Loading audio...", InitAudio);
+
+            // Parallel phases - these are independent and can run simultaneously
+            status?.Report("Loading game data in parallel...");
+            await Task.WhenAll(
+                Task.Run(() => { InitArchetypeDicts(); }, ct),
+                Task.Run(() => { InitStringDicts(); }, ct),
+                Task.Run(() => { if (LoadVehicles) InitVehicles(); }, ct),
+                Task.Run(() => { if (LoadPeds) InitPeds(); }, ct),
+                Task.Run(() => { if (LoadAudio) InitAudio(); }, ct)
+            );
         }
         private static async Task PhaseAsync(IProgress<string> status, CancellationToken ct, string message, Action phase)
         {
@@ -419,11 +439,8 @@ namespace CodeWalker.GameFiles
                                 if (file == null) continue;
                                 var srcFull = file.Path;
 
-                                var mapped = srcFull.Replace(updateRpfPath, "update:").Replace('\\', '/').Replace(lpath, dlcPathPrefix).Replace('/', '\\');
-                                if (mapped.StartsWith(@"mods\", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    mapped = mapped.Substring(5);
-                                }
+                                // Optimized string processing using Span to reduce allocations
+                                var mapped = OptimizeDlcPathMapping(srcFull, updateRpfPath, lpath, dlcPathPrefix);
                                 DlcPatchedPaths[mapped] = srcFull;
                             }
                         }
@@ -795,6 +812,64 @@ namespace CodeWalker.GameFiles
             return GetDlcPatchedPath(fpath);
         }
 
+        private string OptimizeDlcPathMapping(string srcFull, string updateRpfPath, string lpath, string dlcPathPrefix)
+        {
+            // Optimized version using StringBuilder and minimal allocations
+            var sb = new StringBuilder(srcFull.Length + dlcPathPrefix.Length);
+            ReadOnlySpan<char> source = srcFull.AsSpan();
+            ReadOnlySpan<char> updatePrefix = updateRpfPath.AsSpan();
+            ReadOnlySpan<char> lpathSpan = lpath.AsSpan();
+
+            // Replace updateRpfPath with "update:"
+            if (source.StartsWith(updatePrefix))
+            {
+                sb.Append("update:");
+                source = source.Slice(updatePrefix.Length);
+            }
+
+            // Convert backslashes to forward slashes, then handle lpath replacement
+            bool inLpathRegion = false;
+            int matchPos = 0;
+
+            for (int i = 0; i < source.Length; i++)
+            {
+                char c = source[i] == '\\' ? '/' : source[i];
+
+                // Check if we're matching lpath
+                if (!inLpathRegion && matchPos < lpathSpan.Length && char.ToLowerInvariant(c) == lpathSpan[matchPos])
+                {
+                    matchPos++;
+                    if (matchPos == lpathSpan.Length)
+                    {
+                        // Full lpath matched, replace with dlcPathPrefix
+                        sb.Append(dlcPathPrefix);
+                        inLpathRegion = true;
+                        matchPos = 0;
+                    }
+                }
+                else
+                {
+                    // Not matching, flush any partial match and current char
+                    if (matchPos > 0 && !inLpathRegion)
+                    {
+                        sb.Append(source.Slice(i - matchPos, matchPos));
+                        matchPos = 0;
+                    }
+                    sb.Append(c == '/' ? '\\' : c); // Convert back to backslash at the end
+                }
+            }
+
+            var result = sb.ToString();
+
+            // Remove "mods\" prefix if present
+            if (result.Length >= 5 && result.AsSpan(0, 5).Equals(@"mods\".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            {
+                return result.Substring(5);
+            }
+
+            return result;
+        }
+
         private string ReplaceDeviceAndX64Paths(string source, string devname, string dlcpath)
         {
             if (string.IsNullOrEmpty(source)) return source;
@@ -1126,7 +1201,7 @@ namespace CodeWalker.GameFiles
 
             // Use parallel processing for better performance on multi-core systems
             var lockObj = new object();
-            Parallel.ForEach(AllRpfs, rpf =>
+            Parallel.ForEach(AllRpfs, (rpf, loopState) =>
             {
                 if (rpf?.AllEntries == null) return;
 
@@ -1197,7 +1272,7 @@ namespace CodeWalker.GameFiles
             if (ActiveMapRpfFiles is { Count: > 0 })
             {
                 var lockObj = new object();
-                Parallel.ForEach(ActiveMapRpfFiles.Values, rpf =>
+                Parallel.ForEach(ActiveMapRpfFiles.Values, (rpf, loopState) =>
                 {
                     if (rpf?.AllEntries == null) return;
 
@@ -1242,7 +1317,7 @@ namespace CodeWalker.GameFiles
             if (AllRpfs != null && AllRpfs.Count > 0)
             {
                 var lockObj = new object();
-                Parallel.ForEach(AllRpfs, rpf =>
+                Parallel.ForEach(AllRpfs, (rpf, loopState) =>
                 {
                     if (rpf?.AllEntries == null) return;
 
@@ -1482,7 +1557,7 @@ namespace CodeWalker.GameFiles
             var lockObj = new object();
             var exceptions = new ConcurrentBag<Exception>();
 
-            Parallel.ForEach(ytypEntries, entry =>
+            Parallel.ForEach(ytypEntries, (entry, loopState) =>
             {
                 try
                 {
@@ -1612,7 +1687,7 @@ namespace CodeWalker.GameFiles
 
             // Process entries in parallel for better performance
             var lockObj = new object();
-            Parallel.ForEach(relevantEntries, entry =>
+            Parallel.ForEach(relevantEntries, (entry, loopState) =>
             {
                 try
                 {
@@ -2203,7 +2278,7 @@ namespace CodeWalker.GameFiles
 
         public void TryLoadEnqueue(GameFile gf)
         {
-            if (((!gf.Loaded)) && (requestQueue.Count < 10))// && (!gf.LoadQueued)
+            if (((!gf.Loaded)) && (requestQueue.Count < MaxQueueSize))
             {
                 requestQueue.Enqueue(gf);
                 gf.LoadQueued = true;
@@ -2236,7 +2311,7 @@ namespace CodeWalker.GameFiles
         public YdrFile GetYdr(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (drawableSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ydr);
                 if (projectFiles.TryGetValue(key, out GameFile pgf))
@@ -2275,7 +2350,7 @@ namespace CodeWalker.GameFiles
         public YddFile GetYdd(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (drawableSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ydd);
                 if (projectFiles.TryGetValue(key, out GameFile pgf))
@@ -2314,7 +2389,7 @@ namespace CodeWalker.GameFiles
         public YtdFile GetYtd(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (textureDictSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ytd);
                 if (projectFiles.TryGetValue(key, out GameFile pgf))
@@ -2388,7 +2463,7 @@ namespace CodeWalker.GameFiles
         public YftFile GetYft(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (drawableSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Yft);
                 var yft = mainCache.TryGet(key) as YftFile;
@@ -2427,7 +2502,7 @@ namespace CodeWalker.GameFiles
         public YbnFile GetYbn(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (boundsSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ybn);
                 YbnFile ybn = mainCache.TryGet(key) as YbnFile;
@@ -2462,7 +2537,7 @@ namespace CodeWalker.GameFiles
         public YcdFile GetYcd(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (miscSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ycd);
                 YcdFile ycd = mainCache.TryGet(key) as YcdFile;
@@ -2497,7 +2572,7 @@ namespace CodeWalker.GameFiles
         public YedFile GetYed(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (miscSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Yed);
                 YedFile yed = mainCache.TryGet(key) as YedFile;
@@ -2532,7 +2607,7 @@ namespace CodeWalker.GameFiles
         public YnvFile GetYnv(uint hash)
         {
             if (!IsInited) return null;
-            lock (requestSyncRoot)
+            lock (miscSyncRoot)
             {
                 var key = new GameFileCacheKey(hash, GameFileType.Ynv);
                 YnvFile ynv = mainCache.TryGet(key) as YnvFile;
@@ -2677,7 +2752,8 @@ namespace CodeWalker.GameFiles
                 if (req.Loaded)
                     continue; //it's already loaded... (somehow)
 
-                if ((req.LastUseTime - DateTime.Now).TotalSeconds > 0.5)
+                // Fixed: reversed time comparison - skip if not used recently (staleness threshold reduced to 0.2s)
+                if ((DateTime.Now - req.LastUseTime).TotalSeconds > 0.2)
                     continue; //hasn't been requested lately..! ignore, will try again later if necessary
 
                 itemcount++;
