@@ -66,8 +66,8 @@ namespace CodeWalker.World
         }
         private void LoadMouseSettings()
         {
-            CameraSensitivityUpDown.Value = (decimal)camSensitivity * 1000;
-            CameraSmoothingUpDown.Value = (decimal)camSmoothing;
+            CameraSensitivityUpDown.Value = Math.Min(Math.Max((decimal)camSensitivity * 1000, CameraSensitivityUpDown.Minimum), CameraSensitivityUpDown.Maximum);
+            CameraSmoothingUpDown.Value = Math.Min(Math.Max((decimal)camSmoothing, CameraSmoothingUpDown.Minimum), CameraSmoothingUpDown.Maximum);
             MouseInvertCheckBox.Checked = mouseinvert;
         }
         private void LoadAdvancedSettings()
