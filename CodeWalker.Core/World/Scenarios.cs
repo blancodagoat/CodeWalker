@@ -33,7 +33,6 @@ namespace CodeWalker.World
 
             ScenarioRegions = new List<YmtFile>();
 
-
             //rubidium:
             //the non-replacement [XML] is hash 1074D56E
             //replacement XML is 203D234 I think and replacement PSO A6F20ADA
@@ -47,11 +46,12 @@ namespace CodeWalker.World
             //int maxcells = 0;
 
             var rpfman = gameFileCache.RpfMan;
+
+            // Load base game sp_manifest.ymt
             string manifestfilename = "update\\update.rpf\\x64\\levels\\gta5\\sp_manifest.ymt";
             YmtFile manifestymt = rpfman.GetFile<YmtFile>(manifestfilename);
             if ((manifestymt != null) && (manifestymt.CScenarioPointManifest != null))
             {
-
                 foreach (var region in manifestymt.CScenarioPointManifest.RegionDefs)
                 {
                     string regionfilename = region.Name.ToString() + ".ymt"; //JenkIndex lookup... ymt should have already loaded path strings into it! maybe change this...
@@ -77,8 +77,6 @@ namespace CodeWalker.World
                         {
                             ScenarioRegions.Add(regionymt);
 
-
-
                             ////testing stuff...
 
                             //var gd = regionymt?.CScenarioPointRegion?.Data.AccelGrid.Dimensions ?? new Vector2I();
@@ -96,6 +94,158 @@ namespace CodeWalker.World
 
             }
 
+            // Scan for additional sp_manifest.meta and sp_manifest.ymt files in DLC packs
+            if (gameFileCache.EnableDlc && gameFileCache.ActiveMapRpfFiles != null)
+            {
+                // Build a list of unique RPF files including parent DLC RPFs
+                var rpfFilesToScan = new HashSet<RpfFile>();
+                foreach (var rpf in gameFileCache.ActiveMapRpfFiles.Values)
+                {
+                    if (rpf != null)
+                    {
+                        rpfFilesToScan.Add(rpf);
+                        // Also add parent RPF files (e.g., dlc.rpf when scanning nested RPFs)
+                        var parent = rpf.Parent;
+                        while (parent != null)
+                        {
+                            rpfFilesToScan.Add(parent);
+                            parent = parent.Parent;
+                        }
+                    }
+                }
+
+                foreach (var rpf in rpfFilesToScan)
+                {
+                    if (rpf?.AllEntries == null) continue;
+
+                    foreach (var entry in rpf.AllEntries)
+                    {
+                        if (entry is RpfFileEntry fentry)
+                        {
+                            var name = fentry.NameLower;
+                            if (name == "sp_manifest.meta" || name == "sp_manifest.ymt")
+                            {
+                                try
+                                {
+                                    CScenarioPointRegionDef[] regionDefs = null;
+
+                                    // Try loading as PSO/YMT first
+                                    YmtFile dlcmanifest = rpfman.GetFile<YmtFile>(fentry);
+
+                                    if ((dlcmanifest != null) && (dlcmanifest.CScenarioPointManifest != null))
+                                    {
+                                        regionDefs = dlcmanifest.CScenarioPointManifest.RegionDefs;
+                                    }
+                                    else if (dlcmanifest != null)
+                                    {
+                                        // Try loading as XML .meta file
+                                        try
+                                        {
+                                            var xml = rpfman.GetFileXml(fentry.Path);
+                                            if (xml?.DocumentElement != null && xml.DocumentElement.Name == "CScenarioPointManifest")
+                                            {
+                                                var regionDefsNode = xml.DocumentElement.SelectSingleNode("RegionDefs");
+                                                if (regionDefsNode != null)
+                                                {
+                                                    var regionItems = regionDefsNode.SelectNodes("Item");
+                                                    if (regionItems != null && regionItems.Count > 0)
+                                                    {
+                                                        var regionList = new List<CScenarioPointRegionDef>();
+                                                        foreach (XmlNode regionItem in regionItems)
+                                                        {
+                                                            var nameNode = regionItem.SelectSingleNode("Name");
+                                                            if (nameNode != null && !string.IsNullOrWhiteSpace(nameNode.InnerText))
+                                                            {
+                                                                var regionDef = new CScenarioPointRegionDef();
+                                                                // Add the string to JenkIndex so ToString() can retrieve it
+                                                                string regionName = nameNode.InnerText;
+                                                                uint hash = JenkHash.GenHash(regionName.ToLowerInvariant());
+                                                                JenkIndex.Ensure(regionName.ToLowerInvariant());
+                                                                regionDef.Name = new MetaHash(hash);
+                                                                regionList.Add(regionDef);
+                                                            }
+                                                        }
+                                                        regionDefs = regionList.ToArray();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        catch
+                                        {
+                                            // Skip invalid XML
+                                        }
+                                    }
+
+                                    if (regionDefs != null && regionDefs.Length > 0)
+                                    {
+                                        foreach (var region in regionDefs)
+                                        {
+                                            string originalName = region.Name.ToString();
+                                            string regionfilename = originalName + ".ymt";
+
+                                            // Extract just the filename from the full path
+                                            // Handle various prefixes: "platform:", "dlc_name:/%PLATFORM%/", etc.
+                                            int colonIndex = regionfilename.IndexOf(':');
+                                            if (colonIndex >= 0)
+                                            {
+                                                // Remove the DLC pack prefix
+                                                regionfilename = regionfilename.Substring(colonIndex + 1);
+                                            }
+
+                                            // Remove /%PLATFORM%/ or /platform/ path components
+                                            regionfilename = regionfilename.Replace("/%PLATFORM%/", "/");
+                                            regionfilename = regionfilename.Replace("/platform/", "/");
+
+                                            // Extract the final filename
+                                            int lastSlashInFilename = Math.Max(regionfilename.LastIndexOf('/'), regionfilename.LastIndexOf('\\'));
+                                            if (lastSlashInFilename >= 0)
+                                            {
+                                                regionfilename = regionfilename.Substring(lastSlashInFilename + 1);
+                                            }
+
+                                            string regionfilenameLower = regionfilename.ToLowerInvariant();
+
+                                            // Search for the region file across ALL RPFs (including parent DLC RPFs)
+                                            YmtFile regionymt = null;
+                                            bool found = false;
+
+                                            foreach (var searchRpf in rpfFilesToScan)
+                                            {
+                                                if (searchRpf?.AllEntries == null) continue;
+
+                                                foreach (var regionEntry in searchRpf.AllEntries)
+                                                {
+                                                    if (regionEntry is RpfFileEntry regionFentry && regionFentry.NameLower == regionfilenameLower)
+                                                    {
+                                                        regionymt = rpfman.GetFile<YmtFile>(regionFentry);
+                                                        if (regionymt != null)
+                                                        {
+                                                            var sregion = regionymt.ScenarioRegion;
+                                                            if (sregion != null)
+                                                            {
+                                                                ScenarioRegions.Add(regionymt);
+                                                                found = true;
+                                                                regionymt = null; // Mark as handled
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                if (found) break; // Found it, stop searching
+                                            }
+                                        }
+                                    }
+                                }
+                                catch
+                                {
+                                    // Skip invalid manifests
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Inited = true;
         }
