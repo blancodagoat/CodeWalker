@@ -48,6 +48,8 @@ namespace CodeWalker
             this.ViewTabControl = new System.Windows.Forms.TabControl();
             this.ViewWorldTabPage = new System.Windows.Forms.TabPage();
             this.EnableModsCheckBox = new System.Windows.Forms.CheckBox();
+            this.HideNorthYanktonCheckBox = new System.Windows.Forms.CheckBox();
+            this.HideCayoPericoCheckBox = new System.Windows.Forms.CheckBox();
             this.label30 = new System.Windows.Forms.Label();
             this.DlcLevelComboBox = new System.Windows.Forms.ComboBox();
             this.EnableDlcCheckBox = new System.Windows.Forms.CheckBox();
@@ -564,7 +566,9 @@ namespace CodeWalker
             this.ViewTabControl.TabIndex = 12;
             // 
             // ViewWorldTabPage
-            // 
+            //
+            this.ViewWorldTabPage.Controls.Add(this.HideCayoPericoCheckBox);
+            this.ViewWorldTabPage.Controls.Add(this.HideNorthYanktonCheckBox);
             this.ViewWorldTabPage.Controls.Add(this.EnableModsCheckBox);
             this.ViewWorldTabPage.Controls.Add(this.label30);
             this.ViewWorldTabPage.Controls.Add(this.DlcLevelComboBox);
@@ -599,9 +603,33 @@ namespace CodeWalker
             this.EnableModsCheckBox.Text = "Enable Mods";
             this.EnableModsCheckBox.UseVisualStyleBackColor = true;
             this.EnableModsCheckBox.CheckedChanged += new System.EventHandler(this.EnableModsCheckBox_CheckedChanged);
-            // 
+            //
+            // HideNorthYanktonCheckBox
+            //
+            this.HideNorthYanktonCheckBox.AutoSize = true;
+            this.HideNorthYanktonCheckBox.Enabled = false;
+            this.HideNorthYanktonCheckBox.Location = new System.Drawing.Point(6, 365);
+            this.HideNorthYanktonCheckBox.Name = "HideNorthYanktonCheckBox";
+            this.HideNorthYanktonCheckBox.Size = new System.Drawing.Size(135, 17);
+            this.HideNorthYanktonCheckBox.TabIndex = 71;
+            this.HideNorthYanktonCheckBox.Text = "Hide North Yankton";
+            this.HideNorthYanktonCheckBox.UseVisualStyleBackColor = true;
+            this.HideNorthYanktonCheckBox.CheckedChanged += new System.EventHandler(this.HideNorthYanktonCheckBox_CheckedChanged);
+            //
+            // HideCayoPericoCheckBox
+            //
+            this.HideCayoPericoCheckBox.AutoSize = true;
+            this.HideCayoPericoCheckBox.Enabled = false;
+            this.HideCayoPericoCheckBox.Location = new System.Drawing.Point(6, 388);
+            this.HideCayoPericoCheckBox.Name = "HideCayoPericoCheckBox";
+            this.HideCayoPericoCheckBox.Size = new System.Drawing.Size(125, 17);
+            this.HideCayoPericoCheckBox.TabIndex = 72;
+            this.HideCayoPericoCheckBox.Text = "Hide Cayo Perico";
+            this.HideCayoPericoCheckBox.UseVisualStyleBackColor = true;
+            this.HideCayoPericoCheckBox.CheckedChanged += new System.EventHandler(this.HideCayoPericoCheckBox_CheckedChanged);
+            //
             // label30
-            // 
+            //
             this.label30.AutoSize = true;
             this.label30.Location = new System.Drawing.Point(1, 337);
             this.label30.Name = "label30";
@@ -3901,6 +3929,8 @@ namespace CodeWalker
         private System.Windows.Forms.TabPage SelectionExtensionTabPage;
         private ReadOnlyPropertyGrid SelExtensionPropertyGrid;
         private System.Windows.Forms.CheckBox EnableModsCheckBox;
+        private System.Windows.Forms.CheckBox HideNorthYanktonCheckBox;
+        private System.Windows.Forms.CheckBox HideCayoPericoCheckBox;
         private System.Windows.Forms.Button AdvancedSettingsButton;
         private System.Windows.Forms.Button ControlSettingsButton;
         private System.Windows.Forms.ToolStripMenuItem ToolsMenuOptions;

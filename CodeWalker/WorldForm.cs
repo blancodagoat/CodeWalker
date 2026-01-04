@@ -122,6 +122,8 @@ namespace CodeWalker
 
         bool worldymaptimefilter = true;
         bool worldymapweatherfilter = true;
+        bool hidenorthyankton = false;
+        bool hidecayoperico = false;
 
         bool renderpathbounds = true;
         bool renderpaths = false;
@@ -708,6 +710,32 @@ namespace CodeWalker
                 CutsceneForm.GetVisibleYmaps(camera, renderworldVisibleYmapDict);
             }
 
+            // Filter out ymaps based on location hiding settings
+            if (hidenorthyankton || hidecayoperico)
+            {
+                var toRemove = new List<MetaHash>();
+                foreach (var kvp in renderworldVisibleYmapDict)
+                {
+                    var ymap = kvp.Value;
+                    if (ymap?.Name != null)
+                    {
+                        var name = ymap.Name.ToLowerInvariant();
+                        if (hidenorthyankton && name.Contains("prologue"))
+                        {
+                            toRemove.Add(kvp.Key);
+                        }
+                        else if (hidecayoperico && (name.Contains("h4") || name.Contains("mph4")))
+                        {
+                            toRemove.Add(kvp.Key);
+                        }
+                    }
+                }
+                foreach (var key in toRemove)
+                {
+                    renderworldVisibleYmapDict.Remove(key);
+                }
+            }
+
             Renderer.RenderWorld(renderworldVisibleYmapDict, spaceEnts);
 
 
@@ -802,6 +830,27 @@ namespace CodeWalker
             if (ProjectForm != null)
             {
                 ProjectForm.GetVisibleYbns(camera, collisionybns, collisioninteriors);
+            }
+
+            // Filter out ybns based on location hiding settings
+            if (hidenorthyankton || hidecayoperico)
+            {
+                collisionybns.RemoveAll(ybn =>
+                {
+                    if (ybn?.Name != null)
+                    {
+                        var name = ybn.Name.ToLowerInvariant();
+                        if (hidenorthyankton && name.Contains("prologue"))
+                        {
+                            return true;
+                        }
+                        if (hidecayoperico && (name.Contains("h4") || name.Contains("mph4")))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
             }
 
             foreach (var ybn in collisionybns)
@@ -5300,6 +5349,8 @@ namespace CodeWalker
                 {
                     EnableDlcCheckBox.Enabled = true;
                     EnableModsCheckBox.Enabled = true;
+                    HideNorthYanktonCheckBox.Enabled = true;
+                    HideCayoPericoCheckBox.Enabled = true;
                     DlcLevelComboBox.Enabled = true;
                 }
             }
@@ -7579,8 +7630,20 @@ namespace CodeWalker
                 MessageBox.Show("Please close the Project Window before enabling or disabling mods.");
                 return;
             }
-            
+
             SetModsEnabled(EnableModsCheckBox.Checked);
+        }
+
+        private void HideNorthYanktonCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!initialised) return;
+            hidenorthyankton = HideNorthYanktonCheckBox.Checked;
+        }
+
+        private void HideCayoPericoCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!initialised) return;
+            hidecayoperico = HideCayoPericoCheckBox.Checked;
         }
 
         private void EnableDlcCheckBox_CheckedChanged(object sender, EventArgs e)
