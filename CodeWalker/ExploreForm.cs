@@ -3808,6 +3808,7 @@ namespace CodeWalker
         {
             CleanupDropFolder();
             SaveSettings();
+            Environment.Exit(0);
         }
 
         private void MainTreeView_AfterSelect(object sender, TreeViewEventArgs e)
