@@ -44,6 +44,9 @@
             this.YddCheckBox = new System.Windows.Forms.CheckBox();
             this.YftCheckBox = new System.Windows.Forms.CheckBox();
             this.label2 = new System.Windows.Forms.Label();
+            this.label3 = new System.Windows.Forms.Label();
+            this.SubfolderTextBox = new System.Windows.Forms.TextBox();
+            this.NoPrefixCheckBox = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
             // label4
@@ -74,20 +77,20 @@
             this.OutputFolderTextBox.TextChanged += new System.EventHandler(this.OutputFolderTextBox_TextChanged);
             // 
             // ExtractStatusLabel
-            // 
-            this.ExtractStatusLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            //
+            this.ExtractStatusLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.ExtractStatusLabel.AutoEllipsis = true;
-            this.ExtractStatusLabel.Location = new System.Drawing.Point(12, 130);
+            this.ExtractStatusLabel.Location = new System.Drawing.Point(12, 179);
             this.ExtractStatusLabel.Name = "ExtractStatusLabel";
             this.ExtractStatusLabel.Size = new System.Drawing.Size(501, 65);
             this.ExtractStatusLabel.TabIndex = 59;
             this.ExtractStatusLabel.Text = "Initialising...";
             // 
             // ExtractButton
-            // 
-            this.ExtractButton.Location = new System.Drawing.Point(90, 93);
+            //
+            this.ExtractButton.Location = new System.Drawing.Point(90, 142);
             this.ExtractButton.Name = "ExtractButton";
             this.ExtractButton.Size = new System.Drawing.Size(75, 23);
             this.ExtractButton.TabIndex = 58;
@@ -123,8 +126,8 @@
             this.FolderTextBox.TabIndex = 55;
             // 
             // AbortButton
-            // 
-            this.AbortButton.Location = new System.Drawing.Point(185, 93);
+            //
+            this.AbortButton.Location = new System.Drawing.Point(185, 142);
             this.AbortButton.Name = "AbortButton";
             this.AbortButton.Size = new System.Drawing.Size(75, 23);
             this.AbortButton.TabIndex = 63;
@@ -132,10 +135,26 @@
             this.AbortButton.UseVisualStyleBackColor = true;
             this.AbortButton.Click += new System.EventHandler(this.AbortButton_Click);
             // 
+            // label3
+            //
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(12, 61);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(56, 13);
+            this.label3.TabIndex = 69;
+            this.label3.Text = "Subfolder:";
+            //
+            // SubfolderTextBox
+            //
+            this.SubfolderTextBox.Location = new System.Drawing.Point(90, 58);
+            this.SubfolderTextBox.Name = "SubfolderTextBox";
+            this.SubfolderTextBox.Size = new System.Drawing.Size(251, 20);
+            this.SubfolderTextBox.TabIndex = 70;
+            //
             // YtdChecBox
-            // 
+            //
             this.YtdChecBox.AutoSize = true;
-            this.YtdChecBox.Location = new System.Drawing.Point(90, 64);
+            this.YtdChecBox.Location = new System.Drawing.Point(90, 90);
             this.YtdChecBox.Name = "YtdChecBox";
             this.YtdChecBox.Size = new System.Drawing.Size(40, 17);
             this.YtdChecBox.TabIndex = 64;
@@ -143,11 +162,11 @@
             this.YtdChecBox.UseVisualStyleBackColor = true;
             // 
             // YdrCheckBox
-            // 
+            //
             this.YdrCheckBox.AutoSize = true;
             this.YdrCheckBox.Checked = true;
             this.YdrCheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.YdrCheckBox.Location = new System.Drawing.Point(136, 64);
+            this.YdrCheckBox.Location = new System.Drawing.Point(136, 90);
             this.YdrCheckBox.Name = "YdrCheckBox";
             this.YdrCheckBox.Size = new System.Drawing.Size(40, 17);
             this.YdrCheckBox.TabIndex = 65;
@@ -155,11 +174,11 @@
             this.YdrCheckBox.UseVisualStyleBackColor = true;
             // 
             // YddCheckBox
-            // 
+            //
             this.YddCheckBox.AutoSize = true;
             this.YddCheckBox.Checked = true;
             this.YddCheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.YddCheckBox.Location = new System.Drawing.Point(182, 64);
+            this.YddCheckBox.Location = new System.Drawing.Point(182, 90);
             this.YddCheckBox.Name = "YddCheckBox";
             this.YddCheckBox.Size = new System.Drawing.Size(43, 17);
             this.YddCheckBox.TabIndex = 66;
@@ -167,11 +186,11 @@
             this.YddCheckBox.UseVisualStyleBackColor = true;
             // 
             // YftCheckBox
-            // 
+            //
             this.YftCheckBox.AutoSize = true;
             this.YftCheckBox.Checked = true;
             this.YftCheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.YftCheckBox.Location = new System.Drawing.Point(231, 64);
+            this.YftCheckBox.Location = new System.Drawing.Point(231, 90);
             this.YftCheckBox.Name = "YftCheckBox";
             this.YftCheckBox.Size = new System.Drawing.Size(37, 17);
             this.YftCheckBox.TabIndex = 67;
@@ -179,19 +198,32 @@
             this.YftCheckBox.UseVisualStyleBackColor = true;
             // 
             // label2
-            // 
+            //
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(12, 65);
+            this.label2.Location = new System.Drawing.Point(12, 91);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(54, 13);
             this.label2.TabIndex = 68;
             this.label2.Text = "From files:";
+            //
+            // NoPrefixCheckBox
+            //
+            this.NoPrefixCheckBox.AutoSize = true;
+            this.NoPrefixCheckBox.Location = new System.Drawing.Point(90, 113);
+            this.NoPrefixCheckBox.Name = "NoPrefixCheckBox";
+            this.NoPrefixCheckBox.Size = new System.Drawing.Size(182, 17);
+            this.NoPrefixCheckBox.TabIndex = 71;
+            this.NoPrefixCheckBox.Text = "No file prefix (ignore duplicates)";
+            this.NoPrefixCheckBox.UseVisualStyleBackColor = true;
             // 
             // ExtractTexForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(525, 236);
+            this.ClientSize = new System.Drawing.Size(525, 285);
+            this.Controls.Add(this.NoPrefixCheckBox);
+            this.Controls.Add(this.SubfolderTextBox);
+            this.Controls.Add(this.label3);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.YftCheckBox);
             this.Controls.Add(this.YddCheckBox);
@@ -232,5 +264,8 @@
         private System.Windows.Forms.CheckBox YddCheckBox;
         private System.Windows.Forms.CheckBox YftCheckBox;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.TextBox SubfolderTextBox;
+        private System.Windows.Forms.CheckBox NoPrefixCheckBox;
     }
 }

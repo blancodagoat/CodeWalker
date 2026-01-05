@@ -113,10 +113,12 @@ namespace CodeWalker.Tools
             string searchpath = FolderTextBox.Text;
             string outputpath = OutputFolderTextBox.Text;
             string replpath = searchpath + "\\";
+            string subfolderFilter = SubfolderTextBox.Text.Trim().ToLowerInvariant();
             bool bytd = YtdChecBox.Checked;
             bool bydr = YdrCheckBox.Checked;
             bool bydd = YddCheckBox.Checked;
             bool byft = YftCheckBox.Checked;
+            bool noPrefix = NoPrefixCheckBox.Checked;
             bool gen9 = GTAFolder.IsGen9Folder(searchpath);
 
             Task.Run(() =>
@@ -132,6 +134,7 @@ namespace CodeWalker.Tools
 
                 UpdateExtractStatus("Beginning texture extraction...");
                 StringBuilder errsb = new();
+                HashSet<string> savedTextures = new(); // Track saved texture names to avoid duplicates
                 foreach (RpfFile rpf in rpfman.AllRpfs)
                 {
                     foreach (RpfEntry entry in rpf.AllEntries)
@@ -142,6 +145,17 @@ namespace CodeWalker.Tools
                             InProgress = false;
                             return;
                         }
+
+                        // Apply subfolder filter if specified
+                        if (!string.IsNullOrEmpty(subfolderFilter))
+                        {
+                            string entryPathLower = entry.Path.ToLowerInvariant().Replace('/', '\\');
+                            if (!entryPathLower.Contains(subfolderFilter))
+                            {
+                                continue;
+                            }
+                        }
+
                         try
                         {
                             if (bytd && entry.NameLower.EndsWith(".ytd"))
@@ -154,7 +168,7 @@ namespace CodeWalker.Tools
                                 if (ytd.TextureDict.Textures.data_items == null) throw new Exception("Texture dictionary had no entries...");
                                 foreach (var tex in ytd.TextureDict.Textures.data_items)
                                 {
-                                    SaveTexture(tex, entry, outputpath);
+                                    SaveTexture(tex, entry, outputpath, noPrefix, savedTextures);
                                 }
                             }
                             else if (bydr && entry.NameLower.EndsWith(".ydr"))
@@ -170,7 +184,7 @@ namespace CodeWalker.Tools
                                     {
                                         foreach (var tex in ydrtd.Textures.data_items)
                                         {
-                                            SaveTexture(tex, entry, outputpath);
+                                            SaveTexture(tex, entry, outputpath, noPrefix, savedTextures);
                                         }
                                     }
                                 }
@@ -193,7 +207,7 @@ namespace CodeWalker.Tools
                                         {
                                             foreach (var tex in ydrtd.Textures.data_items)
                                             {
-                                                SaveTexture(tex, entry, outputpath);
+                                                SaveTexture(tex, entry, outputpath, noPrefix, savedTextures);
                                             }
                                         }
                                     }
@@ -214,7 +228,7 @@ namespace CodeWalker.Tools
                                         {
                                             foreach (var tex in ydrtd.Textures.data_items)
                                             {
-                                                SaveTexture(tex, entry, outputpath);
+                                                SaveTexture(tex, entry, outputpath, noPrefix, savedTextures);
                                             }
                                         }
                                     }
@@ -238,14 +252,31 @@ namespace CodeWalker.Tools
             });
         }
 
-        private void SaveTexture(Texture tex, RpfEntry entry, string folder)
+        private void SaveTexture(Texture tex, RpfEntry entry, string folder, bool noPrefix, HashSet<string> savedTextures)
         {
 
             //DirectXTex
 
             byte[] dds = DDSIO.GetDDSFile(tex);
 
-            string bpath = folder + "\\" + entry.Name + "_" + tex.Name;
+            string filename;
+            if (noPrefix)
+            {
+                // Use only texture name, skip if already saved
+                filename = tex.Name;
+                if (savedTextures.Contains(filename))
+                {
+                    return; // Skip duplicate
+                }
+                savedTextures.Add(filename);
+            }
+            else
+            {
+                // Use original behavior with file prefix
+                filename = entry.Name + "_" + tex.Name;
+            }
+
+            string bpath = folder + "\\" + filename;
             string fpath = bpath + ".dds";
             int c = 1;
             while (File.Exists(fpath))
