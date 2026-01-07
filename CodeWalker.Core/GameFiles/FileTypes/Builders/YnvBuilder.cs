@@ -494,11 +494,22 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     ynv.Polys.Remove(poly);
                 }
 
+                // Adaptive vertex reduction if count exceeds limit
                 if (totalVertexCount > MaxVerticesPerYnv)
                 {
+                    int excessVertices = totalVertexCount - MaxVerticesPerYnv;
+                    float reductionPercentage = (float)excessVertices / totalVertexCount * 100f;
+
                     throw new InvalidOperationException(
-                        $"YNV file {ynv.Name} exceeds maximum vertex count: {totalVertexCount} > {MaxVerticesPerYnv}. " +
-                        "Consider using a smaller grid cell size or reducing polygon complexity.");
+                        $"YNV file {ynv.Name} exceeds maximum vertex count: {totalVertexCount} > {MaxVerticesPerYnv} " +
+                        $"({excessVertices} excess vertices, {reductionPercentage:F1}% over limit).\n\n" +
+                        "To fix this:\n" +
+                        $"- Increase edge collapse optimization (current MaxQuadricErrorMetric: {genParams.MaxQuadricErrorMetric:F3})\n" +
+                        $"  Suggested: {genParams.MaxQuadricErrorMetric * 2.0f:F3} or higher\n" +
+                        "- Enable more aggressive polygon merging\n" +
+                        "- Reduce sampling density (increase from current: " + genParams.SamplingDensity + "m)\n" +
+                        "- Process a smaller area\n" +
+                        "- Split generation into multiple smaller YNV files");
                 }
 
                 //find zmin and zmax and update AABBSize and SectorTree root
@@ -611,6 +622,23 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             }
 
             collisionTriangles.Clear();
+
+            // Ensure min is actually less than max (swap if needed)
+            // This can happen if the UI passes coordinates in the wrong order
+            if (min.X > max.X)
+            {
+                float temp = min.X;
+                min.X = max.X;
+                max.X = temp;
+                Log($"WARNING: Swapped min.X and max.X (were reversed)", statusCallback);
+            }
+            if (min.Y > max.Y)
+            {
+                float temp = min.Y;
+                min.Y = max.Y;
+                max.Y = temp;
+                Log($"WARNING: Swapped min.Y and max.Y (were reversed)", statusCallback);
+            }
 
             Log($"Query bounds: X=[{min.X:F1}, {max.X:F1}], Y=[{min.Y:F1}, {max.Y:F1}]", statusCallback);
 
@@ -858,27 +886,56 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                         if (geom.Materials != null && matIndex < geom.Materials.Length)
                         {
                             var material = geom.Materials[matIndex];
-                            
-                            // Map material type based on material properties
+
+                            tri.ProceduralId = material.ProceduralId;
+                            tri.RoomId = material.RoomId;
+                            tri.PedDensity = material.PedDensity;
+                            tri.MaterialFlags = material.Flags;
+
+                            // Map material type based on material properties and flags
                             tri.Material = MaterialType.Default;
-                            
+
+                            // Check FLAGS first (higher priority)
+                            if ((material.Flags & EBoundMaterialFlags.FLAG_STAIRS) != 0)
+                            {
+                                tri.Material = MaterialType.Stairs;
+                            }
                             // Check for water material (material type 4 is typically water)
-                            if (material.Type == 4)
+                            else if (material.Type == 4)
                             {
                                 tri.Material = MaterialType.Water;
                                 tri.IsWater = true;
+
+                                // Check for shallow water flag
+                                if (material.Type.Index == 12) // Specific shallow water material
+                                {
+                                    tri.IsShallowWater = true;
+                                }
                             }
                             // Check for pavement/concrete materials (types 1, 2, 3 are typically hard surfaces)
                             else if (material.Type == 1 || material.Type == 2 || material.Type == 3)
                             {
                                 tri.Material = MaterialType.Pavement;
                             }
-                            // Check for stairs based on material flags or specific types
-                            // Material type 5 is often used for stairs/steps
+                            // Check for stairs based on material type (material type 5 is often used for stairs/steps)
                             else if (material.Type == 5)
                             {
                                 tri.Material = MaterialType.Stairs;
                             }
+
+                            if (material.Type.Index >= 7 && material.Type.Index <= 10) // Road material types
+                            {
+                                tri.IsRoad = true;
+                            }
+
+                            // IsTrainTracks: Check if this is a train track surface
+                            if (material.Type.Index == 55 || material.Type.Index == 56) // Metal track materials
+                            {
+                                tri.IsTrainTracks = true;
+                            }
+
+                            // IsInterior: Extract from RoomId (non-zero RoomId indicates interior)
+                            tri.IsInterior = (material.RoomId > 0);
                         }
                     }
 
@@ -1022,6 +1079,16 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     float worldX = min.X + gx * samplingDensity;
                     float worldY = min.Y + gy * samplingDensity;
 
+                    if (genParams.JitterSamples)
+                    {
+                        // Use deterministic random based on grid position for reproducibility
+                        var random = new Random(gx * 10007 + gy * 10009); // Prime numbers for good distribution
+                        float jitterX = ((float)random.NextDouble() - 0.5f) * samplingDensity * genParams.JitterAmount;
+                        float jitterY = ((float)random.NextDouble() - 0.5f) * samplingDensity * genParams.JitterAmount;
+                        worldX += jitterX;
+                        worldY += jitterY;
+                    }
+
                     // Start ray from top of the area
                     var rayOrigin = new Vector3(worldX, worldY, maxZ + 10.0f);
                     var rayDirection = new Vector3(0, 0, -1); // Downward (normalized)
@@ -1067,14 +1134,23 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
                             if (existingNode == null)
                             {
-                                // Create new height sample node
+                                // Create new height sample node - PROPAGATE ALL FLAGS from collision triangle
                                 var node = new NavGenNode
                                 {
                                     BasePosition = result.Position,
                                     CollisionTriangle = result.Triangle,
                                     Material = result.Triangle.Material,
                                     IsWater = result.Triangle.IsWater,
-                                    Flags = 0
+                                    Flags = 0,
+
+                                    // Propagate extended flags from collision material
+                                    ProceduralId = result.Triangle.ProceduralId,
+                                    RoomId = result.Triangle.RoomId,
+                                    PedDensity = result.Triangle.PedDensity,
+                                    MaterialFlags = result.Triangle.MaterialFlags,
+                                    IsInterior = result.Triangle.IsInterior,
+                                    IsRoad = result.Triangle.IsRoad,
+                                    IsTrainTracks = result.Triangle.IsTrainTracks
                                 };
 
                                 // Set flags based on material and surface properties
@@ -1082,13 +1158,13 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                                 {
                                     node.Flags |= 0x01; // Water flag
                                 }
-                                
+
                                 // Set flags for pavement
                                 if (result.Triangle.Material == MaterialType.Pavement)
                                 {
                                     node.Flags |= 0x02; // Pavement flag
                                 }
-                                
+
                                 // Set flags for stairs
                                 if (result.Triangle.Material == MaterialType.Stairs)
                                 {
@@ -1165,13 +1241,24 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             {
                 if (tri.IsRemoved) continue;
 
-                // Create a polygon from this triangle
+                // Create a polygon from this triangle - PRESERVE ALL FLAGS
                 var poly = new NavSurfacePoly
                 {
                     Vertices = new List<NavGenNode>(tri.Nodes),
                     Material = tri.Material,
                     PolyFlags = tri.PolyFlags,
-                    IsWater = tri.IsWater
+                    IsWater = tri.IsWater,
+                    IsTooSteep = tri.IsTooSteep,
+
+                    // Preserve extended flags from triangle
+                    ProceduralId = tri.ProceduralId,
+                    RoomId = tri.RoomId,
+                    PedDensity = tri.PedDensity,
+                    MaterialFlags = tri.MaterialFlags,
+                    IsInterior = tri.IsInterior,
+                    IsRoad = tri.IsRoad,
+                    IsTrainTracks = tri.IsTrainTracks,
+                    IsFlatGround = tri.IsFlatGround
                 };
 
                 polygons.Add(poly);
@@ -1208,8 +1295,6 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
             statusCallback?.Invoke($"Triangulating {totalNodes} height samples...");
 
-            // For each height sample, try to create triangles with adjacent samples
-            // We create 2 triangles per grid cell in a consistent diagonal pattern
             for (int gx = 0; gx < heightSampleGrid.GridWidth; gx++)
             {
                 for (int gy = 0; gy < heightSampleGrid.GridHeight; gy++)
@@ -1220,15 +1305,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     {
                         if (node.IsRemoved) continue;
 
-                        // Create triangles in a consistent pattern to avoid checkerboard artifacts
-                        // For each grid cell, we create 2 triangles with a consistent diagonal:
-                        
-                        // Triangle 1, current -> right -> top-right
-                        // This forms the lower-right triangle of the grid cell
                         TryCreateTriangle(node, 1, 0, 1, 1, triangles);
-
-                        // Triangle 2, current -> top-right -> top
-                        // This forms the upper-left triangle of the grid cell
                         TryCreateTriangle(node, 1, 1, 0, 1, triangles);
 
                         processedNodes++;
@@ -1292,15 +1369,31 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             if (!LineOfSightTest(adj1.BasePosition, adj2.BasePosition))
                 return;
 
+            if (!IsLineFreeOfSuddenHeightChanges(node.BasePosition, adj1.BasePosition, out float heightChange1))
+                return;
+
+            if (!IsLineFreeOfSuddenHeightChanges(node.BasePosition, adj2.BasePosition, out float heightChange2))
+                return;
+
+            if (!IsLineFreeOfSuddenHeightChanges(adj1.BasePosition, adj2.BasePosition, out float heightChange12))
+                return;
+
             // Create the triangle
             var triangle = new NavSurfaceTri
             {
                 Nodes = new NavGenNode[] { node, adj1, adj2 }
             };
 
-            // Calculate normal and plane equation
             triangle.CalculateNormal();
-            
+            if (genParams.TestClearHeight > 0.01f)
+            {
+                if (!HasClearHeightAboveTriangle(triangle.Nodes, genParams.TestClearHeight))
+                {
+                    // Not enough clearance, skip this triangle
+                    return;
+                }
+            }
+
             float area = triangle.CalculateArea();
             if (area < genParams.MinTriangleArea)
             {
@@ -1331,6 +1424,35 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             {
                 triangle.Material = MaterialType.Default;
             }
+
+            // Use priority node (same as material priority: water > stairs > pavement > slope > default)
+            NavGenNode priorityNode = node;
+            if (node.IsWater || (adj1.IsWater && !node.Material.Equals(MaterialType.Water)) || (adj2.IsWater && !node.Material.Equals(MaterialType.Water)))
+            {
+                priorityNode = node.IsWater ? node : (adj1.IsWater ? adj1 : adj2);
+            }
+            else if (node.Material == MaterialType.Stairs || adj1.Material == MaterialType.Stairs || adj2.Material == MaterialType.Stairs)
+            {
+                priorityNode = (node.Material == MaterialType.Stairs) ? node : ((adj1.Material == MaterialType.Stairs) ? adj1 : adj2);
+            }
+            else if (node.Material == MaterialType.Pavement || adj1.Material == MaterialType.Pavement || adj2.Material == MaterialType.Pavement)
+            {
+                priorityNode = (node.Material == MaterialType.Pavement) ? node : ((adj1.Material == MaterialType.Pavement) ? adj1 : adj2);
+            }
+
+            triangle.ProceduralId = priorityNode.ProceduralId;
+            triangle.RoomId = priorityNode.RoomId;
+            triangle.PedDensity = priorityNode.PedDensity;
+            triangle.MaterialFlags = priorityNode.MaterialFlags;
+            triangle.IsInterior = priorityNode.IsInterior || adj1.IsInterior || adj2.IsInterior; // Any interior node marks triangle as interior
+            triangle.IsRoad = priorityNode.IsRoad;
+            triangle.IsTrainTracks = priorityNode.IsTrainTracks;
+
+            // Determine IsFlatGround based on slope
+            var upVector = new Vector3(0, 0, 1);
+            float normalDot = Vector3.Dot(triangle.Normal, upVector);
+            float surfaceAngle = (float)Math.Acos(Math.Clamp(normalDot, -1f, 1f)) * 180f / (float)Math.PI;
+            triangle.IsFlatGround = (surfaceAngle < 10.0f); // Less than 10 degrees is considered flat
 
             // Add triangle to nodes surrounding triangles list
             node.SurroundingTriangles.Add(triangle);
@@ -1407,6 +1529,83 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             }
 
             return actualHeightDiff <= threshold;
+        }
+
+        private bool HasClearHeightAboveTriangle(NavGenNode[] nodes, float clearHeight)
+        {
+            if (nodes == null || nodes.Length < 3)
+                return false;
+
+            // Test clearance at triangle centroid
+            var centroid = (nodes[0].BasePosition + nodes[1].BasePosition + nodes[2].BasePosition) / 3f;
+
+            // Cast ray upward from centroid to check for obstacles
+            var rayOrigin = centroid + new Vector3(0, 0, 0.1f); // Start slightly above surface
+            var rayDir = new Vector3(0, 0, 1); // Upward
+            var result = RayIntersect(rayOrigin, rayDir, clearHeight);
+
+            // If ray hits something within the clearance height, triangle is blocked
+            if (result.Hit && result.Distance < clearHeight)
+            {
+                return false; // Obstacle above (ceiling, overhang, etc.)
+            }
+
+            return true; // Clear height confirmed
+        }
+
+        private bool IsLineFreeOfSuddenHeightChanges(Vector3 from, Vector3 to, out float maxHeightChange)
+        {
+            maxHeightChange = 0f;
+
+            float horizontalDist = new Vector2(to.X - from.X, to.Y - from.Y).Length();
+
+            if (horizontalDist < 0.01f)
+            {
+                // Vertical edge, no horizontal stepping needed
+                return true;
+            }
+
+            // Step along edge with fine granularity
+            float stepSize = 0.25f;
+            int numSteps = (int)Math.Ceiling(horizontalDist / stepSize);
+
+            if (numSteps < 2)
+                numSteps = 2; // At minimum check start and end
+
+            float previousZ = from.Z;
+            bool firstSample = true;
+
+            for (int step = 0; step <= numSteps; step++)
+            {
+                float t = (float)step / numSteps;
+                Vector3 testPos = Vector3.Lerp(from, to, t);
+
+                // Cast ray down from above to find ground height at this position
+                var rayOrigin = new Vector3(testPos.X, testPos.Y, testPos.Z + 2.0f);
+                var rayDir = new Vector3(0, 0, -1);
+                var result = RayIntersect(rayOrigin, rayDir, 10.0f);
+
+                if (result.Hit)
+                {
+                    if (!firstSample)
+                    {
+                        // Check height difference from previous sample
+                        float heightChange = Math.Abs(result.Position.Z - previousZ);
+                        maxHeightChange = Math.Max(maxHeightChange, heightChange);
+
+                        // If height change exceeds threshold, this edge crosses a low wall/obstacle
+                        if (heightChange > genParams.MaxHeightChangeUnderEdge)
+                        {
+                            return false; // Sudden drop/rise detected
+                        }
+                    }
+
+                    previousZ = result.Position.Z;
+                    firstSample = false;
+                }
+            }
+
+            return true;
         }
 
         private void EstablishTriangleAdjacency(List<NavSurfaceTri> triangles)
@@ -1501,6 +1700,86 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public int PerformEdgeCollapseOptimization(Action<string> statusCallback = null)
         {
             return PerformEdgeCollapseOptimization(surfaceTriangles, statusCallback);
+        }
+        public int PerformAdaptiveOptimization(int targetVertexCount, Action<string> statusCallback = null)
+        {
+            if (surfaceTriangles == null || surfaceTriangles.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No triangles to optimize");
+                return 0;
+            }
+
+            // Calculate current vertex count estimate
+            int currentVertexCount = EstimateVertexCount(surfaceTriangles);
+            statusCallback?.Invoke($"Current estimated vertex count: {currentVertexCount}");
+
+            if (currentVertexCount <= targetVertexCount)
+            {
+                statusCallback?.Invoke($"Vertex count already within target ({targetVertexCount}), performing standard optimization");
+                return PerformEdgeCollapseOptimization(surfaceTriangles, statusCallback);
+            }
+
+            // Calculate how much we need to reduce
+            float reductionRatio = (float)targetVertexCount / currentVertexCount;
+            statusCallback?.Invoke($"Need to reduce vertices by {(1 - reductionRatio) * 100:F1}%");
+
+            // Iteratively increase error threshold until we reach target
+            float originalErrorMetric = genParams.MaxQuadricErrorMetric;
+            float currentErrorMetric = originalErrorMetric;
+            int iterations = 0;
+            const int maxIterations = 5;
+
+            while (currentVertexCount > targetVertexCount && iterations < maxIterations)
+            {
+                iterations++;
+
+                // Increase error threshold progressively
+                currentErrorMetric *= 1.5f;
+                genParams.MaxQuadricErrorMetric = currentErrorMetric;
+
+                statusCallback?.Invoke($"Iteration {iterations}: Trying with MaxQuadricErrorMetric = {currentErrorMetric:F3}");
+
+                // Perform optimization with new threshold
+                int collapsed = PerformEdgeCollapseOptimization(surfaceTriangles, statusCallback);
+
+                // Recalculate vertex count
+                currentVertexCount = EstimateVertexCount(surfaceTriangles);
+                statusCallback?.Invoke($"  Result: {currentVertexCount} vertices ({collapsed} edges collapsed)");
+
+                if (currentVertexCount <= targetVertexCount)
+                {
+                    statusCallback?.Invoke($"Target reached! Final vertex count: {currentVertexCount}");
+                    break;
+                }
+            }
+
+            // Restore original parameter
+            genParams.MaxQuadricErrorMetric = originalErrorMetric;
+
+            if (currentVertexCount > targetVertexCount)
+            {
+                statusCallback?.Invoke($"WARNING: Could not reach target vertex count after {iterations} iterations");
+                statusCallback?.Invoke($"Final count: {currentVertexCount}, Target: {targetVertexCount}");
+            }
+
+            return currentVertexCount;
+        }
+        private int EstimateVertexCount(List<NavSurfaceTri> triangles)
+        {
+            if (triangles == null) return 0;
+
+            // Count unique vertices (rough estimate)
+            var uniqueNodes = new HashSet<NavGenNode>();
+            foreach (var tri in triangles)
+            {
+                if (tri.IsRemoved || tri.Nodes == null) continue;
+                foreach (var node in tri.Nodes)
+                {
+                    if (node != null)
+                        uniqueNodes.Add(node);
+                }
+            }
+            return uniqueNodes.Count;
         }
 
         public int PerformEdgeCollapseOptimization(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
@@ -1656,43 +1935,81 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 return;
             }
 
-            // Calculate cost based on:
-            // Edge length (shorter edges are cheaper to collapse)
-            // Number of surrounding triangles (avoid collapsing complex areas)
-            // Angle between adjacent triangles (avoid creating sharp folds)
 
-            float edgeLength = edge.Length();
-            int triangleCount = edge.Node1.SurroundingTriangles.Count + edge.Node2.SurroundingTriangles.Count;
+            // Calculate cost for collapsing Node2 onto Node1
+            edge.CostNode1ToNode2 = CalculateQuadricError(edge.Node2, edge.Node1.BasePosition, edge);
 
-            // Base cost is edge length
-            float cost = edgeLength;
+            // Calculate cost for collapsing Node1 onto Node2
+            edge.CostNode2ToNode1 = CalculateQuadricError(edge.Node1, edge.Node2.BasePosition, edge);
+        }
 
-            // Penalize nodes with many triangles (complex areas)
-            if (triangleCount > genParams.MaxTrianglesSurroundingNode)
+        private float CalculateQuadricError(NavGenNode nodeToMove, Vector3 targetPosition, NavTriEdge edge)
+        {
+            if (nodeToMove == null || nodeToMove.SurroundingTriangles == null)
+                return float.MaxValue;
+
+            float totalError = 0f;
+            int validTriangles = 0;
+
+            // For each triangle surrounding the node being moved
+            foreach (var tri in nodeToMove.SurroundingTriangles)
             {
-                cost *= 10.0f;
+                if (tri == null || tri.IsRemoved)
+                    continue;
+
+                // Skip the triangles that will be removed by this edge collapse
+                if (tri == edge.Tri1 || tri == edge.Tri2)
+                    continue;
+
+                float distance = Vector3.Dot(tri.Normal, targetPosition) - tri.PlaneDistance;
+
+                // Sum squared distances (Quadric Error Metric)
+                totalError += distance * distance;
+                validTriangles++;
             }
 
-            // Penalize boundary edges (only one triangle)
+            if (validTriangles == 0)
+                return float.MaxValue;
+
+            // Apply additional constraints from original implementation
+
+            // Penalize boundary edges more heavily (edges with only one triangle)
             if (edge.Tri1 == null || edge.Tri2 == null)
             {
-                cost *= 5.0f;
+                totalError *= 5.0f;
             }
-            else
-            {
-                // Calculate angle between adjacent triangles
-                float dotProduct = Vector3.Dot(edge.Tri1.Normal, edge.Tri2.Normal);
-                float angle = (float)Math.Acos(Math.Clamp(dotProduct, -1f, 1f));
 
-                // Penalize sharp angles (potential folds)
-                if (angle > Math.PI / 4) // 45 degrees
+            // Penalize nodes with too many surrounding triangles to preserve topology
+            int triangleCount = nodeToMove.SurroundingTriangles.Count;
+            if (triangleCount > genParams.MaxTrianglesSurroundingNode)
+            {
+                totalError *= 10.0f;
+            }
+
+            // Additional penalty for surface type mismatches to preserve material boundaries
+            // This prevents pavement from merging with non-pavement, etc.
+            if (edge.Tri1 != null && edge.Tri2 != null)
+            {
+                if (edge.Tri1.Material != edge.Tri2.Material)
                 {
-                    cost *= (1.0f + angle);
+                    // Never collapse edges between different materials
+                    return float.MaxValue;
+                }
+
+                if (edge.Tri1.IsWater != edge.Tri2.IsWater)
+                {
+                    // Never collapse edges between water and non-water
+                    return float.MaxValue;
+                }
+
+                if (edge.Tri1.IsTooSteep != edge.Tri2.IsTooSteep)
+                {
+                    // Never collapse edges between steep and non-steep surfaces
+                    return float.MaxValue;
                 }
             }
 
-            edge.CostNode1ToNode2 = cost;
-            edge.CostNode2ToNode1 = cost;
+            return totalError;
         }
 
         private bool ValidateEdgeCollapse(NavTriEdge edge)
@@ -1916,6 +2233,59 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             return PerformPolygonMerging(surfaceTriangles, statusCallback);
         }
 
+        public int DecimatePolygons(int targetVertexCount, Action<string> statusCallback = null)
+        {
+            if (surfacePolygons == null || surfacePolygons.Count == 0)
+            {
+                statusCallback?.Invoke("Error: No polygons to decimate");
+                return 0;
+            }
+
+            int currentVertexCount = surfacePolygons.Sum(p => p.Vertices?.Count ?? 0);
+            statusCallback?.Invoke($"Current vertex count: {currentVertexCount}, Target: {targetVertexCount}");
+
+            if (currentVertexCount <= targetVertexCount)
+            {
+                statusCallback?.Invoke("Already within target vertex count");
+                return 0;
+            }
+
+            // Sort polygons by area (smallest first)
+            var sortedPolys = surfacePolygons
+                .Where(p => !p.IsRemoved)
+                .OrderBy(p => p.CalculateArea())
+                .ToList();
+
+            int removedCount = 0;
+            int verticesRemoved = 0;
+
+            // Remove smallest polygons until we reach target
+            foreach (var poly in sortedPolys)
+            {
+                if (currentVertexCount <= targetVertexCount)
+                    break;
+
+                int polyVertexCount = poly.Vertices?.Count ?? 0;
+                poly.IsRemoved = true;
+                removedCount++;
+                verticesRemoved += polyVertexCount;
+                currentVertexCount -= polyVertexCount;
+
+                if (removedCount % 100 == 0)
+                {
+                    statusCallback?.Invoke($"Removed {removedCount} polygons, {verticesRemoved} vertices. Current: {currentVertexCount}");
+                }
+            }
+
+            // Remove from list
+            surfacePolygons.RemoveAll(p => p.IsRemoved);
+
+            statusCallback?.Invoke($"Decimation complete: Removed {removedCount} polygons ({verticesRemoved} vertices)");
+            statusCallback?.Invoke($"Final vertex count: {currentVertexCount}");
+
+            return removedCount;
+        }
+
         public List<NavSurfacePoly> PerformPolygonMerging(List<NavSurfaceTri> triangles, Action<string> statusCallback = null)
         {
             if (triangles == null || triangles.Count == 0)
@@ -1946,7 +2316,17 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     Material = tri.Material,
                     IsWater = tri.IsWater,
                     IsTooSteep = tri.IsTooSteep,
-                    PolyFlags = tri.PolyFlags
+                    PolyFlags = tri.PolyFlags,
+
+                    // Preserve ALL extended flags from triangle
+                    ProceduralId = tri.ProceduralId,
+                    RoomId = tri.RoomId,
+                    PedDensity = tri.PedDensity,
+                    MaterialFlags = tri.MaterialFlags,
+                    IsInterior = tri.IsInterior,
+                    IsRoad = tri.IsRoad,
+                    IsTrainTracks = tri.IsTrainTracks,
+                    IsFlatGround = tri.IsFlatGround
                 };
 
                 poly.CalculateNormalAndPlane();
@@ -2024,7 +2404,8 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                             
                             // Test if merge is valid with detailed logging
                             bool canMerge = true;
-                            
+
+                            // This preserves material boundaries (pavement, roads, etc.)
                             if (poly.Material != adjacentPoly.Material)
                             {
                                 debugMaterialFail++;
@@ -2033,6 +2414,11 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                             else if (poly.IsWater != adjacentPoly.IsWater)
                             {
                                 debugWaterFail++;
+                                canMerge = false;
+                            }
+                            else if (poly.IsTooSteep != adjacentPoly.IsTooSteep)
+                            {
+                                // Never merge steep surfaces with non-steep surfaces
                                 canMerge = false;
                             }
                             else
@@ -3869,6 +4255,15 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public bool IsWater { get; set; }
         public bool IsRemoved { get; set; }
         public int Flags { get; set; }
+
+        // Extended flags from collision material
+        public byte ProceduralId { get; set; }
+        public byte RoomId { get; set; }
+        public byte PedDensity { get; set; }
+        public EBoundMaterialFlags MaterialFlags { get; set; }
+        public bool IsInterior { get; set; }
+        public bool IsRoad { get; set; }
+        public bool IsTrainTracks { get; set; }
     }
 
     public class NavGenTri
@@ -3877,6 +4272,18 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public Vector3 Normal { get; set; }
         public MaterialType Material { get; set; }
         public bool IsWater { get; set; }
+
+        // Extended flags from BoundMaterial_s
+        public byte ProceduralId { get; set; }
+        public byte RoomId { get; set; }
+        public byte PedDensity { get; set; }
+        public EBoundMaterialFlags MaterialFlags { get; set; }
+
+        // Derived flags from material analysis
+        public bool IsInterior { get; set; }
+        public bool IsRoad { get; set; }
+        public bool IsTrainTracks { get; set; }
+        public bool IsShallowWater { get; set; }
     }
 
     public enum MaterialType
@@ -3899,6 +4306,16 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public bool IsWater { get; set; }
         public bool IsTooSteep { get; set; }
         public bool IsRemoved { get; set; }
+
+        // Extended flags (propagated from collision material)
+        public byte ProceduralId { get; set; }
+        public byte RoomId { get; set; }
+        public byte PedDensity { get; set; }
+        public EBoundMaterialFlags MaterialFlags { get; set; }
+        public bool IsInterior { get; set; }
+        public bool IsRoad { get; set; }
+        public bool IsTrainTracks { get; set; }
+        public bool IsFlatGround { get; set; }
 
         public void CalculateNormal()
         {
@@ -3961,6 +4378,17 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public bool IsTooSteep { get; set; }
         public bool IsRemoved { get; set; }
 
+        // Extended flags (preserved through merging)
+        public byte ProceduralId { get; set; }
+        public byte RoomId { get; set; }
+        public byte PedDensity { get; set; }
+        public EBoundMaterialFlags MaterialFlags { get; set; }
+        public bool IsInterior { get; set; }
+        public bool IsRoad { get; set; }
+        public bool IsTrainTracks { get; set; }
+        public bool IsFlatGround { get; set; }
+        public bool HasPathNode { get; set; }
+
         public void CalculateNormalAndPlane()
         {
             if (Vertices == null || Vertices.Count < 3) return;
@@ -4016,33 +4444,110 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 AreaID = 0x3FFF // Will be set later based on grid position
             };
 
-            // Set flags based on material and properties
-            if (IsWater)
+            // B02_IsFootpath - Set for pavement/stairs
+            if (Material == MaterialType.Pavement || Material == MaterialType.Stairs)
             {
-                ynvPoly.B07_IsWater = true;
+                ynvPoly.B02_IsFootpath = true;
             }
-            
+            // B03_IsUnderground - Set based on RoomId
+            if (IsInterior)
+            {
+                ynvPoly.B03_IsUnderground = true;
+            }
+            // B04_Unused, B05_Unused - leave as default
+            // B06_SteepSlope - Set for steep surfaces
             if (IsTooSteep)
             {
                 ynvPoly.B06_SteepSlope = true;
             }
-
-            // Set material-specific flags
-            switch (Material)
+            // B07_IsWater - Set for water surfaces
+            if (IsWater)
             {
-                case MaterialType.Pavement:
-                    ynvPoly.B02_IsFootpath = true;
-                    break;
-                case MaterialType.Water:
-                    ynvPoly.B07_IsWater = true;
-                    break;
-                case MaterialType.Stairs:
-                    // Stairs are typically marked as footpaths
-                    ynvPoly.B02_IsFootpath = true;
-                    break;
-                case MaterialType.Slope:
-                    ynvPoly.B06_SteepSlope = true;
-                    break;
+                ynvPoly.B07_IsWater = true;
+            }
+
+            // EXTENDED FLAGS (PolyFlags1 - bits 8-24)
+            // B08-B11: Underground flags - set based on interior status
+            if (IsInterior)
+            {
+                ynvPoly.B08_UndergroundUnk0 = true; // Interior flag 0
+            }
+
+            // B13_HasPathNode - Indicate if this polygon should have path nodes
+            if (HasPathNode)
+            {
+                ynvPoly.B13_HasPathNode = true;
+            }
+
+            // B14_IsInterior - Set based on RoomId
+            if (IsInterior)
+            {
+                ynvPoly.B14_IsInterior = true;
+            }
+
+            // B15_InteractionUnk - leave as default
+
+            // B17_IsFlatGround - Set for low-slope surfaces
+            if (IsFlatGround)
+            {
+                ynvPoly.B17_IsFlatGround = true;
+            }
+
+            // B18_IsRoad - Set for road surfaces
+            if (IsRoad)
+            {
+                ynvPoly.B18_IsRoad = true;
+            }
+
+            // B19_IsCellEdge - will be set during navmesh stitching
+
+            // B20_IsTrainTrack - Set for train track surfaces
+            if (IsTrainTracks)
+            {
+                ynvPoly.B20_IsTrainTrack = true;
+            }
+
+            // B21_IsShallowWater - Check material flags
+            if ((MaterialFlags & EBoundMaterialFlags.FLAG_STAIRS) != 0 && IsWater)
+            {
+                ynvPoly.B21_IsShallowWater = true; // Shallow water can be walked through
+            }
+
+            // B22-B24: Footpath flags - leave as default for now
+
+            // SLOPE DIRECTION FLAGS (PolyFlags2 - bits 25-32)
+            // Calculate slope direction based on normal vector
+            if (IsTooSteep || Material == MaterialType.Slope)
+            {
+                // Project normal onto horizontal plane to get slope direction
+                var horizontalNormal = new Vector3(Normal.X, Normal.Y, 0);
+                if (horizontalNormal.LengthSquared() > 0.01f)
+                {
+                    horizontalNormal.Normalize();
+
+                    // Calculate angle from north (0, 1, 0)
+                    float angle = (float)Math.Atan2(horizontalNormal.X, horizontalNormal.Y) * 180f / (float)Math.PI;
+                    if (angle < 0) angle += 360f;
+
+                    // Map to 8 compass directions (45-degree sectors)
+                    // North: 337.5-22.5, NE: 22.5-67.5, East: 67.5-112.5, etc.
+                    if (angle >= 337.5f || angle < 22.5f)
+                        ynvPoly.B29_SlopeNorth = true;
+                    else if (angle >= 22.5f && angle < 67.5f)
+                        ynvPoly.B28_SlopeNorthEast = true;
+                    else if (angle >= 67.5f && angle < 112.5f)
+                        ynvPoly.B27_SlopeEast = true;
+                    else if (angle >= 112.5f && angle < 157.5f)
+                        ynvPoly.B26_SlopeSouthEast = true;
+                    else if (angle >= 157.5f && angle < 202.5f)
+                        ynvPoly.B25_SlopeSouth = true;
+                    else if (angle >= 202.5f && angle < 247.5f)
+                        ynvPoly.B32_SlopeSouthWest = true;
+                    else if (angle >= 247.5f && angle < 292.5f)
+                        ynvPoly.B31_SlopeWest = true;
+                    else if (angle >= 292.5f && angle < 337.5f)
+                        ynvPoly.B30_SlopeNorthWest = true;
+                }
             }
 
             // Initialize edges array (will be populated later if needed)
@@ -4575,18 +5080,21 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         // Sampling
         public float SamplingDensity { get; set; } = 0.5f; // meters between samples
         public float MinZDistBetweenSamples { get; set; } = 0.5f;
+        public bool JitterSamples { get; set; } = false; // Enable jittering to reduce grid aliasing artifacts
+        public float JitterAmount { get; set; } = 0.3f; // Jitter magnitude as fraction of sampling density
 
         // Triangulation
         public float TriangulationMaxHeightDiff { get; set; } = 2.0f;
         public float HeightAboveNodeBase { get; set; } = 0.5f; // Reduced from 1.0 to sample closer to surface
         public float MaxHeightChangeUnderEdge { get; set; } = 0.3f; // Reduced from 0.5 for stricter validation
+        public float TestClearHeight { get; set; } = 1.8f; // Required clearance above triangles (ped height)
 
         // Slope Detection
         public float MaxAngleForWalkable { get; set; } = 45.0f; // degrees
         public float AngleForTooSteep { get; set; } = 60.0f;
 
         // Optimization
-        public float MaxQuadricErrorMetric { get; set; } = 0.1f;
+        public float MaxQuadricErrorMetric { get; set; } = 0.25f;
         public int MaxTrianglesSurroundingNode { get; set; } = 16;
         public float MinTriangleArea { get; set; } = 0.1f;
         public float MaxTriangleArea { get; set; } = 50.0f;
