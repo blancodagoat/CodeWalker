@@ -6937,6 +6937,7 @@ namespace CodeWalker.GameFiles
             RelXml.Indent(sb, indent);
             sb.AppendLine("</RadioStationSettingsFlags>");
 
+            RelXml.ValueTag(sb, indent, "NextStationSettingsPtr", NextStationSettingsPtr.ToString());
             RelXml.ValueTag(sb, indent, "WheelPosition", WheelPosition.ToString());
             RelXml.ValueTag(sb, indent, "Genre", Genre.ToString());
             RelXml.ValueTag(sb, indent, "AmbientRadioVol", AmbientRadioVol.ToString());
@@ -6963,6 +6964,7 @@ namespace CodeWalker.GameFiles
             }
             Flags = flags;
 
+            NextStationSettingsPtr = Xml.GetChildUIntAttribute(node, "NextStationSettingsPtr", "value");
             WheelPosition = Xml.GetChildUIntAttribute(node, "WheelPosition", "value");
             Genre = (byte)Xml.GetChildUIntAttribute(node, "Genre", "value");
             AmbientRadioVol = (byte)Xml.GetChildUIntAttribute(node, "AmbientRadioVol", "value");
@@ -10855,7 +10857,9 @@ namespace CodeWalker.GameFiles
         public FlagsUint Flags { get; set; }
         public Vector4 ActivationBox { get; set; }
         public float RotationAngle { get; set; }
-        public uint OceanType { get; set; }
+        public byte OceanType { get; set; }
+        public byte OceanDirection { get; set; }
+        public ushort padding00 { get; set; }
         public MetaHash NextShoreline { get; set; }
         public float WaveStartDPDistance { get; set; }
         public float WaveStartHeight { get; set; }
@@ -10877,7 +10881,9 @@ namespace CodeWalker.GameFiles
             Flags = br.ReadUInt32();
             ActivationBox = new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
             RotationAngle = br.ReadSingle();
-            OceanType = br.ReadUInt32();
+            OceanType = br.ReadByte();
+            OceanDirection = br.ReadByte();
+            padding00 = br.ReadUInt16();
             NextShoreline = br.ReadUInt32();
             WaveStartDPDistance = br.ReadSingle();
             WaveStartHeight = br.ReadSingle();
@@ -10907,6 +10913,8 @@ namespace CodeWalker.GameFiles
             bw.Write(ActivationBox.W);
             bw.Write(RotationAngle);
             bw.Write(OceanType);
+            bw.Write(OceanDirection);
+            bw.Write(padding00);
             bw.Write(NextShoreline);
             bw.Write(WaveStartDPDistance);
             bw.Write(WaveStartHeight);
@@ -10940,6 +10948,7 @@ namespace CodeWalker.GameFiles
             RelXml.SelfClosingTag(sb, indent, "ActivationBox " + FloatUtil.GetVector4XmlString(ActivationBox));
             RelXml.ValueTag(sb, indent, "RotationAngle", FloatUtil.ToString(RotationAngle));
             RelXml.ValueTag(sb, indent, "OceanType", OceanType.ToString());
+            RelXml.ValueTag(sb, indent, "OceanDirection", OceanDirection.ToString());
             RelXml.StringTag(sb, indent, "NextShoreline", RelXml.HashString(NextShoreline));
             RelXml.ValueTag(sb, indent, "WaveStartDPDistance", FloatUtil.ToString(WaveStartDPDistance));
             RelXml.ValueTag(sb, indent, "WaveStartHeight", FloatUtil.ToString(WaveStartHeight));
@@ -10972,7 +10981,8 @@ namespace CodeWalker.GameFiles
 
             ActivationBox = Xml.GetChildVector4Attributes(node, "ActivationBox");
             RotationAngle = Xml.GetChildFloatAttribute(node, "RotationAngle", "value");
-            OceanType = Xml.GetChildUIntAttribute(node, "OceanType", "value");
+            OceanType = (byte)Xml.GetChildUIntAttribute(node, "OceanType", "value");
+            OceanDirection = (byte)Xml.GetChildUIntAttribute(node, "OceanDirection", "value");
             NextShoreline = XmlRel.GetHash(Xml.GetChildInnerText(node, "NextShoreline"));
             WaveStartDPDistance = Xml.GetChildFloatAttribute(node, "WaveStartDPDistance", "value");
             WaveStartHeight = Xml.GetChildFloatAttribute(node, "WaveStartHeight", "value");
