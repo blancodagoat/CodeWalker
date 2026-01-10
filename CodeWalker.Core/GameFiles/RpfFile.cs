@@ -2512,20 +2512,26 @@ namespace CodeWalker.GameFiles
 
         public static int GetSizeFromFlags(uint flags)
         {
-            //dexfx simplified version
-            var s0 = ((flags >> 27) & 0x1) << 0;   // 1 bit  - 27        (*1)
-            var s1 = ((flags >> 26) & 0x1) << 1;   // 1 bit  - 26        (*2)
-            var s2 = ((flags >> 25) & 0x1) << 2;   // 1 bit  - 25        (*4)
-            var s3 = ((flags >> 24) & 0x1) << 3;   // 1 bit  - 24        (*8)
-            var s4 = ((flags >> 17) & 0x7F) << 4;   // 7 bits - 17 - 23   (*16)   (max 127 * 16)
-            var s5 = ((flags >> 11) & 0x3F) << 5;   // 6 bits - 11 - 16   (*32)   (max 63  * 32)
-            var s6 = ((flags >> 7) & 0xF) << 6;   // 4 bits - 7  - 10   (*64)   (max 15  * 64)
-            var s7 = ((flags >> 5) & 0x3) << 7;   // 2 bits - 5  - 6    (*128)  (max 3   * 128)
-            var s8 = ((flags >> 4) & 0x1) << 8;   // 1 bit  - 4         (*256)
-            var ss = ((flags >> 0) & 0xF);         // 4 bits - 0  - 3
-            var baseSize = 0x200 << (int)ss;
-            var size = baseSize * (s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8);
-            return (int)size;
+            var leafShift = (flags >> 0) & 0xF;
+            var head16Count = (flags >> 4) & 0x1;
+            var head8Count = (flags >> 5) & 0x3;
+            var head4Count = (flags >> 7) & 0xF;
+            var head2Count = (flags >> 11) & 0x3F;
+            var baseCount = (flags >> 17) & 0x7F;
+            var hasTail2 = (flags >> 24) & 0x1;
+            var hasTail4 = (flags >> 25) & 0x1;
+            var hasTail8 = (flags >> 26) & 0x1;
+            var hasTail16 = (flags >> 27) & 0x1;
+
+            var leafSize = 0x2000u << (int)leafShift;
+
+            var mainPagesSize = ((head16Count << 4) + (head8Count << 3) + (head4Count << 2) + (head2Count << 1) + baseCount) * leafSize;
+            var tailPagesSize = (hasTail2 != 0 ? (leafSize >> 1) : 0u)
+                              + (hasTail4 != 0 ? (leafSize >> 2) : 0u)
+                              + (hasTail8 != 0 ? (leafSize >> 3) : 0u)
+                              + (hasTail16 != 0 ? (leafSize >> 4) : 0u);
+
+            return (int)(mainPagesSize + tailPagesSize);
 
 
             #region dexyfex testing
@@ -2997,19 +3003,31 @@ namespace CodeWalker.GameFiles
         {
             get
             {
+                // leafSize <<= LeafShift;
+                // return (((Head16Count << 4) + (Head8Count << 3) + (Head4Count << 2) + (Head2Count << 1) + BaseCount) * leafSize)
+                //     + (HasTail2?(leafSize>>1):0) + (HasTail4?(leafSize>>2):0) + (HasTail8?(leafSize>>3):0) + (HasTail16?(leafSize>>4):0);
+
                 var flags = Value;
-                var s0 = ((flags >> 27) & 0x1) << 0;
-                var s1 = ((flags >> 26) & 0x1) << 1;
-                var s2 = ((flags >> 25) & 0x1) << 2;
-                var s3 = ((flags >> 24) & 0x1) << 3;
-                var s4 = ((flags >> 17) & 0x7F) << 4;
-                var s5 = ((flags >> 11) & 0x3F) << 5;
-                var s6 = ((flags >> 7) & 0xF) << 6;
-                var s7 = ((flags >> 5) & 0x3) << 7;
-                var s8 = ((flags >> 4) & 0x1) << 8;
-                var ss = ((flags >> 0) & 0xF);
-                var baseSize = 0x200u << (int)ss;
-                return baseSize * (s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8);
+                var leafShift = (flags >> 0) & 0xF;
+                var head16Count = (flags >> 4) & 0x1;
+                var head8Count = (flags >> 5) & 0x3;
+                var head4Count = (flags >> 7) & 0xF;
+                var head2Count = (flags >> 11) & 0x3F;
+                var baseCount = (flags >> 17) & 0x7F;
+                var hasTail2 = (flags >> 24) & 0x1;
+                var hasTail4 = (flags >> 25) & 0x1;
+                var hasTail8 = (flags >> 26) & 0x1;
+                var hasTail16 = (flags >> 27) & 0x1;
+
+                var leafSize = 0x2000u << (int)leafShift;  // BASE_SIZE (8192) << leafShift
+
+                var mainPagesSize = ((head16Count << 4) + (head8Count << 3) + (head4Count << 2) + (head2Count << 1) + baseCount) * leafSize;
+                var tailPagesSize = (hasTail2 != 0 ? (leafSize >> 1) : 0u)
+                                  + (hasTail4 != 0 ? (leafSize >> 2) : 0u)
+                                  + (hasTail8 != 0 ? (leafSize >> 3) : 0u)
+                                  + (hasTail16 != 0 ? (leafSize >> 4) : 0u);
+
+                return mainPagesSize + tailPagesSize;
             }
         }
 
