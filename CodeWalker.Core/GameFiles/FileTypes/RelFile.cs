@@ -2161,11 +2161,15 @@ namespace CodeWalker.GameFiles
         public void WriteChildSoundsXml(StringBuilder sb, int indent, string nodeName = "ChildSounds")
         {
             if (ChildSoundsHashes == null) return;
-            if (ChildSoundsHashes.Length > 0)
+
+            // Filter out empty hashes
+            var nonEmptyHashes = ChildSoundsHashes.Where(h => h != 0).ToArray();
+
+            if (nonEmptyHashes.Length > 0)
             {
                 RelXml.OpenTag(sb, indent, nodeName);
                 var cind = indent + 1;
-                foreach (var hash in ChildSoundsHashes)
+                foreach (var hash in nonEmptyHashes)
                 {
                     RelXml.StringTag(sb, cind, "Item", RelXml.HashString(hash));
                 }
@@ -2542,6 +2546,16 @@ namespace CodeWalker.GameFiles
             MinCrossfadeTimeVariable = XmlRel.GetHash(Xml.GetChildInnerText(node, "MinCrossfadeTimeVariable"));
             MaxCrossfadeTimeVariable = XmlRel.GetHash(Xml.GetChildInnerText(node, "MaxCrossfadeTimeVariable"));
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -2570,6 +2584,12 @@ namespace CodeWalker.GameFiles
             bw.Write(MinCrossfadeTimeVariable);
             bw.Write(MaxCrossfadeTimeVariable);
 
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -2581,6 +2601,7 @@ namespace CodeWalker.GameFiles
             return new[] { CrossfadeCurve };
         }
     }
+    
     [TC(typeof(EXP))]
     class Dat54SpeechSound : Dat54Sound
     {
@@ -2781,6 +2802,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -2790,6 +2821,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -2816,6 +2854,16 @@ namespace CodeWalker.GameFiles
             base.ReadXml(node);
             Duration = Xml.GetChildIntAttribute(node, "Duration", "value");
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -2827,6 +2875,13 @@ namespace CodeWalker.GameFiles
         {
             base.Write(bw);
             bw.Write(Duration);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -3146,6 +3201,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -3155,6 +3220,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -3312,7 +3384,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             Entities = XmlRel.ReadHashItemArray(node, "Entities");
-            EntitiesCount = (byte)(Entities?.Length ?? 0);
+
+            if (Entities == null)
+            {
+                Entities = new MetaHash[0];
+                EntitiesCount = 0;
+            }
+            else
+            {
+                EntitiesCount = (byte)Entities.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -3322,6 +3403,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (Entities == null)
+            {
+                Entities = new MetaHash[0];
+                EntitiesCount = 0;
+            }
+
             bw.Write(EntitiesCount);
             for (int i = 0; i < EntitiesCount; i++)
             {
@@ -3355,6 +3443,16 @@ namespace CodeWalker.GameFiles
             SequenceDirection = XmlRel.GetHash(Xml.GetChildInnerText(node, "SequenceDirection"));
 
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -3371,6 +3469,13 @@ namespace CodeWalker.GameFiles
             bw.Write(DelayTime);
             bw.Write(DelayTimeVariable);
             bw.Write(SequenceDirection);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -3399,16 +3504,25 @@ namespace CodeWalker.GameFiles
             PlaybackTimeLimit = br.ReadSingle(); //0x8-0xC
             VirtualisationMode = br.ReadInt32(); //0xC-0x10
             TrackCount = br.ReadInt32(); //0x10-0x14
-            ChildSoundsHashes = new MetaHash[4];
-            for (int i = 0; i < 4; i++)
+
+            long bytesRemaining = br.BaseStream.Length - br.BaseStream.Position;
+            if (bytesRemaining >= 16) // 4 hashes * 4 bytes each
             {
-                ChildSoundsHashes[i] = br.ReadUInt32();
+                ChildSoundsHashes = new MetaHash[4];
+                for (int i = 0; i < 4; i++)
+                {
+                    ChildSoundsHashes[i] = br.ReadUInt32();
+                }
             }
-            ExposedVariablesCount = br.ReadInt32();
-            ExposedVariables = new Dat54ModularSynthSoundVariable[ExposedVariablesCount];
-            for (int i = 0; i < ExposedVariablesCount; i++)
+
+            if (br.BaseStream.Position < br.BaseStream.Length)
             {
-                ExposedVariables[i] = new Dat54ModularSynthSoundVariable(br);
+                ExposedVariablesCount = br.ReadInt32();
+                ExposedVariables = new Dat54ModularSynthSoundVariable[ExposedVariablesCount];
+                for (int i = 0; i < ExposedVariablesCount; i++)
+                {
+                    ExposedVariables[i] = new Dat54ModularSynthSoundVariable(br);
+                }
             }
         }
         public override void ReadXml(XmlNode node)
@@ -3420,6 +3534,18 @@ namespace CodeWalker.GameFiles
             VirtualisationMode = Xml.GetChildIntAttribute(node, "VirtualisationMode", "value");
             TrackCount = Xml.GetChildIntAttribute(node, "TrackCount", "value");
             ReadChildSoundsXml(node, "EnvironmentSounds");
+
+            if (ChildSoundsHashes != null && ChildSoundsHashes.Length < 4)
+            {
+                var paddedHashes = new MetaHash[4];
+                Array.Copy(ChildSoundsHashes, paddedHashes, ChildSoundsHashes.Length);
+                ChildSoundsHashes = paddedHashes;
+            }
+            else if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[4];
+            }
+
             ExposedVariables = XmlRel.ReadItemArray<Dat54ModularSynthSoundVariable>(node, "ExposedVariables");
             ExposedVariablesCount = (ExposedVariables?.Length ?? 0);
         }
@@ -3442,6 +3568,12 @@ namespace CodeWalker.GameFiles
             bw.Write(PlaybackTimeLimit); //0x8-0xC
             bw.Write(VirtualisationMode); //0xC-0x10
             bw.Write(TrackCount); //0x10-0x14
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[4];
+            }
+
             for (int i = 0; i < 4; i++)
             {
                 bw.Write(ChildSoundsHashes[i]);
@@ -3904,6 +4036,16 @@ namespace CodeWalker.GameFiles
             base.ReadXml(node);
             Variable = XmlRel.GetHash(Xml.GetChildInnerText(node, "Variable"));
             ReadChildSoundsXml(node);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -3915,6 +4057,13 @@ namespace CodeWalker.GameFiles
         {
             base.Write(bw);
             bw.Write(Variable);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
         }
         public override uint[] GetHashTableOffsets()
@@ -4504,8 +4653,8 @@ namespace CodeWalker.GameFiles
         public float BandTwoMaximum { get; set; } //0x1A-0x1E
         public float IntraBandFlipProbabilty { get; set; } //0x1E-0x22
         public float InterBandFlipProbabilty { get; set; } //0x22-0x26
-        public float MinSwitchTime { get; set; } //0x26-0x2A
-        public float MaxSwitchTime { get; set; } //0x2A-0x2E
+        public uint MinSwitchTime { get; set; } //0x26-0x2A
+        public uint MaxSwitchTime { get; set; } //0x2A-0x2E
         public float InitialValue { get; set; } //0x2E-0x32
 
         public Dat54FluctuatorSoundData()
@@ -4523,8 +4672,8 @@ namespace CodeWalker.GameFiles
             BandTwoMaximum = br.ReadSingle();
             IntraBandFlipProbabilty = br.ReadSingle();
             InterBandFlipProbabilty = br.ReadSingle();
-            MinSwitchTime = br.ReadSingle();
-            MaxSwitchTime = br.ReadSingle();
+            MinSwitchTime = br.ReadUInt32();
+            MaxSwitchTime = br.ReadUInt32();
             InitialValue = br.ReadSingle();
         }
         public void ReadXml(XmlNode node)
@@ -4540,8 +4689,8 @@ namespace CodeWalker.GameFiles
             BandTwoMaximum = Xml.GetChildFloatAttribute(node, "BandTwoMaximum", "value");
             IntraBandFlipProbabilty = Xml.GetChildFloatAttribute(node, "IntraBandFlipProbabilty", "value");
             InterBandFlipProbabilty = Xml.GetChildFloatAttribute(node, "InterBandFlipProbabilty", "value");
-            MinSwitchTime = Xml.GetChildFloatAttribute(node, "MinSwitchTime", "value");
-            MaxSwitchTime = Xml.GetChildFloatAttribute(node, "MaxSwitchTime", "value");
+            MinSwitchTime = Xml.GetChildUIntAttribute(node, "MinSwitchTime", "value");
+            MaxSwitchTime = Xml.GetChildUIntAttribute(node, "MaxSwitchTime", "value");
             InitialValue = Xml.GetChildFloatAttribute(node, "InitialValue", "value");
         }
         public void WriteXml(StringBuilder sb, int indent)
@@ -4557,8 +4706,8 @@ namespace CodeWalker.GameFiles
             RelXml.ValueTag(sb, indent, "BandTwoMaximum", FloatUtil.ToString(BandTwoMaximum));
             RelXml.ValueTag(sb, indent, "IntraBandFlipProbabilty", FloatUtil.ToString(IntraBandFlipProbabilty));
             RelXml.ValueTag(sb, indent, "InterBandFlipProbabilty", FloatUtil.ToString(InterBandFlipProbabilty));
-            RelXml.ValueTag(sb, indent, "MinSwitchTime", FloatUtil.ToString(MinSwitchTime));
-            RelXml.ValueTag(sb, indent, "MaxSwitchTime", FloatUtil.ToString(MaxSwitchTime));
+            RelXml.ValueTag(sb, indent, "MinSwitchTime", MinSwitchTime.ToString());
+            RelXml.ValueTag(sb, indent, "MaxSwitchTime", MaxSwitchTime.ToString());
             RelXml.ValueTag(sb, indent, "InitialValue", FloatUtil.ToString(InitialValue));
         }
         public void Write(BinaryWriter bw)
@@ -4728,6 +4877,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             ReadChildSoundsXml(node, "EnvironmentSounds");
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+            else
+            {
+                ChildSoundsCount = (byte)ChildSoundsHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -4737,6 +4896,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (ChildSoundsHashes == null)
+            {
+                ChildSoundsHashes = new MetaHash[0];
+                ChildSoundsCount = 0;
+            }
+
             WriteChildSoundsHashes(bw);
 
             bw.Write(EnvironmentSound1);
@@ -4968,7 +5134,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             SoundSets = XmlRel.ReadHashItemArray(node, "SoundSets");
-            SoundSetsCount = (uint)(SoundSets?.Length ?? 0);
+
+            if (SoundSets == null)
+            {
+                SoundSets = new MetaHash[0];
+                SoundSetsCount = 0;
+            }
+            else
+            {
+                SoundSetsCount = (uint)SoundSets.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -4978,6 +5153,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (SoundSets == null)
+            {
+                SoundSets = new MetaHash[0];
+                SoundSetsCount = 0;
+            }
+
             bw.Write(SoundSetsCount);
             for (int i = 0; i < SoundSetsCount; i++)
             {
@@ -5025,7 +5207,16 @@ namespace CodeWalker.GameFiles
             base.ReadXml(node);
             UnkShort = (ushort)Xml.GetChildUIntAttribute(node, "UnkShort", "value");
             SoundHashes = XmlRel.ReadHashItemArray(node, "SoundHashes");
-            SoundHashesCount = (uint)(SoundHashes?.Length ?? 0);
+
+            if (SoundHashes == null)
+            {
+                SoundHashes = new MetaHash[0];
+                SoundHashesCount = 0;
+            }
+            else
+            {
+                SoundHashesCount = (uint)SoundHashes.Length;
+            }
         }
         public override void WriteXml(StringBuilder sb, int indent)
         {
@@ -5036,6 +5227,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (SoundHashes == null)
+            {
+                SoundHashes = new MetaHash[0];
+                SoundHashesCount = 0;
+            }
+
             bw.Write(UnkShort);
             bw.Write(SoundHashesCount);
             for (int i = 0; i < SoundHashesCount; i++)
@@ -5667,6 +5865,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (EmitterHashes == null)
+            {
+                EmitterHashes = new MetaHash[0];
+                EmitterCount = 0;
+            }
+
             bw.Write(EmitterCount);
             for (int i = 0; i < EmitterCount; i++)
             {
@@ -5681,7 +5885,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             EmitterHashes = XmlRel.ReadHashItemArray(node, "Emitters");
-            EmitterCount = (uint)(EmitterHashes?.Length ?? 0);
+
+            if (EmitterHashes == null)
+            {
+                EmitterHashes = new MetaHash[0];
+                EmitterCount = 0;
+            }
+            else
+            {
+                EmitterCount = (uint)EmitterHashes.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -5916,7 +6129,14 @@ namespace CodeWalker.GameFiles
             bw.Write(PedWallaSettings);
             bw.Write(RandomisedRadioSettings);
             bw.Write(NumRulesToPlay);
-            bw.Write(ZoneWaterCalculation); 
+            bw.Write(ZoneWaterCalculation);
+
+            if (Rules == null)
+            {
+                Rules = new MetaHash[0];
+                NumRules = 0;
+            }
+
             bw.Write(NumRules);
             bw.Write(Unused11);
 
@@ -6025,7 +6245,17 @@ namespace CodeWalker.GameFiles
             NumRulesToPlay = (byte)Xml.GetChildUIntAttribute(node, "NumRulesToPlay", "value");
             ZoneWaterCalculation = (byte)Xml.GetChildUIntAttribute(node, "ZoneWaterCalculation", "value");
             Rules = XmlRel.ReadHashItemArray(node, "Rules");
-            NumRules = (byte)(Rules?.Length ?? 0);
+
+            if (Rules == null)
+            {
+                Rules = new MetaHash[0];
+                NumRules = 0;
+            }
+            else
+            {
+                NumRules = (byte)Rules.Length;
+            }
+
             DirAmbiences = XmlRel.ReadItemArray<DirAmbience>(node, "DirAmbiences");
             NumDirAmbiences = (byte)(DirAmbiences?.Length ?? 0);
         }
@@ -6324,6 +6554,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (ZoneHashes == null)
+            {
+                ZoneHashes = new MetaHash[0];
+                ZoneCount = 0;
+            }
+
             bw.Write(ZoneCount);
             for (int i = 0; i < ZoneCount; i++)
             {
@@ -6338,7 +6574,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             ZoneHashes = XmlRel.ReadHashItemArray(node, "Zones");
-            ZoneCount = (uint)(ZoneHashes?.Length ?? 0);
+
+            if (ZoneHashes == null)
+            {
+                ZoneHashes = new MetaHash[0];
+                ZoneCount = 0;
+            }
+            else
+            {
+                ZoneCount = (uint)ZoneHashes.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -6571,6 +6816,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (Rooms == null)
+            {
+                Rooms = new MetaHash[0];
+                RoomsCount = 0;
+            }
+
             bw.Write(Flags);
             bw.Write(InteriorWallaSoundSet);
             bw.Write(InteriorReflections);
@@ -6620,7 +6871,16 @@ namespace CodeWalker.GameFiles
             InteriorWallaSoundSet = XmlRel.GetHash(Xml.GetChildInnerText(node, "InteriorWallaSoundSet"));
             InteriorReflections = XmlRel.GetHash(Xml.GetChildInnerText(node, "InteriorReflections"));
             Rooms = XmlRel.ReadHashItemArray(node, "Rooms");
-            RoomsCount = (uint)(Rooms?.Length ?? 0);
+
+            if (Rooms == null)
+            {
+                Rooms = new MetaHash[0];
+                RoomsCount = 0;
+            }
+            else
+            {
+                RoomsCount = (uint)Rooms.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -6829,6 +7089,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (Stations == null)
+            {
+                Stations = new MetaHash[0];
+                StationsCount = 0;
+            }
+
             bw.Write(StationsCount);
             for (int i = 0; i < StationsCount; i++)
             {
@@ -6842,7 +7108,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             Stations = XmlRel.ReadHashItemArray(node, "Stations");
-            StationsCount = (uint)(Stations?.Length ?? 0);
+
+            if (Stations == null)
+            {
+                Stations = new MetaHash[0];
+                StationsCount = 0;
+            }
+            else
+            {
+                StationsCount = (uint)Stations.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -6918,6 +7193,12 @@ namespace CodeWalker.GameFiles
 
             bw.Write(padding00);
 
+            if (TrackList == null)
+            {
+                TrackList = new MetaHash[0];
+                NumTrackList = 0;
+            }
+
             bw.Write(NumTrackList);
             for (int i = 0; i < NumTrackList; i++)
             {
@@ -6970,7 +7251,16 @@ namespace CodeWalker.GameFiles
             AmbientRadioVol = (byte)Xml.GetChildUIntAttribute(node, "AmbientRadioVol", "value");
             RadioName = Xml.GetChildInnerText(node, "RadioName");
             TrackList = XmlRel.ReadHashItemArray(node, "TrackList");
-            NumTrackList = (uint)(TrackList?.Length ?? 0);
+
+            if (TrackList == null)
+            {
+                TrackList = new MetaHash[0];
+                NumTrackList = 0;
+            }
+            else
+            {
+                NumTrackList = (uint)TrackList.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -7912,6 +8202,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (Actions == null)
+            {
+                Actions = new MetaHash[0];
+                ActionsCount = 0;
+            }
+
             bw.Write(ActionsCount);
             for (int i = 0; i < ActionsCount; i++)
             {
@@ -7926,7 +8222,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             Actions = XmlRel.ReadHashItemArray(node, "Actions");
-            ActionsCount = (uint)(Actions?.Length ?? 0);
+
+            if (Actions == null)
+            {
+                Actions = new MetaHash[0];
+                ActionsCount = 0;
+            }
+            else
+            {
+                ActionsCount = (uint)Actions.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -8412,6 +8717,12 @@ namespace CodeWalker.GameFiles
                     Materials[i].Write(bw);
                 }
 
+                if (FragComponentSettings == null)
+                {
+                    FragComponentSettings = new MetaHash[0];
+                    FragComponentSettingsCount = 0;
+                }
+
                 bw.Write(FragComponentSettingsCount);
                 for (int i = 0; i < FragComponentSettingsCount; i++)
                 {
@@ -8497,7 +8808,16 @@ namespace CodeWalker.GameFiles
             Materials = XmlRel.ReadItemArray<Dat151ModelAudioCollisionSettingsMaterialItem>(node, "Materials");
             MaterialsCount = (byte)(Materials?.Length ?? 0);
             FragComponentSettings = XmlRel.ReadHashItemArray(node, "FragComponentSettings");
-            FragComponentSettingsCount = (uint)(FragComponentSettings?.Length ?? 0);
+
+            if (FragComponentSettings == null)
+            {
+                FragComponentSettings = new MetaHash[0];
+                FragComponentSettingsCount = 0;
+            }
+            else
+            {
+                FragComponentSettingsCount = (uint)FragComponentSettings.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -9755,6 +10075,13 @@ namespace CodeWalker.GameFiles
             bw.Write(DelayTime);
             bw.Write(Station);
             bw.Write(NextIndex);
+
+            if (TrackList == null)
+            {
+                TrackList = new MetaHash[0];
+                NumTrackLists = 0;
+            }
+
             bw.Write(NumTrackLists);
             bw.Write(padding02);
             bw.Write(padding03);
@@ -9813,7 +10140,16 @@ namespace CodeWalker.GameFiles
             Station = XmlRel.GetHash(Xml.GetChildInnerText(node, "Station"));
             NextIndex = Xml.GetChildIntAttribute(node, "NextIndex", "value");
             TrackList = XmlRel.ReadHashItemArray(node, "TrackList");
-            NumTrackLists = (byte)(TrackList?.Length ?? 0);
+
+            if (TrackList == null)
+            {
+                TrackList = new MetaHash[0];
+                NumTrackLists = 0;
+            }
+            else
+            {
+                NumTrackLists = (byte)TrackList.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -11021,6 +11357,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (ShoreLines == null)
+            {
+                ShoreLines = new MetaHash[0];
+                ShoreLineCount = 0;
+            }
+
             bw.Write(ShoreLineCount);
             for (int i = 0; i < ShoreLineCount; i++)
             {
@@ -11034,7 +11376,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             ShoreLines = XmlRel.ReadHashItemArray(node, "ShoreLines");
-            ShoreLineCount = (uint)(ShoreLines?.Length ?? 0);
+
+            if (ShoreLines == null)
+            {
+                ShoreLines = new MetaHash[0];
+                ShoreLineCount = 0;
+            }
+            else
+            {
+                ShoreLineCount = (uint)ShoreLines.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -13143,6 +13494,13 @@ namespace CodeWalker.GameFiles
             {
                 GangVoices[i].Write(bw);
             }
+
+            if (BackupPVGs == null)
+            {
+                BackupPVGs = new MetaHash[0];
+                BackupPVGCount = 0;
+            }
+
             bw.Write(BackupPVGCount);
             if (Version >= 1)
             {
@@ -13176,7 +13534,17 @@ namespace CodeWalker.GameFiles
             GangVoices = XmlRel.ReadItemArray<Dat151PedVoiceGroupsItem>(node, "GangVoices");
             GangVoicesCount = (byte)(GangVoices?.Length ?? 0);
             BackupPVGs = XmlRel.ReadHashItemArray(node, "BackupPVGs");
-            BackupPVGCount = (byte)(BackupPVGs?.Length ?? 0);
+
+            if (BackupPVGs == null)
+            {
+                BackupPVGs = new MetaHash[0];
+                BackupPVGCount = 0;
+            }
+            else
+            {
+                BackupPVGCount = (byte)BackupPVGs.Length;
+            }
+
             Version = (BackupPVGCount == 0) ? 0 : 1;
         }
         public override MetaHash[] GetSpeechHashes()
@@ -16167,6 +16535,12 @@ namespace CodeWalker.GameFiles
 
             bw.Write(ResolvingFunction);
 
+            if (Items == null)
+            {
+                Items = new MetaHash[0];
+                ItemCount = 0;
+            }
+
             bw.Write(ItemCount);
             for (int i = 0; i < ItemCount; i++)
             {
@@ -16247,7 +16621,16 @@ namespace CodeWalker.GameFiles
 
             ResolvingFunction = (byte)Xml.GetChildUIntAttribute(node, "ResolvingFunction", "value");
             Items = XmlRel.ReadHashItemArray(node, "Items");
-            ItemCount = (byte)(Items?.Length ?? 0);
+
+            if (Items == null)
+            {
+                Items = new MetaHash[0];
+                ItemCount = 0;
+            }
+            else
+            {
+                ItemCount = (byte)Items.Length;
+            }
         }
 
         public override MetaHash[] GetSoundHashes()
@@ -16285,6 +16668,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (TriggeredSpeechContexts == null)
+            {
+                TriggeredSpeechContexts = new MetaHash[0];
+                TriggeredSpeechContextsCount = 0;
+            }
+
             bw.Write(TriggeredSpeechContextsCount);
             for (int i = 0; i < TriggeredSpeechContextsCount; i++)
             {
@@ -16298,7 +16687,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             TriggeredSpeechContexts = XmlRel.ReadHashItemArray(node, "TriggeredSpeechContexts");
-            TriggeredSpeechContextsCount = (TriggeredSpeechContexts?.Length ?? 0);
+
+            if (TriggeredSpeechContexts == null)
+            {
+                TriggeredSpeechContexts = new MetaHash[0];
+                TriggeredSpeechContextsCount = 0;
+            }
+            else
+            {
+                TriggeredSpeechContextsCount = TriggeredSpeechContexts.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -16909,6 +17307,12 @@ namespace CodeWalker.GameFiles
             bw.Write(Italian);
             bw.Write(Pakistani);
 
+            if (FriendGroups == null)
+            {
+                FriendGroups = new MetaHash[0];
+                FriendGroupsCount = 0;
+            }
+
             bw.Write(FriendGroupsCount);
             for (int i = 0; i < FriendGroupsCount; i++)
             {
@@ -16946,7 +17350,16 @@ namespace CodeWalker.GameFiles
             Italian = XmlRel.GetHash(Xml.GetChildInnerText(node, "Italian"));
             Pakistani = XmlRel.GetHash(Xml.GetChildInnerText(node, "Pakistani"));
             FriendGroups = XmlRel.ReadHashItemArray(node, "FriendGroups");
-            FriendGroupsCount = (FriendGroups?.Length ?? 0);
+
+            if (FriendGroups == null)
+            {
+                FriendGroups = new MetaHash[0];
+                FriendGroupsCount = 0;
+            }
+            else
+            {
+                FriendGroupsCount = FriendGroups.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -17201,6 +17614,12 @@ namespace CodeWalker.GameFiles
             bw.Write(Radius);
             bw.Write(ProbOfPlaying);
 
+            if (Sound == null)
+            {
+                Sound = new MetaHash[0];
+                NumSounds = 0;
+            }
+
             bw.Write(NumSounds);
             for (int i = 0; i < NumSounds; i++)
             {
@@ -17228,7 +17647,16 @@ namespace CodeWalker.GameFiles
             ProbOfPlaying = Xml.GetChildFloatAttribute(node, "ProbOfPlaying", "value");
 
             Sound = XmlRel.ReadHashItemArray(node, "Sound");
-            NumSounds = (Sound?.Length ?? 0);
+
+            if (Sound == null)
+            {
+                Sound = new MetaHash[0];
+                NumSounds = 0;
+            }
+            else
+            {
+                NumSounds = Sound.Length;
+            }
         }
         public override MetaHash[] GetSoundHashes()
         {
@@ -17260,6 +17688,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (Locations == null)
+            {
+                Locations = new MetaHash[0];
+                LocationsCount = 0;
+            }
+
             bw.Write(LocationsCount);
             for (int i = 0; i < LocationsCount; i++)
             {
@@ -17273,7 +17707,16 @@ namespace CodeWalker.GameFiles
         public override void ReadXml(XmlNode node)
         {
             Locations = XmlRel.ReadHashItemArray(node, "Locations");
-            LocationsCount = (Locations?.Length ?? 0);
+
+            if (Locations == null)
+            {
+                Locations = new MetaHash[0];
+                LocationsCount = 0;
+            }
+            else
+            {
+                LocationsCount = Locations.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -17792,6 +18235,12 @@ namespace CodeWalker.GameFiles
             bw.Write(AudioScene);
             bw.Write(WindGustEnd);
 
+            if (WindSounds == null)
+            {
+                WindSounds = new MetaHash[0];
+                WindSoundsCount = 0;
+            }
+
             bw.Write(WindSoundsCount);
             for (int i = 0; i < WindSoundsCount; i++)
             {
@@ -17821,7 +18270,16 @@ namespace CodeWalker.GameFiles
             AudioScene = XmlRel.GetHash(Xml.GetChildInnerText(node, "AudioScene"));
             WindGustEnd = XmlRel.GetHash(Xml.GetChildInnerText(node, "WindGustEnd"));
             WindSounds = XmlRel.ReadHashItemArray(node, "WindSounds");
-            WindSoundsCount = (WindSounds?.Length ?? 0);
+
+            if (WindSounds == null)
+            {
+                WindSounds = new MetaHash[0];
+                WindSoundsCount = 0;
+            }
+            else
+            {
+                WindSoundsCount = WindSounds.Length;
+            }
         }
         public override MetaHash[] GetMixerHashes()
         {
@@ -21625,6 +22083,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffset(bw);
 
+            if (GameObjectHashes == null)
+            {
+                GameObjectHashes = new MetaHash[0];
+                GameObjectHashesCount = 0;
+            }
+
             bw.Write(Flags);
             bw.Write(GameObjectHashesCount);
             for (int i = 0; i < GameObjectHashesCount; i++)
@@ -21642,7 +22106,16 @@ namespace CodeWalker.GameFiles
         {
             Flags = Xml.GetChildUIntAttribute(node, "Flags", "value");
             GameObjectHashes = XmlRel.ReadHashItemArray(node, "GameObjectHashes");
-            GameObjectHashesCount = (uint)(GameObjectHashes?.Length ?? 0);
+
+            if (GameObjectHashes == null)
+            {
+                GameObjectHashes = new MetaHash[0];
+                GameObjectHashesCount = 0;
+            }
+            else
+            {
+                GameObjectHashesCount = (uint)GameObjectHashes.Length;
+            }
         }
         public override MetaHash[] GetGameHashes()
         {
@@ -22048,6 +22521,13 @@ namespace CodeWalker.GameFiles
         public override void Write(BinaryWriter bw)
         {
             base.Write(bw);
+
+            if (WaveSlots == null)
+            {
+                WaveSlots = new MetaHash[0];
+                WaveSlotsCount = 0;
+            }
+
             bw.Write(WaveSlotsCount);
             for (int i = 0; i < WaveSlotsCount; i++)
             {
@@ -22063,7 +22543,16 @@ namespace CodeWalker.GameFiles
         {
             base.ReadXml(node);
             WaveSlots = XmlRel.ReadHashItemArray(node, "WaveSlots");
-            WaveSlotsCount = (WaveSlots?.Length ?? 0);
+
+            if (WaveSlots == null)
+            {
+                WaveSlots = new MetaHash[0];
+                WaveSlotsCount = 0;
+            }
+            else
+            {
+                WaveSlotsCount = WaveSlots.Length;
+            }
         }
         public override uint[] GetHashTableOffsets()
         {
@@ -24754,6 +25243,12 @@ namespace CodeWalker.GameFiles
         {
             WriteTypeAndOffsetAndFlags(bw);
 
+            if (Groups == null)
+            {
+                Groups = new MetaHash[0];
+                GroupCount = 0;
+            }
+
             bw.Write(GroupCount);
             for (int i = 0; i < GroupCount; i++)
             {
@@ -24769,7 +25264,16 @@ namespace CodeWalker.GameFiles
         {
             Flags = Xml.GetChildUIntAttribute(node, "Flags", "value");
             Groups = XmlRel.ReadHashItemArray(node, "Groups");
-            GroupCount = (byte)(Groups?.Length ?? 0);
+
+            if (Groups == null)
+            {
+                Groups = new MetaHash[0];
+                GroupCount = 0;
+            }
+            else
+            {
+                GroupCount = (byte)Groups.Length;
+            }
         }
         public override MetaHash[] GetMixerHashes()
         {
@@ -25884,6 +26388,13 @@ namespace CodeWalker.GameFiles
             bw.Write(UnderwaterWetLevel);
             bw.Write(StonedWetLevel);
             bw.Write(Timer);
+
+            if (SubCategories == null)
+            {
+                SubCategories = new MetaHash[0];
+                SubCategoryCount = 0;
+            }
+
             bw.Write(SubCategoryCount);
             for (int i = 0; i < SubCategoryCount; i++)
             {
@@ -25936,7 +26447,16 @@ namespace CodeWalker.GameFiles
             StonedWetLevel = (short)Xml.GetChildIntAttribute(node, "StonedWetLevel", "value");
             Timer = (byte)Xml.GetChildUIntAttribute(node, "Timer", "value");
             SubCategories = XmlRel.ReadHashItemArray(node, "SubCategories");
-            SubCategoryCount = (byte)(SubCategories?.Length ?? 0);
+
+            if (SubCategories == null)
+            {
+                SubCategories = new MetaHash[0];
+                SubCategoryCount = 0;
+            }
+            else
+            {
+                SubCategoryCount = (byte)SubCategories.Length;
+            }
         }
         public override MetaHash[] GetCurveHashes()
         {

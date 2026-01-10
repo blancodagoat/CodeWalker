@@ -2091,14 +2091,17 @@ namespace CodeWalker.GameFiles
         }
         public static void WriteHashItemArray(StringBuilder sb, MetaHash[] arr, int ind, string name)
         {
-            var itemCount = arr?.Length ?? 0;
+            // Filter out empty hashes (0 values)
+            var nonEmptyHashes = arr?.Where(h => h != 0).ToArray() ?? Array.Empty<MetaHash>();
+            var itemCount = nonEmptyHashes.Length;
+
             if (itemCount > 0)
             {
                 OpenTag(sb, ind, name);
                 var cind = ind + 1;
                 for (int i = 0; i < itemCount; i++)
                 {
-                    var iname = HashString(arr[i]);
+                    var iname = HashString(nonEmptyHashes[i]);
                     StringTag(sb, cind, "Item", iname);
                 }
                 CloseTag(sb, ind, name);
