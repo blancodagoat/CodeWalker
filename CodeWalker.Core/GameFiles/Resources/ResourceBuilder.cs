@@ -139,7 +139,7 @@ namespace CodeWalker.GameFiles
             }
         }
 
-        public static void AssignPositions(IList<IResourceBlock> blocks, uint basePosition, out RpfResourcePageFlags pageFlags, uint maxPageCount, bool gen9 = false)
+        public static void AssignPositions(IList<IResourceBlock> blocks, uint basePosition, out RpfResourcePageFlags pageFlags, uint maxPageCount)
         {
             if ((blocks.Count > 0) && (blocks[0] is Meta))
             {
@@ -148,245 +148,104 @@ namespace CodeWalker.GameFiles
                 return;
             }
 
-            if (blocks.Count == 0)
-            {
-                pageFlags = new RpfResourcePageFlags();
-                return;
-            }
-
             var sys = (basePosition == 0x50000000);
-            var leafSize = BASE_SIZE; // 0x2000 (8192)
 
-            uint CeilPow2(uint x)
+            long pad(long p)
             {
-                x--;
-                x |= x >> 1;
-                x |= x >> 2;
-                x |= x >> 4;
-                x |= x >> 8;
-                x |= x >> 16;
-                return x + 1;
+                return ((ALIGN_SIZE - (p % ALIGN_SIZE)) % ALIGN_SIZE);
             }
 
-            uint CountOnes(uint x)
+            long largestBlockSize = 0; // find largest structure
+            long startPageSize = BASE_SIZE;// 0x2000; // find starting page size
+            long totalBlockSize = 0;
+            foreach (var block in blocks)
             {
-                x -= ((x >> 1) & 0x55555555);
-                x = (((x >> 2) & 0x33333333) + (x & 0x33333333));
-                x = (((x >> 4) + x) & 0x0f0f0f0f);
-                x += (x >> 8);
-                x += (x >> 16);
-                return x & 0x3f;
-            }
-
-            uint Log2OfPow2(uint x)
-            {
-                return CountOnes(x - 1);
-            }
-
-            // Process blocks in original order (don't sort)
-            var blockList = new List<(IResourceBlock block, long size, uint alignMask)>();
-
-            for (int i = 0; i < blocks.Count; i++)
-            {
-                var block = blocks[i];
-                long size = gen9 ? block.BlockLength_Gen9 : block.BlockLength;
-                uint alignMask = ALIGN_SIZE - 1;
-                size = (size + alignMask) & ~alignMask; // Round up to alignment
-                blockList.Add((block, size, alignMask));
-            }
-
-            // Find largest allocation
-            long largestAllocBytes = 0;
-            foreach (var (block, size, alignMask) in blockList)
-            {
-                if (size > largestAllocBytes)
-                    largestAllocBytes = size;
-            }
-
-            // For system heap, account for potential root block + largest allocation alignment
-            if (sys && blockList.Count > 1)
-            {
-                long combinedSize = blockList[0].size;
-                for (int i = 1; i < blockList.Count; i++)
+                var blockLength = block.BlockLength;
+                totalBlockSize += blockLength;
+                totalBlockSize += pad(totalBlockSize);
+                if (largestBlockSize < blockLength)
                 {
-                    long testSize = blockList[0].size;
-                    testSize = (testSize + blockList[i].alignMask) & ~blockList[i].alignMask;
-                    testSize += blockList[i].size;
-                    if (testSize > combinedSize)
-                        combinedSize = testSize;
+                    largestBlockSize = blockLength;
                 }
-                if (combinedSize > largestAllocBytes)
-                    largestAllocBytes = combinedSize;
+            }
+            while (startPageSize < largestBlockSize)
+            {
+                startPageSize *= 2;
             }
 
-            uint largestAlloc = CeilPow2((uint)((largestAllocBytes + leafSize - 1) / leafSize));
-            if (largestAlloc < 16)
-                largestAlloc = 16;
 
-            // [0]=16x(Head16,1bit), [1]=8x(Head8,2bit), [2]=4x(Head4,4bit), [3]=2x(Head2,6bit), [4]=1x(Base,7bit), [5-8]=tails(1bit each)
-            uint[] bucketMax = { 0x1, 0x3, 0xF, 0x3F, 0x7F, 1, 1, 1, 1 };
+            pageFlags = new RpfResourcePageFlags();
+            var pageSizeMult = 1;
 
-            uint baseAlloc = 0;
-            uint iterationCount = 0;
-            uint[]? finalBucketCounts = null;
-            Dictionary<IResourceBlock, (int bucketIdx, long offset)>? finalAssignments = null;
-            List<(long size, long offset, uint shift)>? finalBuckets = null;
-
-            // Try different base allocations until we find one that works
             while (true)
             {
-                baseAlloc = (largestAlloc << (int)iterationCount) >> 4;
-                iterationCount++;
+                if (blocks.Count == 0) break;
 
-                if (baseAlloc == 0)
-                    baseAlloc = 1;
-
-                var buckets = new List<(long size, long offset, uint shift, uint splitAlloc, uint allocCount)>();
-                var bucketCounts = new uint[9];
-                var assignments = new Dictionary<IResourceBlock, (int bucketIdx, long offset)>();
-
-                // Pack allocations into buckets
-                bool success = true;
-                for (int a = 0; a < blockList.Count; a++)
+                var blockset = new ResourceBuilderBlockSet(blocks, sys);
+                var rootblock = blockset.RootBlock;
+                var currentPosition = 0L;
+                var currentPageSize = startPageSize;
+                var currentPageStart = 0L;
+                var currentPageSpace = startPageSize;
+                var currentRemainder = totalBlockSize;
+                var pageCount = 1;
+                var pageCounts = new uint[9];
+                var pageCountIndex = 0;
+                var targetPageSize = Math.Max(65536 * pageSizeMult, startPageSize >> (sys ? 5 : 2));
+                var minPageSize = Math.Max(512 * pageSizeMult, Math.Min(targetPageSize, startPageSize) >> 4);
+                var baseShift = 0u;
+                var baseSize = 512;
+                while (baseSize < minPageSize)
                 {
-                    var (block, size, alignMask) = blockList[a];
-
-                    // Find first bucket that fits
-                    int b = 0;
-                    for (b = 0; b < buckets.Count; b++)
-                    {
-                        long newOffset = (buckets[b].offset + alignMask) & ~alignMask;
-                        newOffset += size;
-                        if (newOffset <= buckets[b].size)
-                            break;
-                    }
-
-                    // Need new bucket?
-                    if (b == buckets.Count)
-                    {
-                        if (buckets.Count >= maxPageCount)
-                        {
-                            success = false;
-                            break;
-                        }
-
-                        long bucketSize = (a == 0) ? largestAllocBytes : size;
-                        uint leafCount = (uint)((bucketSize + leafSize - 1) / leafSize);
-                        leafCount = CeilPow2(leafCount);
-
-                        if (leafCount < baseAlloc)
-                            leafCount = baseAlloc;
-
-                        uint countIdx = (Log2OfPow2(baseAlloc) - Log2OfPow2(leafCount)) + 4;
-
-                        if (countIdx >= bucketMax.Length || bucketCounts[countIdx] >= bucketMax[countIdx])
-                        {
-                            success = false;
-                            break;
-                        }
-
-                        bucketCounts[countIdx]++;
-                        long newSize = leafCount * leafSize;
-
-                        // Store countIdx as shift for now (used for sorting)
-                        // Smaller countIdx = larger pages (16x=0, 8x=1, 4x=2, 2x=3, 1x=4, tails=5-8)
-                        buckets.Add((newSize, 0, countIdx, uint.MaxValue, 0));
-                        b = buckets.Count - 1;
-                    }
-
-                    // Assign allocation to bucket
-                    var bucket = buckets[b];
-                    long offset = (bucket.offset + alignMask) & ~alignMask;
-
-                    // Track split point (where bucket crosses 50% full)
-                    long halfSize = bucket.size >> 1;
-                    if (bucket.allocCount > 0 && bucket.offset <= halfSize && offset + size > halfSize)
-                        bucket.splitAlloc = (uint)a;
-
-                    bucket.offset = offset + size;
-                    bucket.allocCount++;
-                    buckets[b] = bucket;
-
-                    assignments[block] = (b, offset);
+                    baseShift++;
+                    baseSize *= 2;
+                    if (baseShift >= 0xF) break;
                 }
+                var baseSizeMax = baseSize << 8;
+                var baseSizeMaxTest = startPageSize;
+                while (baseSizeMaxTest < baseSizeMax)
+                {
+                    pageCountIndex++;
+                    baseSizeMaxTest *= 2;
+                }
+                pageCounts[pageCountIndex] = 1;
 
-                if (!success)
-                    continue;
-
-                // Try bucket splitting to reduce fragmentation
-                uint maxShift = (uint)bucketCounts.Length - 1;
                 while (true)
                 {
-                    if (buckets.Count == 0)
-                        break;
-
-                    int lastIdx = buckets.Count - 1;
-                    var lastBucket = buckets[lastIdx];
-
-                    // Check if we can split the last bucket
-                    if (lastBucket.splitAlloc != uint.MaxValue &&
-                        lastBucket.offset <= (lastBucket.size * 3 / 4) &&
-                        lastBucket.shift < maxShift - 1 &&
-                        baseAlloc > 2 &&
-                        buckets.Count < maxPageCount)
+                    var isroot = sys && (currentPosition == 0);
+                    var block = isroot ? rootblock : blockset.TakeBestBlock(currentPageSpace);
+                    var blockLength = block?.Length ?? 0;
+                    if (block != null)
                     {
-                        long newSize = lastBucket.size >> 2;
-                        long newOffset = 0;
-                        uint newCount = 0;
+                        //add this block to the current page.
+                        block.Block.FilePosition = basePosition + currentPosition;
+                        var opos = currentPosition;
+                        currentPosition += blockLength;
+                        currentPosition += pad(currentPosition);
+                        var usedspace = currentPosition - opos;
+                        currentPageSpace -= usedspace;
+                        currentRemainder -= usedspace;//blockLength;// 
 
-                        // Test if split allocations fit
-                        bool canSplit = true;
-                        for (uint a = lastBucket.splitAlloc; a < blockList.Count; a++)
+                    }
+                    else if (blockset.Count > 0)
+                    {
+                        //allocate a new page
+                        currentPageStart += currentPageSize;
+                        currentPosition = currentPageStart;
+                        block = blockset.FindBestBlock(long.MaxValue); //just find the biggest block
+                        blockLength = block?.Length ?? 0;
+                        while (blockLength <= (currentPageSize >> 1))//determine best new page size
                         {
-                            var (block, _, _) = blockList[(int)a];
-                            if (assignments.TryGetValue(block, out var assign) && assign.bucketIdx == lastIdx)
-                            {
-                                newCount++;
-                                var (_, size, alignMask) = blockList[(int)a];
-                                newOffset = (newOffset + alignMask) & ~alignMask;
-                                newOffset += size;
-                                if (newOffset > newSize)
-                                {
-                                    canSplit = false;
-                                    break;
-                                }
-                            }
+                            if (currentPageSize <= minPageSize) break;
+                            if (pageCountIndex >= 8) break;
+                            if ((currentPageSize <= targetPageSize) && (currentRemainder >= (currentPageSize - minPageSize))) break;
+
+                            currentPageSize = currentPageSize >> 1;
+                            pageCountIndex++;
                         }
-
-                        if (!canSplit)
-                            break;
-
-                        // Perform the split
-                        newOffset = 0;
-                        uint newSplit = uint.MaxValue;
-
-                        for (uint a = lastBucket.splitAlloc; a < blockList.Count; a++)
-                        {
-                            var (block, size, alignMask) = blockList[(int)a];
-                            if (assignments.TryGetValue(block, out var assign) && assign.bucketIdx == lastIdx)
-                            {
-                                long offset = (newOffset + alignMask) & ~alignMask;
-
-                                if (a != lastBucket.splitAlloc && newOffset <= (newSize >> 1) && offset + size > (newSize >> 1))
-                                    newSplit = a;
-
-                                newOffset = offset + size;
-                                assignments[block] = (lastIdx + 1, offset);
-                            }
-                        }
-
-                        // Update counts
-                        lastBucket.size >>= 1;
-                        bucketCounts[lastBucket.shift]--;
-                        lastBucket.shift++;
-                        bucketCounts[lastBucket.shift]++;
-                        baseAlloc >>= 2;
-                        lastBucket.splitAlloc = uint.MaxValue;
-                        lastBucket.allocCount -= newCount;
-                        buckets[lastIdx] = lastBucket;
-
-                        buckets.Add((newSize, newOffset, lastBucket.shift + 1, newSplit, newCount));
-                        bucketCounts[lastBucket.shift + 1]++;
+                        currentPageSpace = currentPageSize;
+                        pageCounts[pageCountIndex]++;
+                        pageCount++;
                     }
                     else
                     {
@@ -394,99 +253,18 @@ namespace CodeWalker.GameFiles
                     }
                 }
 
-                // Shrink last bucket if less than half full
-                if (buckets.Count > 0)
-                {
-                    int lastIdx = buckets.Count - 1;
-                    var lastBucket = buckets[lastIdx];
 
-                    while (lastBucket.offset <= (lastBucket.size >> 1) && lastBucket.shift < maxShift && baseAlloc > 1)
-                    {
-                        lastBucket.size >>= 1;
-                        bucketCounts[lastBucket.shift]--;
-                        lastBucket.shift++;
-                        bucketCounts[lastBucket.shift]++;
-                        baseAlloc >>= 1;
-                    }
-                    buckets[lastIdx] = lastBucket;
-                }
+                pageFlags = new RpfResourcePageFlags(pageCounts, baseShift);
 
-                // Verify bucket counts fit in header format (match bucketMax limits)
-                bool valid = true;
-                if (bucketCounts[0] > 0x1 || bucketCounts[1] > 0x3 || bucketCounts[2] > 0xF ||
-                    bucketCounts[3] > 0x3F || bucketCounts[4] > 0x7F || bucketCounts[5] > 1 ||
-                    bucketCounts[6] > 1 || bucketCounts[7] > 1 || bucketCounts[8] > 1)
+                if ((pageCount == pageFlags.Count) && (pageFlags.Size >= currentPosition) && (pageCount <= maxPageCount)) //make sure page counts fit in the flags value
                 {
-                    valid = false;
-                }
-
-                if (valid)
-                {
-                    finalBucketCounts = bucketCounts;
-                    finalAssignments = assignments;
-                    finalBuckets = [.. buckets.Select(b => (b.size, b.offset, b.shift))];
                     break;
                 }
 
-                if (iterationCount > 20)
-                    throw new Exception("Unable to pack resource blocks into valid page configuration");
+                startPageSize *= 2;
+                pageSizeMult *= 2;
             }
 
-            // Ensure we found a valid configuration
-            if (finalBuckets == null || finalAssignments == null || finalBucketCounts == null)
-                throw new Exception("Failed to allocate resource pages");
-
-            // Calculate base shift from final base allocation
-            uint baseShift = Log2OfPow2(baseAlloc);
-
-            // Create a mapping from old bucket index to new sorted position
-            // Sort by size descending (largest buckets first in memory)
-            var bucketOrder = Enumerable.Range(0, finalBuckets.Count)
-                .OrderByDescending(i => finalBuckets[i].size)
-                .ThenBy(i => i) // Stable sort by original index for same-size buckets
-                .ToList();
-
-            // Assign linear addresses to buckets in size-sorted order
-            long[] bucketBases = new long[finalBuckets.Count];
-            long currentBase = 0;
-            foreach (int originalBucketIdx in bucketOrder)
-            {
-                bucketBases[originalBucketIdx] = currentBase;
-                currentBase += finalBuckets[originalBucketIdx].size;
-            }
-
-            // Assign final file positions using the bucket bases
-            foreach (var kvp in finalAssignments)
-            {
-                var block = kvp.Key;
-                var (bucketIdx, offset) = kvp.Value;
-                block.FilePosition = basePosition + bucketBases[bucketIdx] + offset;
-            }
-
-            // Build page flags from bucket counts
-            // Bits 0-3: baseShift (LeafShift)
-            // Bit 4: Head16Count (16x pages)
-            // Bits 5-6: Head8Count (8x pages)
-            // Bits 7-10: Head4Count (4x pages)
-            // Bits 11-16: Head2Count (2x pages)
-            // Bits 17-23: BaseCount (1x pages)
-            // Bit 24: HasTail2 (0.5x page)
-            // Bit 25: HasTail4 (0.25x page)
-            // Bit 26: HasTail8 (0.125x page)
-            // Bit 27: HasTail16 (0.0625x page)
-            // Bits 28-31: Version (split between virtual/physical)
-            uint flagsValue = baseShift & 0xF;
-            flagsValue |= (finalBucketCounts[0] & 0x1) << 4;   // Head16Count
-            flagsValue |= (finalBucketCounts[1] & 0x3) << 5;   // Head8Count
-            flagsValue |= (finalBucketCounts[2] & 0xF) << 7;   // Head4Count
-            flagsValue |= (finalBucketCounts[3] & 0x3F) << 11; // Head2Count
-            flagsValue |= (finalBucketCounts[4] & 0x7F) << 17; // BaseCount
-            flagsValue |= (finalBucketCounts[5] & 0x1) << 24;  // HasTail2
-            flagsValue |= (finalBucketCounts[6] & 0x1) << 25;  // HasTail4
-            flagsValue |= (finalBucketCounts[7] & 0x1) << 26;  // HasTail8
-            flagsValue |= (finalBucketCounts[8] & 0x1) << 27;  // HasTail16
-
-            pageFlags = new RpfResourcePageFlags(flagsValue);
         }
 
         public static void AssignPositionsForMeta(IList<IResourceBlock> blocks, uint basePosition, out RpfResourcePageFlags pageFlags)
@@ -550,6 +328,207 @@ namespace CodeWalker.GameFiles
         }
 
 
+        public static void AssignPositions2(IList<IResourceBlock> blocks, uint basePosition, out RpfResourcePageFlags pageFlags, uint maxPageCount, bool gen9)
+        {
+            if ((blocks.Count > 0) && (blocks[0] is Meta))//TODO: try remove this?
+            {
+                //use naive packing strategy for Meta resources, due to crashes caused by the improved packing
+                AssignPositionsForMeta(blocks, basePosition, out pageFlags);
+                return;
+            }
+
+            //find optimal BaseShift value for the smallest block size
+            //for small system blocks should be 0, but for large physical blocks can be much bigger
+            //also, the largest block needs to fit into the largest page.
+            //BaseSize = 0x2000 << BaseShift   (max BaseShift = 0xF)
+            //then allocate page counts for the page sizes:
+            //allows for 5 page sizes, each double the size of the previous, with max counts 0x7F, 0x3F, 0xF, 3, 1
+            //also allows for 4 tail pages, each half the size of the previous, only one page of each size [TODO?] 
+
+            var sys = (basePosition == 0x50000000);
+            var maxPageSizeMult = 16L;//the biggest page is 16x the base page size.
+            var maxPageSize = (0x2000 << 0xF) * maxPageSizeMult; //this is the size of the biggest possible page [4GB!]
+            var maxBlockSize = 0L;
+            var minBlockSize = (blocks.Count == 0) ? 0 : maxPageSize;
+            if (gen9)
+            {
+                foreach (var block in blocks)
+                {
+                    if (block.BlockLength_Gen9 > maxBlockSize) maxBlockSize = block.BlockLength_Gen9;
+                    if (block.BlockLength_Gen9 < minBlockSize) minBlockSize = block.BlockLength_Gen9;
+                }
+            }
+            else
+            {
+                foreach (var block in blocks)
+                {
+                    if (block.BlockLength > maxBlockSize) maxBlockSize = block.BlockLength;
+                    if (block.BlockLength < minBlockSize) minBlockSize = block.BlockLength;
+                }
+            }
+
+            var baseShift = 0;//want to find the best value for this
+            var baseSize = 0x2000L;//corresponding size for the baseShift value
+            while (((baseSize < minBlockSize) || ((baseSize * maxPageSizeMult) < maxBlockSize)) && (baseShift < 0xF))
+            {
+                baseShift++;
+                baseSize = 0x2000L << baseShift;
+            }
+            if ((baseSize * maxPageSizeMult) < maxBlockSize) throw new Exception("Unable to fit largest block!");
+
+
+
+            var sortedBlocks = new List<IResourceBlock>();
+            var rootBlock = (sys && (blocks.Count > 0)) ? blocks[0] : null;
+            foreach (var block in blocks)
+            {
+                if (block == null) continue;
+                if (block != rootBlock) sortedBlocks.Add(block);
+            }
+            if (gen9)
+            {
+                sortedBlocks.Sort((a, b) => b.BlockLength_Gen9.CompareTo(a.BlockLength_Gen9));
+            }
+            else
+            {
+                sortedBlocks.Sort((a, b) => b.BlockLength.CompareTo(a.BlockLength));
+            }
+            if (rootBlock != null) sortedBlocks.Insert(0, rootBlock);
+
+
+            var pageCounts = new uint[5];
+            var pageSizes = new List<long>[5];
+            var blockPages = new Dictionary<IResourceBlock, (int, int, long)>();//(pageSizeIndex, pageIndex, offset)
+            while (true)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    pageCounts[i] = 0;
+                    pageSizes[i] = null;
+                }
+
+                var largestPageSizeI = 0;
+                var largestPageSize = baseSize;
+                while (largestPageSize < maxBlockSize)
+                {
+                    largestPageSizeI++;
+                    largestPageSize *= 2;
+                }
+
+                for (int i = 0; i < sortedBlocks.Count; i++)
+                {
+                    var block = sortedBlocks[i];
+                    var size = gen9 ? block.BlockLength_Gen9 : block.BlockLength;
+                    if (i == 0)//first block should always go in the first page, it's either root block or largest
+                    {
+                        pageSizes[largestPageSizeI] = new List<long>() { size };//allocate the first new page
+                        blockPages[block] = (largestPageSizeI, 0, 0);
+                    }
+                    else
+                    {
+                        var pageSizeIndex = 0;
+                        var pageSize = baseSize;
+                        while ((size > pageSize) && (pageSizeIndex < largestPageSizeI))//find the smallest page that will fit this block
+                        {
+                            pageSizeIndex++;
+                            pageSize *= 2;
+                        }
+                        var found = false;//find an existing page of this size or larger which has space
+                        var testPageSizeI = pageSizeIndex;
+                        var testPageSize = pageSize;
+                        while ((found == false) && (testPageSizeI <= largestPageSizeI))
+                        {
+                            var list = pageSizes[testPageSizeI];
+                            if (list != null)
+                            {
+                                for (int p = 0; p < list.Count; p++)
+                                {
+                                    var s = list[p];
+                                    s += ((ALIGN_SIZE - (s % ALIGN_SIZE)) % ALIGN_SIZE);
+                                    var o = s;
+                                    s += size;
+                                    if (s <= testPageSize)
+                                    {
+                                        list[p] = s;
+                                        found = true;
+                                        blockPages[block] = (testPageSizeI, p, o);
+                                        break;
+                                    }
+                                }
+                            }
+                            testPageSizeI++;
+                            testPageSize *= 2;
+                        }
+                        if (found == false)//couldn't find an existing page for this block, so allocate a new page
+                        {
+                            var list = pageSizes[pageSizeIndex];
+                            if (list == null)
+                            {
+                                list = new List<long>();
+                                pageSizes[pageSizeIndex] = list;
+                            }
+                            var pageIndex = list.Count;
+                            list.Add(size);
+                            blockPages[block] = (pageSizeIndex, pageIndex, 0);
+                        }
+                    }
+                }
+
+                var testOk = true;
+                var totalPageCount = 0u;
+                for (int i = 0; i < 5; i++)
+                {
+                    var pc = (uint)(pageSizes[i]?.Count ?? 0);
+                    pageCounts[i] = pc;
+                    totalPageCount += pc;
+                }
+                if (totalPageCount > maxPageCount) testOk = false;
+                if (pageCounts[0] > 0x7F) testOk = false;
+                if (pageCounts[1] > 0x3F) testOk = false;
+                if (pageCounts[2] > 0xF) testOk = false;
+                if (pageCounts[3] > 0x3) testOk = false;
+                if (pageCounts[4] > 0x1) testOk = false;
+                if (testOk) break;//everything fits, so we're done here
+                if (baseShift >= 0xF) throw new Exception("Unable to pack blocks with largest possible base!");
+                baseShift++;
+                baseSize = 0x2000 << baseShift;
+            }
+
+
+            
+            var pageOffset = 0L;//pages are allocated, assign actual positions
+            var pageOffsets = new long[5];//base offsets for each page size
+            for (int i = 4; i >= 0; i--)
+            {
+                pageOffsets[i] = pageOffset;
+                var pageSize = baseSize * (1 << i);
+                var pageCount = pageCounts[i];
+                pageOffset += (pageSize * pageCount);
+            }
+            foreach (var kvp in blockPages)
+            {
+                var block = kvp.Key;
+                var pageSizeIndex = kvp.Value.Item1;
+                var pageIndex = kvp.Value.Item2;
+                var offset = kvp.Value.Item3;
+                var pageSize = baseSize * (1 << pageSizeIndex);
+                var blockPosition = pageOffsets[pageSizeIndex] + (pageSize * pageIndex) + offset;
+                block.FilePosition = basePosition + blockPosition;
+            }
+
+
+            var v = (uint)baseShift & 0xF;
+            v += (pageCounts[4] & 0x1) << 4;
+            v += (pageCounts[3] & 0x3) << 5;
+            v += (pageCounts[2] & 0xF) << 7;
+            v += (pageCounts[1] & 0x3F) << 11;
+            v += (pageCounts[0] & 0x7F) << 17;
+            pageFlags = new RpfResourcePageFlags(v);
+
+
+        }
+
+
         public static byte[] Build(ResourceFileBase fileBase, int version, bool compress = true, bool gen9 = false)
         {
 
@@ -559,8 +538,11 @@ namespace CodeWalker.GameFiles
             IList<IResourceBlock> graphicBlocks;
             GetBlocks(fileBase, out systemBlocks, out graphicBlocks);
 
-            AssignPositions(systemBlocks, 0x50000000, out var systemPageFlags, 128, gen9);
-            AssignPositions(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count, gen9);
+            //AssignPositions(systemBlocks, 0x50000000, out var systemPageFlags, 128);
+            //AssignPositions(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count);
+
+            AssignPositions2(systemBlocks, 0x50000000, out var systemPageFlags, 128, gen9);
+            AssignPositions2(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count, gen9);
 
 
             fileBase.FilePagesInfo.SystemPagesCount = (byte)systemPageFlags.Count;
@@ -610,29 +592,15 @@ namespace CodeWalker.GameFiles
             var sysDataSize = (int)systemPageFlags.Size;
             var sysData = new byte[sysDataSize];
             systemStream.Flush();
-
-            // Pad stream to match calculated page size if needed
-            if (systemStream.Length < sysDataSize)
-            {
-                systemStream.SetLength(sysDataSize);
-            }
-
             systemStream.Position = 0;
-            systemStream.Read(sysData, 0, sysDataSize);
+            systemStream.Read(sysData, 0, (int)systemStream.Length);
 
 
             var gfxDataSize = (int)graphicsPageFlags.Size;
             var gfxData = new byte[gfxDataSize];
             graphicsStream.Flush();
-
-            // Pad stream to match calculated page size if needed
-            if (graphicsStream.Length < gfxDataSize)
-            {
-                graphicsStream.SetLength(gfxDataSize);
-            }
-
             graphicsStream.Position = 0;
-            graphicsStream.Read(gfxData, 0, gfxDataSize);
+            graphicsStream.Read(gfxData, 0, (int)graphicsStream.Length);
 
 
 
