@@ -509,10 +509,10 @@
             // SaveDDSFileDialog
             // 
             this.SaveDDSFileDialog.Filter = "DDS files|*.dds|All files|*.*";
-            // 
+            //
             // OpenDDSFileDialog
-            // 
-            this.OpenDDSFileDialog.Filter = "DDS files|*.dds|All files|*.*";
+            //
+            this.OpenDDSFileDialog.Filter = "Image Files|*.dds;*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif;*.tiff|DDS Files|*.dds|PNG Files|*.png|JPEG Files|*.jpg;*.jpeg|All Files|*.*";
             this.OpenDDSFileDialog.Multiselect = true;
             // 
             // SaveYTDFileDialog

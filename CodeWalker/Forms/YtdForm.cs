@@ -346,25 +346,61 @@ namespace CodeWalker.Forms
         private List<Texture> OpenDDSFiles(string[] filenames)
         {
             var textures = new List<Texture>();
+            var supportedImageExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif", ".tiff" };
 
             foreach (var fn in filenames)
             {
                 if (string.IsNullOrEmpty(fn)) continue;
-                if (fn.EndsWith(".dds", StringComparison.InvariantCultureIgnoreCase) == false) continue;
-                if (!File.Exists(fn)) continue; //couldn't find file?
+                if (!File.Exists(fn)) continue;
+
+                var ext = Path.GetExtension(fn).ToLowerInvariant();
+                var isDds = ext == ".dds";
+                var isImage = supportedImageExtensions.Contains(ext);
+
+                if (!isDds && !isImage) continue;
+
                 try
                 {
-                    var dds = File.ReadAllBytes(fn);
-                    var tex = DDSIO.GetTexture(dds);
+                    Texture tex;
+
+                    if (isDds)
+                    {
+                        var dds = File.ReadAllBytes(fn);
+                        tex = DDSIO.GetTexture(dds);
+                    }
+                    else
+                    {
+                        // Show compression dialog for image files
+                        using var importForm = new TextureImportForm(fn);
+                        if (importForm.ShowDialog(this) != DialogResult.OK)
+                            continue;
+
+                        var result = TextureCompressor.CompressTexture(
+                            fn,
+                            importForm.SelectedFormat,
+                            importForm.SelectedQuality,
+                            importForm.GenerateMipmaps,
+                            importForm.UseCuda,
+                            importForm.MinMipmapSize);
+
+                        if (!result.Success || result.Texture == null)
+                        {
+                            MessageBox.Show($"Failed to compress {fn}.\n{result.ErrorMessage}", "Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            continue;
+                        }
+                        tex = result.Texture;
+                    }
+
                     tex.Name = Path.GetFileNameWithoutExtension(fn);
                     tex.NameHash = JenkHash.GenHash(tex.Name?.ToLowerInvariant());
                     JenkIndex.Ensure(tex.Name?.ToLowerInvariant());
 
                     textures.Add(tex);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    MessageBox.Show("Unable to load " + fn + ".\nAre you sure it's a valid .dds file?");
+                    MessageBox.Show($"Unable to load {fn}.\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
 
@@ -374,19 +410,73 @@ namespace CodeWalker.Forms
         private async Task<List<Texture>> OpenDDSFilesAsync(string[] filenames, IProgress<float>? progress = null, CancellationToken cancellationToken = default)
         {
             var textures = new List<Texture>();
+            var supportedImageExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif", ".tiff" };
             int totalFiles = filenames.Length;
             int processedFiles = 0;
 
             foreach (var fn in filenames)
             {
                 if (string.IsNullOrEmpty(fn)) continue;
-                if (fn.EndsWith(".dds", StringComparison.InvariantCultureIgnoreCase) == false) continue;
                 if (!File.Exists(fn)) continue;
-                
+
+                var ext = Path.GetExtension(fn).ToLowerInvariant();
+                var isDds = ext == ".dds";
+                var isImage = supportedImageExtensions.Contains(ext);
+
+                if (!isDds && !isImage) continue;
+
                 try
                 {
-                    var dds = await File.ReadAllBytesAsync(fn, cancellationToken).ConfigureAwait(false);
-                    var tex = await DDSIO.GetTextureAsync(dds, null, cancellationToken).ConfigureAwait(false);
+                    Texture tex;
+
+                    if (isDds)
+                    {
+                        var dds = await File.ReadAllBytesAsync(fn, cancellationToken).ConfigureAwait(false);
+                        tex = await DDSIO.GetTextureAsync(dds, null, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // For image files, we need to show UI on the main thread
+                        TextureCompressionFormat format = TextureCompressionFormat.DXT5;
+                        TextureCompressionQuality quality = TextureCompressionQuality.Normal;
+                        bool generateMipmaps = true;
+                        bool useCuda = true;
+                        int minMipmapSize = 0;
+                        bool dialogOk = false;
+
+                        await Task.Factory.StartNew(() =>
+                        {
+                            using var importForm = new TextureImportForm(fn);
+                            if (importForm.ShowDialog() == DialogResult.OK)
+                            {
+                                format = importForm.SelectedFormat;
+                                quality = importForm.SelectedQuality;
+                                generateMipmaps = importForm.GenerateMipmaps;
+                                useCuda = importForm.UseCuda;
+                                minMipmapSize = importForm.MinMipmapSize;
+                                dialogOk = true;
+                            }
+                        }, cancellationToken, TaskCreationOptions.None, TaskScheduler.FromCurrentSynchronizationContext()).ConfigureAwait(false);
+
+                        if (!dialogOk)
+                        {
+                            processedFiles++;
+                            progress?.Report((float)processedFiles / totalFiles);
+                            continue;
+                        }
+
+                        var result = TextureCompressor.CompressTexture(fn, format, quality, generateMipmaps, useCuda, minMipmapSize);
+                        if (!result.Success || result.Texture == null)
+                        {
+                            await Task.Run(() => MessageBox.Show($"Failed to compress {fn}.\n{result.ErrorMessage}", "Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error)).ConfigureAwait(false);
+                            processedFiles++;
+                            progress?.Report((float)processedFiles / totalFiles);
+                            continue;
+                        }
+                        tex = result.Texture;
+                    }
+
                     tex.Name = Path.GetFileNameWithoutExtension(fn);
                     tex.NameHash = JenkHash.GenHash(tex.Name?.ToLowerInvariant());
                     JenkIndex.Ensure(tex.Name?.ToLowerInvariant());
@@ -397,10 +487,9 @@ namespace CodeWalker.Forms
                 {
                     throw;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Report error on UI thread
-                    await Task.Run(() => MessageBox.Show("Unable to load " + fn + ".\nAre you sure it's a valid .dds file?")).ConfigureAwait(false);
+                    await Task.Run(() => MessageBox.Show($"Unable to load {fn}.\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)).ConfigureAwait(false);
                 }
 
                 processedFiles++;
