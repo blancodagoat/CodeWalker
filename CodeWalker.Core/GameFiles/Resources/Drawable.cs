@@ -1109,8 +1109,20 @@ namespace CodeWalker.GameFiles
                 {
                     if (param.Data is TextureBase tex)
                     {
+                        string texName = tex.Name;
+                        if (texName != null)
+                        {
+                            if (texName.StartsWith("pack:/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                texName = texName.Substring(6);
+                            }
+                            if (texName.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+                            {
+                                texName = texName.Substring(0, texName.Length - 4);
+                            }
+                        }
                         YdrXml.OpenTag(sb, indent, otstr);
-                        YdrXml.StringTag(sb, cind, "Name", YdrXml.XmlEscape(tex.Name));
+                        YdrXml.StringTag(sb, cind, "Name", YdrXml.XmlEscape(texName));
                         YdrXml.CloseTag(sb, indent, "Item");
                     }
                     else

@@ -640,7 +640,19 @@ namespace CodeWalker.GameFiles
         }
         public virtual void WriteXml(StringBuilder sb, int indent, string ddsfolder)
         {
-            YtdXml.StringTag(sb, indent, "Name", YtdXml.XmlEscape(Name));
+            string xmlName = Name;
+            if (xmlName != null)
+            {
+                if (xmlName.StartsWith("pack:/", StringComparison.OrdinalIgnoreCase))
+                {
+                    xmlName = xmlName.Substring(6);
+                }
+                if (xmlName.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+                {
+                    xmlName = xmlName.Substring(0, xmlName.Length - 4);
+                }
+            }
+            YtdXml.StringTag(sb, indent, "Name", YtdXml.XmlEscape(xmlName));
             YtdXml.ValueTag(sb, indent, "Unk32", Unknown_32h.ToString());
             YtdXml.StringTag(sb, indent, "Usage", Usage.ToString());
             YtdXml.StringTag(sb, indent, "UsageFlags", UsageFlags.ToString());
@@ -986,7 +998,18 @@ namespace CodeWalker.GameFiles
             YtdXml.ValueTag(sb, indent, "Height", Height.ToString());
             YtdXml.ValueTag(sb, indent, "MipLevels", Levels.ToString());
             YtdXml.StringTag(sb, indent, "Format", Format.ToString());
-            YtdXml.StringTag(sb, indent, "FileName", YtdXml.XmlEscape((Name ?? "null") + ".dds"));
+
+            string ddsName = Name ?? "null";
+            if (ddsName.StartsWith("pack:/", StringComparison.OrdinalIgnoreCase))
+            {
+                ddsName = ddsName.Substring(6);
+            }
+            if (ddsName.EndsWith(".dds", StringComparison.OrdinalIgnoreCase))
+            {
+                ddsName = ddsName.Substring(0, ddsName.Length - 4);
+            }
+
+            YtdXml.StringTag(sb, indent, "FileName", YtdXml.XmlEscape(ddsName + ".dds"));
 
             try
             {
@@ -996,7 +1019,7 @@ namespace CodeWalker.GameFiles
                     {
                         Directory.CreateDirectory(ddsfolder);
                     }
-                    var filepath = Path.Combine(ddsfolder, (Name ?? "null") + ".dds");
+                    var filepath = Path.Combine(ddsfolder, ddsName + ".dds");
                     var dds = DDSIO.GetDDSFile(this);
                     File.WriteAllBytes(filepath, dds);
                 }
