@@ -1215,10 +1215,13 @@ namespace CodeWalker.World
             CurrentHour = hour;
             CurrentWeather = weather;
             var items = MapDataStore.GetItems(ref cam.Position);
-            
+
+            // Create a snapshot to avoid collection modified exception from concurrent access
+            var itemsSnapshot = items.ToArray();
+
             // Pre-filter items and batch process for better performance
-            var validItems = new List<MapDataStoreNode>(items.Count);
-            foreach (var item in items)
+            var validItems = new List<MapDataStoreNode>(itemsSnapshot.Length);
+            foreach (var item in itemsSnapshot)
             {
                 if (item != null && item.Name > 0 && !ymaps.ContainsKey(item.Name))
                 {
