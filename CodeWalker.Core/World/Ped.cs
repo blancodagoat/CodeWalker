@@ -43,6 +43,9 @@ namespace CodeWalker.World
 
         public YmapEntityDef RenderEntity = new(); //placeholder entity object for rendering
 
+        // Track if base ped files are loaded
+        public bool IsLoaded => Yft?.Loaded ?? false;
+        public bool IsLoading { get; private set; } = false;
 
         public void Init(string name, GameFileCache gfc)
         {
@@ -52,6 +55,20 @@ namespace CodeWalker.World
         }
         public void Init(MetaHash pedhash, GameFileCache gfc)
         {
+            // Use async version internally but wait for completion
+            InitAsync(pedhash, gfc).GetAwaiter().GetResult();
+        }
+
+        public async Task InitAsync(string name, GameFileCache gfc)
+        {
+            var hash = JenkHash.GenHash(name.ToLowerInvariant());
+            await InitAsync(hash, gfc);
+            Name = name;
+        }
+
+        public async Task InitAsync(MetaHash pedhash, GameFileCache gfc)
+        {
+            IsLoading = true;
 
             Name = string.Empty;
             NameHash = 0;
@@ -73,15 +90,19 @@ namespace CodeWalker.World
 
 
             CPedModelInfo__InitData initdata = null;
-            if (!gfc.PedsInitDict.TryGetValue(pedhash, out initdata)) return;
+            if (!gfc.PedsInitDict.TryGetValue(pedhash, out initdata))
+            {
+                IsLoading = false;
+                return;
+            }
 
             var ycdhash = JenkHash.GenHash(initdata.ClipDictionaryName.ToLowerInvariant());
             var yedhash = JenkHash.GenHash(initdata.ExpressionDictionaryName.ToLowerInvariant());
 
-            //bool pedchange = NameHash != pedhash;
-            //Name = pedname;
             NameHash = pedhash;
             InitData = initdata;
+
+            // Request all files at once - they'll load in parallel via the content thread
             Ydd = gfc.GetYdd(pedhash);
             Ytd = gfc.GetYtd(pedhash);
             Ycd = gfc.GetYcd(ycdhash);
@@ -107,41 +128,10 @@ namespace CodeWalker.World
             if (ClothFilesDict?.TryGetValue(pedhash, out clothFile) ?? false)
             {
                 Yld = gfc.GetFileUncached<YldFile>(clothFile);
-                while ((Yld != null) && (!Yld.Loaded))
-                {
-                    Thread.Sleep(1);//kinda hacky
-                    gfc.TryLoadEnqueue(Yld);
-                }
             }
 
-
-
-            while ((Ydd != null) && (!Ydd.Loaded))
-            {
-                Thread.Sleep(1);//kinda hacky
-                Ydd = gfc.GetYdd(pedhash);
-            }
-            while ((Ytd != null) && (!Ytd.Loaded))
-            {
-                Thread.Sleep(1);//kinda hacky
-                Ytd = gfc.GetYtd(pedhash);
-            }
-            while ((Ycd != null) && (!Ycd.Loaded))
-            {
-                Thread.Sleep(1);//kinda hacky
-                Ycd = gfc.GetYcd(ycdhash);
-            }
-            while ((Yed != null) && (!Yed.Loaded))
-            {
-                Thread.Sleep(1);//kinda hacky
-                Yed = gfc.GetYed(yedhash);
-            }
-            while ((Yft != null) && (!Yft.Loaded))
-            {
-                Thread.Sleep(1);//kinda hacky
-                Yft = gfc.GetYft(pedhash);
-            }
-
+            // Wait for all files to load in parallel using async delay instead of Thread.Sleep
+            await WaitForFilesAsync(gfc, pedhash, ycdhash, yedhash);
 
             Skeleton = Yft?.Fragment?.Drawable?.Skeleton?.Clone();
 
@@ -155,8 +145,32 @@ namespace CodeWalker.World
             Yed?.ExprMap?.TryGetValue(exprhash, out expr);
             Expression = expr;
 
-
+            IsLoading = false;
             UpdateEntity();
+        }
+
+        private async Task WaitForFilesAsync(GameFileCache gfc, MetaHash pedhash, MetaHash ycdhash, MetaHash yedhash)
+        {
+            const int maxWaitMs = 10000; // 10 second timeout
+            const int checkIntervalMs = 5; // Check every 5ms instead of 1ms
+            var startTime = DateTime.UtcNow;
+
+            while ((DateTime.UtcNow - startTime).TotalMilliseconds < maxWaitMs)
+            {
+                bool allLoaded = true;
+
+                // Check and update references for files that might have been reloaded
+                if (Ydd != null && !Ydd.Loaded) { Ydd = gfc.GetYdd(pedhash); allLoaded = false; }
+                if (Ytd != null && !Ytd.Loaded) { Ytd = gfc.GetYtd(pedhash); allLoaded = false; }
+                if (Ycd != null && !Ycd.Loaded) { Ycd = gfc.GetYcd(ycdhash); allLoaded = false; }
+                if (Yed != null && !Yed.Loaded) { Yed = gfc.GetYed(yedhash); allLoaded = false; }
+                if (Yft != null && !Yft.Loaded) { Yft = gfc.GetYft(pedhash); allLoaded = false; }
+                if (Yld != null && !Yld.Loaded) { gfc.TryLoadEnqueue(Yld); allLoaded = false; }
+
+                if (allLoaded) break;
+
+                await Task.Delay(checkIntervalMs);
+            }
         }
 
 
@@ -165,85 +179,103 @@ namespace CodeWalker.World
 
         public void SetComponentDrawable(int index, string name, string tex, GameFileCache gfc)
         {
+            // Use async version internally
+            SetComponentDrawableAsync(index, name, tex, gfc).GetAwaiter().GetResult();
+        }
+
+        public async Task SetComponentDrawableAsync(int index, string name, string tex, GameFileCache gfc)
+        {
             if (string.IsNullOrEmpty(name))
             {
                 DrawableNames[index] = null;
                 Drawables[index] = null;
                 Textures[index] = null;
                 Expressions[index] = null;
+                Clothes[index] = null;
                 return;
             }
 
             MetaHash namehash = JenkHash.GenHash(name.ToLowerInvariant());
+            MetaHash texhash = JenkHash.GenHash(tex.ToLowerInvariant());
+
+            // Start loading all required files in parallel
+            YddFile yddFile = null;
+            YtdFile ytdFile = null;
+            YldFile yldFile = null;
+
+            // Check if drawable is in the main ped YDD first
             Drawable d = null;
             if (Ydd?.Dict != null)
             {
                 Ydd.Dict.TryGetValue(namehash, out d);
             }
-            if ((d == null) && (DrawableFilesDict != null))
+
+            // If not found, need to load from component-specific file
+            if (d == null && DrawableFilesDict != null && DrawableFilesDict.TryGetValue(namehash, out RpfFileEntry drawableFile))
             {
-                RpfFileEntry file = null;
-                if (DrawableFilesDict.TryGetValue(namehash, out file))
-                {
-                    var ydd = gfc.GetFileUncached<YddFile>(file);
-                    while ((ydd != null) && (!ydd.Loaded))
-                    {
-                        Thread.Sleep(1);//kinda hacky
-                        gfc.TryLoadEnqueue(ydd);
-                    }
-                    if (ydd?.Drawables?.Length > 0)
-                    {
-                        d = ydd.Drawables[0];//should only be one in this dict
-                    }
-                }
+                yddFile = gfc.GetFileUncached<YddFile>(drawableFile);
             }
 
-            MetaHash texhash = JenkHash.GenHash(tex.ToLowerInvariant());
+            // Check if texture is in the main ped YTD first
             Texture t = null;
             if (Ytd?.TextureDict?.Dict != null)
             {
                 Ytd.TextureDict.Dict.TryGetValue(texhash, out t);
             }
-            if ((t == null) && (TextureFilesDict != null))
+
+            // If not found, need to load from component-specific file
+            if (t == null && TextureFilesDict != null && TextureFilesDict.TryGetValue(texhash, out RpfFileEntry textureFile))
             {
-                RpfFileEntry file = null;
-                if (TextureFilesDict.TryGetValue(texhash, out file))
-                {
-                    var ytd = gfc.GetFileUncached<YtdFile>(file);
-                    while ((ytd != null) && (!ytd.Loaded))
-                    {
-                        Thread.Sleep(1);//kinda hacky
-                        gfc.TryLoadEnqueue(ytd);
-                    }
-                    if (ytd?.TextureDict?.Textures?.data_items.Length > 0)
-                    {
-                        t = ytd.TextureDict.Textures.data_items[0];//should only be one in this dict
-                    }
-                }
+                ytdFile = gfc.GetFileUncached<YtdFile>(textureFile);
             }
 
+            // Check if cloth is in the main ped YLD first
             CharacterCloth cc = null;
             if (Yld?.Dict != null)
             {
                 Yld.Dict.TryGetValue(namehash, out cc);
             }
-            if ((cc == null) && (ClothFilesDict != null))
+
+            // If not found, need to load from component-specific file
+            if (cc == null && ClothFilesDict != null && ClothFilesDict.TryGetValue(namehash, out RpfFileEntry clothFile))
             {
-                RpfFileEntry file = null;
-                if (ClothFilesDict.TryGetValue(namehash, out file))
-                {
-                    var yld = gfc.GetFileUncached<YldFile>(file);
-                    while ((yld != null) && (!yld.Loaded))
-                    {
-                        Thread.Sleep(1);//kinda hacky
-                        gfc.TryLoadEnqueue(yld);
-                    }
-                    if (yld?.ClothDictionary?.Clothes?.data_items?.Length > 0)
-                    {
-                        cc = yld.ClothDictionary.Clothes.data_items[0];//should only be one in this dict
-                    }
-                }
+                yldFile = gfc.GetFileUncached<YldFile>(clothFile);
             }
+
+            // Wait for any files that need loading
+            const int maxWaitMs = 5000;
+            const int checkIntervalMs = 5;
+            var startTime = DateTime.UtcNow;
+
+            while ((DateTime.UtcNow - startTime).TotalMilliseconds < maxWaitMs)
+            {
+                bool allLoaded = true;
+
+                if (yddFile != null && !yddFile.Loaded) { gfc.TryLoadEnqueue(yddFile); allLoaded = false; }
+                if (ytdFile != null && !ytdFile.Loaded) { gfc.TryLoadEnqueue(ytdFile); allLoaded = false; }
+                if (yldFile != null && !yldFile.Loaded) { gfc.TryLoadEnqueue(yldFile); allLoaded = false; }
+
+                if (allLoaded) break;
+
+                await Task.Delay(checkIntervalMs);
+            }
+
+            // Extract results from loaded files
+            if (d == null && yddFile?.Drawables?.Length > 0)
+            {
+                d = yddFile.Drawables[0];
+            }
+
+            if (t == null && ytdFile?.TextureDict?.Textures?.data_items?.Length > 0)
+            {
+                t = ytdFile.TextureDict.Textures.data_items[0];
+            }
+
+            if (cc == null && yldFile?.ClothDictionary?.Clothes?.data_items?.Length > 0)
+            {
+                cc = yldFile.ClothDictionary.Clothes.data_items[0];
+            }
+
             ClothInstance c = null;
             if (cc != null)
             {
@@ -257,7 +289,6 @@ namespace CodeWalker.World
                 Yed.ExprMap.TryGetValue(namehash, out e);
             }
 
-
             if (d != null) Drawables[index] = d.ShallowCopy() as Drawable;
             if (t != null) Textures[index] = t;
             if (c != null) Clothes[index] = c;
@@ -267,6 +298,11 @@ namespace CodeWalker.World
         }
 
         public void SetComponentDrawable(int index, int drawbl, int alt, int tex, GameFileCache gfc)
+        {
+            SetComponentDrawableAsync(index, drawbl, alt, tex, gfc).GetAwaiter().GetResult();
+        }
+
+        public async Task SetComponentDrawableAsync(int index, int drawbl, int alt, int tex, GameFileCache gfc)
         {
             var vi = Ymt?.VariationInfo;
             if (vi != null)
@@ -279,7 +315,7 @@ namespace CodeWalker.World
                     {
                         var name = item?.GetDrawableName(alt);
                         var texn = item?.GetTextureName(tex);
-                        SetComponentDrawable(index, name, texn, gfc);
+                        await SetComponentDrawableAsync(index, name, texn, gfc);
                     }
                 }
             }
@@ -287,10 +323,18 @@ namespace CodeWalker.World
 
         public void LoadDefaultComponents(GameFileCache gfc)
         {
+            LoadDefaultComponentsAsync(gfc).GetAwaiter().GetResult();
+        }
+
+        public async Task LoadDefaultComponentsAsync(GameFileCache gfc)
+        {
+            // Load all 12 components in parallel
+            var tasks = new Task[12];
             for (int i = 0; i < 12; i++)
             {
-                SetComponentDrawable(i, 0, 0, 0, gfc);
+                tasks[i] = SetComponentDrawableAsync(i, 0, 0, 0, gfc);
             }
+            await Task.WhenAll(tasks);
         }
 
 

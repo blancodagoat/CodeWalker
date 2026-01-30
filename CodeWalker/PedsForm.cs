@@ -736,10 +736,19 @@ namespace CodeWalker
 
             DetailsPropertyGrid.SelectedObject = null;
 
-            SelectedPed.Init(pedname, GameFileCache);
+            // Load ped asynchronously to avoid blocking UI
+            Task.Run(async () =>
+            {
+                await SelectedPed.InitAsync(pedname, GameFileCache);
 
+                // Update UI on main thread after ped is loaded
+                BeginInvoke(new Action(() => OnPedLoaded(pedchange)));
+            });
+        }
+
+        private void OnPedLoaded(bool pedchange)
+        {
             LoadModel(SelectedPed.Yft, pedchange);
-
 
             var vi = SelectedPed.Ymt?.VariationInfo;
             if (vi != null)
@@ -753,11 +762,9 @@ namespace CodeWalker
             ClipDictComboBox.Text = SelectedPed.InitData?.ClipDictionaryName ?? "";
             ClipComboBox.Text = "idle";
 
-
             DetailsPropertyGrid.SelectedObject = SelectedPed;
 
             UpdateModelsUI();
-
         }
 
         public void LoadModel(YftFile yft, bool movecamera = true)
@@ -812,18 +819,17 @@ namespace CodeWalker
 
         private void SetComponentDrawable(int index, object comboObj)
         {
-
             var comboItem = comboObj as ComponentComboItem;
             var name = comboItem?.DrawableName;
             var tex = comboItem?.TextureName;
 
-            SelectedPed.SetComponentDrawable(index, name, tex, GameFileCache);
-
-            UpdateModelsUI();
+            // Run async on background thread to avoid UI blocking
+            Task.Run(async () =>
+            {
+                await SelectedPed.SetComponentDrawableAsync(index, name, tex, GameFileCache);
+                BeginInvoke(new Action(UpdateModelsUI));
+            });
         }
-
-
-
 
 
 
@@ -831,31 +837,27 @@ namespace CodeWalker
         {
             var ycdhash = JenkHash.GenHash(name.ToLowerInvariant());
             var ycd = GameFileCache.GetYcd(ycdhash);
-            while ((ycd != null) && (!ycd.Loaded))
+
+            // Start async loading on background thread
+            Task.Run(async () =>
             {
-                Thread.Sleep(1);//kinda hacky
-                ycd = GameFileCache.GetYcd(ycdhash);
-            }
+                const int maxWaitMs = 5000;
+                const int checkIntervalMs = 5;
+                var startTime = DateTime.UtcNow;
 
+                while ((ycd != null) && (!ycd.Loaded) && (DateTime.UtcNow - startTime).TotalMilliseconds < maxWaitMs)
+                {
+                    await Task.Delay(checkIntervalMs);
+                    ycd = GameFileCache.GetYcd(ycdhash);
+                }
 
+                // Update UI on main thread
+                BeginInvoke(new Action(() => PopulateClipComboBox(ycd)));
+            });
+        }
 
-            //if (ycd != null)
-            //{
-            //    ////// TESTING XML CONVERSIONS
-            //    //var data = ycd.Save();
-            //    var xml = YcdXml.GetXml(ycd);
-            //    var ycd2 = XmlYcd.GetYcd(xml);
-            //    var data = ycd2.Save();
-            //    var ycd3 = new YcdFile();
-            //    RpfFile.LoadResourceFile(ycd3, data, 46);
-            //    //var xml2 = YcdXml.GetXml(ycd3);
-            //    //if (xml != xml2)
-            //    //{ }
-            //    ycd = ycd3;
-            //}
-
-
-
+        private void PopulateClipComboBox(YcdFile ycd)
+        {
             SelectedPed.Ycd = ycd;
 
             ClipComboBox.Items.Clear();

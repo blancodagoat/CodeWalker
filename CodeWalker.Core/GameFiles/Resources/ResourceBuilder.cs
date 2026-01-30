@@ -549,8 +549,8 @@ namespace CodeWalker.GameFiles
             fileBase.FilePagesInfo.GraphicsPagesCount = (byte)graphicsPageFlags.Count;
 
 
-            var systemStream = new MemoryStream();
-            var graphicsStream = new MemoryStream();
+            using var systemStream = new MemoryStream();
+            using var graphicsStream = new MemoryStream();
             var resourceWriter = new ResourceDataWriter(systemStream, graphicsStream);
             resourceWriter.IsGen9 = gen9;
 
@@ -660,29 +660,20 @@ namespace CodeWalker.GameFiles
 
         public static byte[] Compress(byte[] data)
         {
-            using (MemoryStream ms = new())
+            using var ms = new MemoryStream();
+            using (var ds = new DeflateStream(ms, CompressionMode.Compress, leaveOpen: true))
             {
-                DeflateStream ds = new(ms, CompressionMode.Compress, true);
                 ds.Write(data, 0, data.Length);
-                ds.Close();
-                byte[] deflated = ms.GetBuffer();
-                byte[] outbuf = new byte[ms.Length]; //need to copy to the right size buffer...
-                Array.Copy(deflated, outbuf, outbuf.Length);
-                return outbuf;
             }
+            return ms.ToArray();
         }
         public static byte[] Decompress(byte[] data)
         {
-            using (MemoryStream ms = new(data))
-            {
-                DeflateStream ds = new(ms, CompressionMode.Decompress);
-                MemoryStream outstr = new();
-                ds.CopyTo(outstr);
-                byte[] deflated = outstr.GetBuffer();
-                byte[] outbuf = new byte[outstr.Length]; //need to copy to the right size buffer...
-                Array.Copy(deflated, outbuf, outbuf.Length);
-                return outbuf;
-            }
+            using var ms = new MemoryStream(data);
+            using var ds = new DeflateStream(ms, CompressionMode.Decompress);
+            using var outstr = new MemoryStream();
+            ds.CopyTo(outstr);
+            return outstr.ToArray();
         }
 
     }

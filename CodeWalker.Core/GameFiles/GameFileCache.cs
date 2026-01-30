@@ -2664,98 +2664,83 @@ namespace CodeWalker.GameFiles
 
         public bool ContentThreadProc()
         {
-            Monitor.Enter(updateSyncRoot);
-
-            GameFile req;
-            //bool loadedsomething = false;
-
             int itemcount = 0;
 
-            while (requestQueue.TryDequeue(out req) && (itemcount < MaxItemsPerLoop))
+            lock (updateSyncRoot)
             {
-                //process content requests.
-                if (req.Loaded)
-                    continue; //it's already loaded... (somehow)
+                while (requestQueue.TryDequeue(out GameFile req) && (itemcount < MaxItemsPerLoop))
+                {
+                    //process content requests.
+                    if (req.Loaded)
+                        continue; //it's already loaded... (somehow)
 
-                if ((req.LastUseTime - DateTime.Now).TotalSeconds > 0.5)
-                    continue; //hasn't been requested lately..! ignore, will try again later if necessary
+                    if ((req.LastUseTime - DateTime.Now).TotalSeconds > 0.5)
+                        continue; //hasn't been requested lately..! ignore, will try again later if necessary
 
-                itemcount++;
-                //if (!loadedsomething)
-                //{
-                //UpdateStatus("Loading " + req.RpfFileEntry.Name + "...");
-                //}
+                    itemcount++;
 
 #if !DEBUG
-                try
-                {
+                    try
+                    {
 #endif
 
-                switch (req.Type)
-                {
-                    case GameFileType.Ydr:
-                        req.Loaded = LoadFile(req as YdrFile);
-                        break;
-                    case GameFileType.Ydd:
-                        req.Loaded = LoadFile(req as YddFile);
-                        break;
-                    case GameFileType.Ytd:
-                        req.Loaded = LoadFile(req as YtdFile);
-                        //if (req.Loaded) AddTextureLookups(req as YtdFile);
-                        break;
-                    case GameFileType.Ymap:
-                        YmapFile y = req as YmapFile;
-                        req.Loaded = LoadFile(y);
-                        if (req.Loaded) y.InitYmapEntityArchetypes(this);
-                        break;
-                    case GameFileType.Yft:
-                        req.Loaded = LoadFile(req as YftFile);
-                        break;
-                    case GameFileType.Ybn:
-                        req.Loaded = LoadFile(req as YbnFile);
-                        break;
-                    case GameFileType.Ycd:
-                        req.Loaded = LoadFile(req as YcdFile);
-                        break;
-                    case GameFileType.Yed:
-                        req.Loaded = LoadFile(req as YedFile);
-                        break;
-                    case GameFileType.Ynv:
-                        req.Loaded = LoadFile(req as YnvFile);
-                        break;
-                    case GameFileType.Yld:
-                        req.Loaded = LoadFile(req as YldFile);
-                        break;
-                    default:
-                        break;
-                }
+                    switch (req.Type)
+                    {
+                        case GameFileType.Ydr:
+                            req.Loaded = LoadFile(req as YdrFile);
+                            break;
+                        case GameFileType.Ydd:
+                            req.Loaded = LoadFile(req as YddFile);
+                            break;
+                        case GameFileType.Ytd:
+                            req.Loaded = LoadFile(req as YtdFile);
+                            break;
+                        case GameFileType.Ymap:
+                            YmapFile y = req as YmapFile;
+                            req.Loaded = LoadFile(y);
+                            if (req.Loaded) y.InitYmapEntityArchetypes(this);
+                            break;
+                        case GameFileType.Yft:
+                            req.Loaded = LoadFile(req as YftFile);
+                            break;
+                        case GameFileType.Ybn:
+                            req.Loaded = LoadFile(req as YbnFile);
+                            break;
+                        case GameFileType.Ycd:
+                            req.Loaded = LoadFile(req as YcdFile);
+                            break;
+                        case GameFileType.Yed:
+                            req.Loaded = LoadFile(req as YedFile);
+                            break;
+                        case GameFileType.Ynv:
+                            req.Loaded = LoadFile(req as YnvFile);
+                            break;
+                        case GameFileType.Yld:
+                            req.Loaded = LoadFile(req as YldFile);
+                            break;
+                        default:
+                            break;
+                    }
 
-                UpdateStatus((req.Loaded ? "Loaded " : "Error loading ") + req.ToString());
+                    UpdateStatus((req.Loaded ? "Loaded " : "Error loading ") + req.ToString());
 
-                if (!req.Loaded)
-                {
-                    ErrorLog("Error loading " + req.ToString());
-                }
+                    if (!req.Loaded)
+                    {
+                        ErrorLog("Error loading " + req.ToString());
+                    }
 #if !DEBUG
-                }
-                catch (Exception ex)
-                {
-                    ErrorLog($"Failed to load file {req.Name}: {ex.Message}");
-                    //TODO: try to stop subsequent attempts to load this!
-                }
+                    }
+                    catch (Exception ex)
+                    {
+                        ErrorLog($"Failed to load file {req.Name}: {ex.Message}");
+                        //TODO: try to stop subsequent attempts to load this!
+                    }
 #endif
-
-                //loadedsomething = true;
+                }
             }
 
             //whether or not we need another content thread loop
-            bool itemsStillPending = (itemcount >= MaxItemsPerLoop);
-
-
-            Monitor.Exit(updateSyncRoot);
-
-
-            return itemsStillPending;
+            return itemcount >= MaxItemsPerLoop;
         }
 
 
@@ -2900,71 +2885,66 @@ namespace CodeWalker.GameFiles
             return drawable;
         }
 
-        public async Task<(DrawableBase drawable, bool waitingForLoad)> TryGetDrawableAsync(Archetype arche)
+        public async Task<(DrawableBase? drawable, bool waitingForLoad)> TryGetDrawableAsync(Archetype arche)
         {
-            bool waitingForLoad = false;
             if (arche == null) return (null, false);
 
             uint drawhash = arche.Hash;
-            DrawableBase drawable = null;
 
-            // Run Ydd, Ydr, and Yft parts in parallel
-            var yddTask = Task.Run(() => TryGetDrawableFromYdd(arche, drawhash, ref drawable));
-            var ydrTask = Task.Run(() => TryGetDrawableFromYdr(drawhash, ref drawable));
-            var yftTask = Task.Run(() => TryGetDrawableFromYft(drawhash, ref drawable));
+            // Run Ydd, Ydr, and Yft parts in parallel - each returns its own result
+            var yddTask = Task.Run(() => TryGetDrawableFromYdd(arche, drawhash));
+            var ydrTask = Task.Run(() => TryGetDrawableFromYdr(drawhash));
+            var yftTask = Task.Run(() => TryGetDrawableFromYft(drawhash));
 
-            // Wait for any of them to complete
-            await Task.WhenAny(yddTask, ydrTask, yftTask);
+            // Wait for all tasks to complete
+            await Task.WhenAll(yddTask, ydrTask, yftTask);
 
-            // After any task completes, check if drawable is loaded or if we are still waiting
-            if (drawable != null) return (drawable, waitingForLoad);
+            // Check results in priority order
+            var yddResult = await yddTask;
+            if (yddResult != null) return (yddResult, false);
 
-            // If all tasks are still running, check their load status
-            if (yddTask.Status != TaskStatus.RanToCompletion || ydrTask.Status != TaskStatus.RanToCompletion || yftTask.Status != TaskStatus.RanToCompletion)
-            {
-                waitingForLoad = true;
-                return (null, true); // Not ready yet, return early
-            }
+            var ydrResult = await ydrTask;
+            if (ydrResult != null) return (ydrResult, false);
 
-            return (drawable, waitingForLoad);
+            var yftResult = await yftTask;
+            if (yftResult != null) return (yftResult, false);
+
+            return (null, true);
         }
 
-        // Helper functions for Ydd, Ydr, and Yft
+        // Helper functions for Ydd, Ydr, and Yft - return results instead of using ref
 
-        private void TryGetDrawableFromYdd(Archetype arche, uint drawhash, ref DrawableBase drawable)
+        private DrawableBase? TryGetDrawableFromYdd(Archetype arche, uint drawhash)
         {
             if (arche.DrawableDict != 0)
             {
                 YddFile ydd = GetYdd(arche.DrawableDict);
                 if (ydd != null && ydd.Loaded && ydd.Dict != null && ydd.Dict.TryGetValue(drawhash, out Drawable d))
                 {
-                    drawable = d;
+                    return d;
                 }
             }
+            return null;
         }
 
-        private void TryGetDrawableFromYdr(uint drawhash, ref DrawableBase drawable)
+        private DrawableBase? TryGetDrawableFromYdr(uint drawhash)
         {
-            if (drawable == null)
+            YdrFile ydr = GetYdr(drawhash);
+            if (ydr != null && ydr.Loaded)
             {
-                YdrFile ydr = GetYdr(drawhash);
-                if (ydr != null && ydr.Loaded)
-                {
-                    drawable = ydr.Drawable;
-                }
+                return ydr.Drawable;
             }
+            return null;
         }
 
-        private void TryGetDrawableFromYft(uint drawhash, ref DrawableBase drawable)
+        private DrawableBase? TryGetDrawableFromYft(uint drawhash)
         {
-            if (drawable == null)
+            YftFile yft = GetYft(drawhash);
+            if (yft != null && yft.Loaded)
             {
-                YftFile yft = GetYft(drawhash);
-                if (yft != null && yft.Loaded)
-                {
-                    drawable = yft.Fragment?.Drawable;
-                }
+                return yft.Fragment?.Drawable;
             }
+            return null;
         }
 
 

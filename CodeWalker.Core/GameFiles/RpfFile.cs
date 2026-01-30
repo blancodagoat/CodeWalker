@@ -447,14 +447,11 @@ namespace CodeWalker.GameFiles
 
                             try
                             {
-                                MemoryStream ms = new MemoryStream(decr);
-                                DeflateStream ds = new DeflateStream(ms, CompressionMode.Decompress);
-
-                                MemoryStream outstr = new MemoryStream();
+                                using var ms = new MemoryStream(decr);
+                                using var ds = new DeflateStream(ms, CompressionMode.Decompress);
+                                using var outstr = new MemoryStream();
                                 ds.CopyTo(outstr);
-                                byte[] deflated = outstr.GetBuffer();
-                                byte[] outbuf = new byte[outstr.Length]; //need to copy to the right size buffer for File.WriteAllBytes().
-                                Array.Copy(deflated, outbuf, outbuf.Length);
+                                byte[] outbuf = outstr.ToArray();
 
                                 bool pathok = true;
                                 if (File.Exists(ofpath))
@@ -1257,14 +1254,13 @@ namespace CodeWalker.GameFiles
         }
         private byte[] GetHeaderNamesData()
         {
-            MemoryStream namesstream = new MemoryStream();
-            DataWriter nameswriter = new DataWriter(namesstream);
+            using var namesstream = new MemoryStream();
+            var nameswriter = new DataWriter(namesstream);
             var namedict = new Dictionary<string, uint>();
             foreach (var entry in AllEntries)
             {
-                uint nameoffset;
                 string name = entry.Name ?? "";
-                if (namedict.TryGetValue(name, out nameoffset))
+                if (namedict.TryGetValue(name, out uint nameoffset))
                 {
                     entry.NameOffset = nameoffset;
                 }
@@ -1275,23 +1271,17 @@ namespace CodeWalker.GameFiles
                     nameswriter.Write(name);
                 }
             }
-            var buf = new byte[namesstream.Length];
-            namesstream.Position = 0;
-            namesstream.Read(buf, 0, buf.Length);
-            return PadBuffer(buf, 16);
+            return PadBuffer(namesstream.ToArray(), 16);
         }
         private byte[] GetHeaderEntriesData()
         {
-            MemoryStream entriesstream = new MemoryStream();
-            DataWriter entrieswriter = new DataWriter(entriesstream);
+            using var entriesstream = new MemoryStream();
+            var entrieswriter = new DataWriter(entriesstream);
             foreach (var entry in AllEntries)
             {
                 entry.Write(entrieswriter);
             }
-            var buf = new byte[entriesstream.Length];
-            entriesstream.Position = 0;
-            entriesstream.Read(buf, 0, buf.Length);
-            return buf;
+            return entriesstream.ToArray();
         }
         private uint GetHeaderBlockCount()//make sure EntryCount and NamesLength are updated before calling this...
         {

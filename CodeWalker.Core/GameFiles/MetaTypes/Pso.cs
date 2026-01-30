@@ -232,7 +232,7 @@ namespace CodeWalker.GameFiles
                 reader.Position -= 8;
 
                 var sectionData = reader.ReadBytes(length);
-                var sectionStream = new MemoryStream(sectionData);
+                using var sectionStream = new MemoryStream(sectionData);
                 var sectionReader = new DataReader(sectionStream, Endianess.BigEndian);
 
                 switch (ident)
@@ -278,14 +278,9 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
-            var ms = new MemoryStream();
+            using var ms = new MemoryStream();
             Save(ms);
-
-            var buf = new byte[ms.Length];
-            ms.Position = 0;
-            ms.Read(buf, 0, buf.Length);
-
-            return buf;
+            return ms.ToArray();
         }
 
         public void Save(string fileName)
@@ -521,8 +516,7 @@ namespace CodeWalker.GameFiles
 
         public void Write(DataWriter writer)
         {
-
-            var entriesStream = new MemoryStream();
+            using var entriesStream = new MemoryStream();
             var entriesWriter = new DataWriter(entriesStream, Endianess.BigEndian);
             for (int i = 0; i < Entries.Length; i++)
             {
@@ -530,33 +524,20 @@ namespace CodeWalker.GameFiles
                 Entries[i].Write(entriesWriter);
             }
 
-
-
-            var indexStream = new MemoryStream();
+            using var indexStream = new MemoryStream();
             var indexWriter = new DataWriter(indexStream, Endianess.BigEndian);
             foreach (var entry in EntriesIdx)
                 entry.Write(indexWriter);
-
-
-
 
             writer.Write(Ident);
             writer.Write((int)(12 + entriesStream.Length + indexStream.Length));
             writer.Write((uint)(Entries.Length));
 
             // write entries index data
-            var buf1 = new byte[indexStream.Length];
-            indexStream.Position = 0;
-            indexStream.Read(buf1, 0, buf1.Length);
-            writer.Write(buf1);
+            writer.Write(indexStream.ToArray());
 
             // write entries data
-            var buf2 = new byte[entriesStream.Length];
-            entriesStream.Position = 0;
-            entriesStream.Read(buf2, 0, buf2.Length);
-            writer.Write(buf2);
-
-
+            writer.Write(entriesStream.ToArray());
         }
 
         public override string ToString()

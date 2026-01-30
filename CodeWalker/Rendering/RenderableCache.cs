@@ -131,55 +131,55 @@ namespace CodeWalker.Rendering
         {
             if (currentDevice == null) return false; //can't do anything with no device
 
-            Monitor.Enter(updateSyncRoot);
+            bool itemsStillPending = false;
 
-
-            //load the queued items if possible
-            int renderablecount = renderables.LoadProc(currentDevice, MaxItemsPerLoop);
-            int texturecount = textures.LoadProc(currentDevice, MaxItemsPerLoop);
-            int boundcompcount = boundcomps.LoadProc(currentDevice, MaxItemsPerLoop);
-            int instbatchcount = instbatches.LoadProc(currentDevice, MaxItemsPerLoop);
-            int lodlightcount = lodlights.LoadProc(currentDevice, MaxItemsPerLoop);
-            int distlodlightcount = distlodlights.LoadProc(currentDevice, MaxItemsPerLoop);
-            int pathbatchcount = pathbatches.LoadProc(currentDevice, MaxItemsPerLoop);
-            int waterquadcount = waterquads.LoadProc(currentDevice, MaxItemsPerLoop);
-
-
-            bool itemsStillPending = 
-                (renderablecount >= MaxItemsPerLoop) ||
-                (texturecount >= MaxItemsPerLoop) ||
-                (boundcompcount >= MaxItemsPerLoop) ||
-                (instbatchcount >= MaxItemsPerLoop) ||
-                (lodlightcount >= MaxItemsPerLoop) ||
-                (distlodlightcount >= MaxItemsPerLoop) ||
-                (pathbatchcount >= MaxItemsPerLoop) ||
-                (waterquadcount >= MaxItemsPerLoop);
-
-
-            //todo: change this to unload only when necessary (ie when something is loaded)
-            var now = DateTime.UtcNow;
-            var deltat = (now - LastUpdate).TotalSeconds;
-            var unloadt = (now - LastUnload).TotalSeconds;
-            if ((unloadt > UnloadTime) && (deltat < 0.25)) //don't try the unload on every loop... or when really busy
+            lock (updateSyncRoot)
             {
+                //load the queued items if possible
+                int renderablecount = renderables.LoadProc(currentDevice, MaxItemsPerLoop);
+                int texturecount = textures.LoadProc(currentDevice, MaxItemsPerLoop);
+                int boundcompcount = boundcomps.LoadProc(currentDevice, MaxItemsPerLoop);
+                int instbatchcount = instbatches.LoadProc(currentDevice, MaxItemsPerLoop);
+                int lodlightcount = lodlights.LoadProc(currentDevice, MaxItemsPerLoop);
+                int distlodlightcount = distlodlights.LoadProc(currentDevice, MaxItemsPerLoop);
+                int pathbatchcount = pathbatches.LoadProc(currentDevice, MaxItemsPerLoop);
+                int waterquadcount = waterquads.LoadProc(currentDevice, MaxItemsPerLoop);
 
-                //unload items that haven't been used in longer than the cache period.
-                renderables.UnloadProc();
-                textures.UnloadProc();
-                boundcomps.UnloadProc();
-                instbatches.UnloadProc();
-                lodlights.UnloadProc();
-                distlodlights.UnloadProc();
-                pathbatches.UnloadProc();
-                waterquads.UnloadProc();
 
-                LastUnload = DateTime.UtcNow;
+                itemsStillPending =
+                    (renderablecount >= MaxItemsPerLoop) ||
+                    (texturecount >= MaxItemsPerLoop) ||
+                    (boundcompcount >= MaxItemsPerLoop) ||
+                    (instbatchcount >= MaxItemsPerLoop) ||
+                    (lodlightcount >= MaxItemsPerLoop) ||
+                    (distlodlightcount >= MaxItemsPerLoop) ||
+                    (pathbatchcount >= MaxItemsPerLoop) ||
+                    (waterquadcount >= MaxItemsPerLoop);
+
+
+                //todo: change this to unload only when necessary (ie when something is loaded)
+                var now = DateTime.UtcNow;
+                var deltat = (now - LastUpdate).TotalSeconds;
+                var unloadt = (now - LastUnload).TotalSeconds;
+                if ((unloadt > UnloadTime) && (deltat < 0.25)) //don't try the unload on every loop... or when really busy
+                {
+
+                    //unload items that haven't been used in longer than the cache period.
+                    renderables.UnloadProc();
+                    textures.UnloadProc();
+                    boundcomps.UnloadProc();
+                    instbatches.UnloadProc();
+                    lodlights.UnloadProc();
+                    distlodlights.UnloadProc();
+                    pathbatches.UnloadProc();
+                    waterquads.UnloadProc();
+
+                    LastUnload = DateTime.UtcNow;
+                }
+
+
+                LastUpdate = DateTime.UtcNow;
             }
-
-
-            LastUpdate = DateTime.UtcNow;
-
-            Monitor.Exit(updateSyncRoot);
 
             return itemsStillPending;
         }
