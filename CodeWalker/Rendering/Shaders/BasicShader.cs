@@ -76,6 +76,10 @@ namespace CodeWalker.Rendering
         public float wetnessMultiplier;
         public uint SpecOnly;
         public Vector4 TextureAlphaMask;
+        public uint EnableHeightMap;
+        public float heightScale;
+        public float heightBias;
+        public float Pad0;
     }
     public struct BasicShaderInstGlobalMatrix
     {
@@ -609,6 +613,7 @@ namespace CodeWalker.Rendering
             RenderableTexture bumptex = null;
             RenderableTexture spectex = null;
             RenderableTexture detltex = null;
+            RenderableTexture heighttex = null;
             bool isdistmap = false;
 
             float tntpalind = 0.0f;
@@ -664,6 +669,8 @@ namespace CodeWalker.Rendering
                                 texture2 = itex;
                                 break;
                             case ShaderParamNames.heightSampler:
+                                heighttex = itex;
+                                break;
                             case ShaderParamNames.EnvironmentSampler:
                             //case MetaName.SnowSampler0:
                             //case MetaName.SnowSampler1:
@@ -704,6 +711,7 @@ namespace CodeWalker.Rendering
             bool usespec = ((spectex != null) && (spectex.ShaderResourceView != null));
             bool usedetl = ((detltex != null) && (detltex.ShaderResourceView != null));
             bool usetint = ((tintpal != null) && (tintpal.ShaderResourceView != null));
+            bool useheight = ((heighttex != null) && (heighttex.ShaderResourceView != null));
 
             uint tintflag = 0;
             if (usetint) tintflag = 1;
@@ -785,6 +793,10 @@ namespace CodeWalker.Rendering
             PSGeomVars.Vars.wetnessMultiplier = geom.wetnessMultiplier;
             PSGeomVars.Vars.SpecOnly = geom.SpecOnly ? 1u : 0u;
             PSGeomVars.Vars.TextureAlphaMask = textureAlphaMask;
+            PSGeomVars.Vars.EnableHeightMap = useheight ? 1u : 0u;
+            PSGeomVars.Vars.heightScale = geom.heightScale;
+            PSGeomVars.Vars.heightBias = geom.heightBias;
+            PSGeomVars.Vars.Pad0 = 0.0f;
             PSGeomVars.Update(context);
             PSGeomVars.SetPSCBuffer(context, 2);
 
@@ -827,6 +839,10 @@ namespace CodeWalker.Rendering
             if (pstintflag == 2)
             {
                 tintpal.SetPSResource(context, 6);
+            }
+            if (useheight)
+            {
+                heighttex.SetPSResource(context, 7);
             }
 
 
