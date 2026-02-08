@@ -5506,25 +5506,181 @@ namespace CodeWalker.Project
             if (CurrentScenario.ScenarioRegion == null) return false;
             if (CurrentScenarioNode == null) return false;
 
+            var rgn = CurrentScenario.ScenarioRegion;
+            var chain = CurrentScenarioNode.ChainingNode?.Chain;
 
-            //if (MessageBox.Show("Are you sure you want to delete this scenario node?\n" + CurrentScenarioNode.ToString() + "\n\nThis operation cannot be undone. Continue?", "Confirm delete", MessageBoxButtons.YesNo) != DialogResult.Yes)
-            //{
-            //    return true;
-            //}
+            // If the node is part of a chain, delete all nodes in the chain and the chain itself
+            if (chain != null)
+            {
+                // Collect all ScenarioNodes that belong to this chain
+                var chainNodes = new List<ScenarioNode>();
+                var chainChainingNodes = new HashSet<MCScenarioChainingNode>();
+                if (chain.Edges != null)
+                {
+                    foreach (var edge in chain.Edges)
+                    {
+                        if (edge.NodeFrom != null) chainChainingNodes.Add(edge.NodeFrom);
+                        if (edge.NodeTo != null) chainChainingNodes.Add(edge.NodeTo);
+                    }
+                }
+                foreach (var node in rgn.Nodes)
+                {
+                    if (node.ChainingNode != null && chainChainingNodes.Contains(node.ChainingNode))
+                    {
+                        chainNodes.Add(node);
+                    }
+                }
 
-            bool res = false;
+                bool res = true;
+                if (WorldForm != null)
+                {
+                    lock (WorldForm.RenderSyncRoot)
+                    {
+                        rgn.RemoveChain(chain, true);
+                    }
+                }
+                else
+                {
+                    rgn.RemoveChain(chain, true);
+                }
+
+                foreach (var node in chainNodes)
+                {
+                    ProjectExplorer?.RemoveScenarioNodeTreeNode(node);
+                    ClosePanel((EditScenarioNodePanel p) => { return p.Tag == node; });
+                }
+
+                ProjectExplorer?.SetScenarioHasChanged(CurrentScenario, true);
+                CurrentScenarioNode = null;
+
+                if (WorldForm != null)
+                {
+                    WorldForm.UpdateScenarioGraphics(CurrentScenario, false);
+                    WorldForm.SelectItem(null);
+                }
+
+                return true;
+            }
+
+            // If the node is part of a cluster, delete all nodes in the cluster and the cluster itself
+            var cluster = CurrentScenarioNode.Cluster;
+            if (cluster != null)
+            {
+                // Collect all ScenarioNodes that belong to this cluster
+                var clusterNodes = new List<ScenarioNode>();
+                var clusterPoints = new HashSet<MCScenarioPoint>();
+                if (cluster.Points?.MyPoints != null)
+                {
+                    foreach (var point in cluster.Points.MyPoints)
+                    {
+                        clusterPoints.Add(point);
+                    }
+                }
+                foreach (var node in rgn.Nodes)
+                {
+                    if ((node.ClusterMyPoint != null && clusterPoints.Contains(node.ClusterMyPoint))
+                        || node.Cluster == cluster)
+                    {
+                        clusterNodes.Add(node);
+                    }
+                }
+
+                if (WorldForm != null)
+                {
+                    lock (WorldForm.RenderSyncRoot)
+                    {
+                        rgn.RemoveCluster(cluster, true);
+                    }
+                }
+                else
+                {
+                    rgn.RemoveCluster(cluster, true);
+                }
+
+                foreach (var node in clusterNodes)
+                {
+                    ProjectExplorer?.RemoveScenarioNodeTreeNode(node);
+                    ClosePanel((EditScenarioNodePanel p) => { return p.Tag == node; });
+                }
+
+                ProjectExplorer?.SetScenarioHasChanged(CurrentScenario, true);
+                CurrentScenarioNode = null;
+
+                if (WorldForm != null)
+                {
+                    WorldForm.UpdateScenarioGraphics(CurrentScenario, false);
+                    WorldForm.SelectItem(null);
+                }
+
+                return true;
+            }
+
+            // If the node is part of an entity override, delete all nodes in the entity and the entity itself
+            var entity = CurrentScenarioNode.Entity;
+            if (entity != null)
+            {
+                // Collect all ScenarioNodes that belong to this entity
+                var entityNodes = new List<ScenarioNode>();
+                var entityPoints = new HashSet<MCExtensionDefSpawnPoint>();
+                if (entity.ScenarioPoints != null)
+                {
+                    foreach (var point in entity.ScenarioPoints)
+                    {
+                        entityPoints.Add(point);
+                    }
+                }
+                foreach (var node in rgn.Nodes)
+                {
+                    if ((node.EntityPoint != null && entityPoints.Contains(node.EntityPoint))
+                        || node.Entity == entity)
+                    {
+                        entityNodes.Add(node);
+                    }
+                }
+
+                if (WorldForm != null)
+                {
+                    lock (WorldForm.RenderSyncRoot)
+                    {
+                        rgn.RemoveEntity(entity);
+                    }
+                }
+                else
+                {
+                    rgn.RemoveEntity(entity);
+                }
+
+                foreach (var node in entityNodes)
+                {
+                    ProjectExplorer?.RemoveScenarioNodeTreeNode(node);
+                    ClosePanel((EditScenarioNodePanel p) => { return p.Tag == node; });
+                }
+
+                ProjectExplorer?.SetScenarioHasChanged(CurrentScenario, true);
+                CurrentScenarioNode = null;
+
+                if (WorldForm != null)
+                {
+                    WorldForm.UpdateScenarioGraphics(CurrentScenario, false);
+                    WorldForm.SelectItem(null);
+                }
+
+                return true;
+            }
+
+            bool res2 = false;
             if (WorldForm != null)
             {
                 lock (WorldForm.RenderSyncRoot) //don't try to do this while rendering...
                 {
-                    res = CurrentScenario.ScenarioRegion.RemoveNode(CurrentScenarioNode);
+                    res2 = rgn.RemoveNode(CurrentScenarioNode);
                 }
             }
             else
             {
-                res = CurrentScenario.ScenarioRegion.RemoveNode(CurrentScenarioNode);
+                res2 = rgn.RemoveNode(CurrentScenarioNode);
             }
-            if (!res)
+            if (!res2)
             {
                 MessageBox.Show("Unable to delete the scenario node. This shouldn't happen!");
             }
