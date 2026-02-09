@@ -436,7 +436,7 @@ namespace CodeWalker.Rendering
             }
 
 
-            if (shadows)
+            if (shadows && (Shadowmap != null))
             {
                 RenderShadowmap(context);
             }
