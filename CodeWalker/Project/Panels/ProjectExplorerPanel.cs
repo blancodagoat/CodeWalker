@@ -31,10 +31,13 @@ namespace CodeWalker.Project.Panels
 
         public void LoadProjectTree(ProjectFile projectFile)
         {
+            ProjectTreeView.BeginUpdate();
+            try
+            {
             ProjectTreeView.Nodes.Clear();
 
             CurrentProjectFile = projectFile;
-            if (CurrentProjectFile == null) return;
+            if (CurrentProjectFile == null) { ProjectTreeView.EndUpdate(); return; }
 
             var pcstr = CurrentProjectFile.HasChanged ? "*" : "";
 
@@ -302,6 +305,11 @@ namespace CodeWalker.Project.Panels
 
             projnode.Expand();
 
+            }
+            finally
+            {
+                ProjectTreeView.EndUpdate();
+            }
         }
 
         private void LoadYmapTreeNodes(YmapFile ymap, TreeNode node)
@@ -2412,6 +2420,182 @@ namespace CodeWalker.Project.Panels
 
 
 
+        public void UpdateProjectTreeNodeText()
+        {
+            if (CurrentProjectFile == null) return;
+            if (ProjectTreeView.Nodes.Count <= 0) return;
+            var projnode = ProjectTreeView.Nodes[0];
+            var pcstr = CurrentProjectFile.HasChanged ? "*" : "";
+            projnode.Text = pcstr + CurrentProjectFile.Name;
+        }
+        public void UpdateYmapTreeNodeText(YmapFile ymap)
+        {
+            var ymapnode = FindYmapTreeNode(ymap);
+            if (ymapnode == null) return;
+            var ycstr = ymap.HasChanged ? "*" : "";
+            string name = ymap.Name;
+            if (ymap.RpfFileEntry != null) name = ymap.RpfFileEntry.Name;
+            ymapnode.Text = ycstr + name;
+        }
+        public void UpdateYtypTreeNodeText(YtypFile ytyp)
+        {
+            var ytypnode = FindYtypTreeNode(ytyp);
+            if (ytypnode == null) return;
+            var ycstr = ytyp.HasChanged ? "*" : "";
+            string name = ytyp.Name;
+            if (ytyp.RpfFileEntry != null) name = ytyp.RpfFileEntry.Name;
+            ytypnode.Text = ycstr + name;
+        }
+
+
+        public TreeNode AddEntityTreeNode(YmapEntityDef ent)
+        {
+            if (ent?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(ent.Ymap);
+            if (ymapnode == null) return null;
+            var entsnode = GetChildTreeNode(ymapnode, "Entities");
+            if (entsnode == null)
+            {
+                entsnode = ymapnode.Nodes.Add("Entities (" + ent.Ymap.AllEntities.Length.ToString() + ")");
+                entsnode.Name = "Entities";
+                entsnode.Tag = ent.Ymap;
+            }
+            else
+            {
+                entsnode.Text = "Entities (" + ent.Ymap.AllEntities.Length.ToString() + ")";
+            }
+            var edef = ent.CEntityDef;
+            int i = (ent.Ymap.AllEntities?.Length ?? 1) - 1;
+            TreeNode enode;
+            if (ProjectForm.displayentityindexes)
+                enode = entsnode.Nodes.Add($"[{i}] {edef.archetypeName}");
+            else
+                enode = entsnode.Nodes.Add(edef.archetypeName.ToString());
+            enode.Tag = ent;
+            return enode;
+        }
+        public TreeNode AddCarGenTreeNode(YmapCarGen cargen)
+        {
+            if (cargen?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(cargen.Ymap);
+            if (ymapnode == null) return null;
+            var cargensnode = GetChildTreeNode(ymapnode, "CarGens");
+            if (cargensnode == null)
+            {
+                cargensnode = ymapnode.Nodes.Add("Car Generators (" + cargen.Ymap.CarGenerators.Length.ToString() + ")");
+                cargensnode.Name = "CarGens";
+                cargensnode.Tag = cargen.Ymap;
+            }
+            else
+            {
+                cargensnode.Text = "Car Generators (" + cargen.Ymap.CarGenerators.Length.ToString() + ")";
+            }
+            var cgnode = cargensnode.Nodes.Add(cargen.ToString());
+            cgnode.Tag = cargen;
+            return cgnode;
+        }
+        public TreeNode AddLodLightTreeNode(YmapLODLight lodlight)
+        {
+            if (lodlight?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(lodlight.Ymap);
+            if (ymapnode == null) return null;
+            var lodlightsnode = GetChildTreeNode(ymapnode, "LodLights");
+            if (lodlightsnode == null)
+            {
+                lodlightsnode = ymapnode.Nodes.Add("LOD Lights (" + (lodlight.Ymap.LODLights?.LodLights?.Length.ToString() ?? "0") + ")");
+                lodlightsnode.Name = "LodLights";
+                lodlightsnode.Tag = lodlight.Ymap;
+            }
+            else
+            {
+                lodlightsnode.Text = "LOD Lights (" + (lodlight.Ymap.LODLights?.LodLights?.Length.ToString() ?? "0") + ")";
+            }
+            var llnode = lodlightsnode.Nodes.Add(lodlight.ToString());
+            llnode.Tag = lodlight;
+            return llnode;
+        }
+        public TreeNode AddBoxOccluderTreeNode(YmapBoxOccluder box)
+        {
+            if (box?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(box.Ymap);
+            if (ymapnode == null) return null;
+            var boxesnode = GetChildTreeNode(ymapnode, "BoxOccluders");
+            if (boxesnode == null)
+            {
+                boxesnode = ymapnode.Nodes.Add("Box Occluders (" + box.Ymap.BoxOccluders.Length.ToString() + ")");
+                boxesnode.Name = "BoxOccluders";
+                boxesnode.Tag = box.Ymap;
+            }
+            else
+            {
+                boxesnode.Text = "Box Occluders (" + box.Ymap.BoxOccluders.Length.ToString() + ")";
+            }
+            var boxnode = boxesnode.Nodes.Add(box.ToString());
+            boxnode.Tag = box;
+            return boxnode;
+        }
+        public TreeNode AddOccludeModelTreeNode(YmapOccludeModel model)
+        {
+            if (model?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(model.Ymap);
+            if (ymapnode == null) return null;
+            var modelsnode = GetChildTreeNode(ymapnode, "OccludeModels");
+            if (modelsnode == null)
+            {
+                modelsnode = ymapnode.Nodes.Add("Occlude Models (" + model.Ymap.OccludeModels.Length.ToString() + ")");
+                modelsnode.Name = "OccludeModels";
+                modelsnode.Tag = model.Ymap;
+            }
+            else
+            {
+                modelsnode.Text = "Occlude Models (" + model.Ymap.OccludeModels.Length.ToString() + ")";
+            }
+            var modnode = modelsnode.Nodes.Add(model.ToString());
+            modnode.Tag = model;
+            return modnode;
+        }
+        public TreeNode AddGrassBatchTreeNode(YmapGrassInstanceBatch batch)
+        {
+            if (batch?.Ymap == null) return null;
+            var ymapnode = FindYmapTreeNode(batch.Ymap);
+            if (ymapnode == null) return null;
+            var batchesnode = GetChildTreeNode(ymapnode, "GrassBatches");
+            if (batchesnode == null)
+            {
+                batchesnode = ymapnode.Nodes.Add("Grass Batches (" + batch.Ymap.GrassInstanceBatches.Length.ToString() + ")");
+                batchesnode.Name = "GrassBatches";
+                batchesnode.Tag = batch.Ymap;
+            }
+            else
+            {
+                batchesnode.Text = "Grass Batches (" + batch.Ymap.GrassInstanceBatches.Length.ToString() + ")";
+            }
+            var gbnode = batchesnode.Nodes.Add(batch.ToString());
+            gbnode.Tag = batch;
+            return gbnode;
+        }
+        public TreeNode AddArchetypeTreeNode(Archetype archetype)
+        {
+            if (archetype?.Ytyp == null) return null;
+            var ytypnode = FindYtypTreeNode(archetype.Ytyp);
+            if (ytypnode == null) return null;
+            var archsnode = GetChildTreeNode(ytypnode, "Archetypes");
+            if (archsnode == null)
+            {
+                archsnode = ytypnode.Nodes.Add("Archetypes (" + archetype.Ytyp.AllArchetypes.Length.ToString() + ")");
+                archsnode.Name = "Archetypes";
+                archsnode.Tag = archetype.Ytyp;
+            }
+            else
+            {
+                archsnode.Text = "Archetypes (" + archetype.Ytyp.AllArchetypes.Length.ToString() + ")";
+            }
+            var anode = archsnode.Nodes.Add(archetype.Name);
+            anode.Tag = archetype;
+            return anode;
+        }
+
+
         public void RemoveEntityTreeNode(YmapEntityDef ent)
         {
             var tn = FindEntityTreeNode(ent);
@@ -2436,16 +2620,24 @@ namespace CodeWalker.Project.Panels
             var tn = FindLodLightTreeNode(lodlight);
             if ((tn != null) && (tn.Parent != null) && (lodlights != null))
             {
-                var pn = tn.Parent;
-                var yn = pn.Parent;
-                yn.Nodes.Remove(pn);
-                pn = yn.Nodes.Add("LOD Lights (" + (lodlights?.Length.ToString() ?? "0") + ")");
-                pn.Name = "LodLights";
-                pn.Tag = lodlight.LodLights.Ymap;
-                foreach (var ll in lodlights)
+                ProjectTreeView.BeginUpdate();
+                try
                 {
-                    var ntn = pn.Nodes.Add(ll.ToString());
-                    ntn.Tag = ll;
+                    var pn = tn.Parent;
+                    var yn = pn.Parent;
+                    yn.Nodes.Remove(pn);
+                    pn = yn.Nodes.Add("LOD Lights (" + (lodlights?.Length.ToString() ?? "0") + ")");
+                    pn.Name = "LodLights";
+                    pn.Tag = lodlight.LodLights.Ymap;
+                    foreach (var ll in lodlights)
+                    {
+                        var ntn = pn.Nodes.Add(ll.ToString());
+                        ntn.Tag = ll;
+                    }
+                }
+                finally
+                {
+                    ProjectTreeView.EndUpdate();
                 }
             }
         }
@@ -2455,19 +2647,27 @@ namespace CodeWalker.Project.Panels
             var tn = FindBoxOccluderTreeNode(box);
             if ((tn != null) && (tn.Parent != null) && (box != null))
             {
-                var pn = tn.Parent;
-                var yn = pn.Parent;
-                yn.Nodes.Remove(pn);
-                pn = yn.Nodes.Add("Box Occluders (" + (ymap?.BoxOccluders?.Length.ToString() ?? "0") + ")");
-                pn.Name = "BoxOccluders";
-                pn.Tag = ymap;
-                if (ymap.BoxOccluders != null)
+                ProjectTreeView.BeginUpdate();
+                try
                 {
-                    foreach (var b in ymap.BoxOccluders)
+                    var pn = tn.Parent;
+                    var yn = pn.Parent;
+                    yn.Nodes.Remove(pn);
+                    pn = yn.Nodes.Add("Box Occluders (" + (ymap?.BoxOccluders?.Length.ToString() ?? "0") + ")");
+                    pn.Name = "BoxOccluders";
+                    pn.Tag = ymap;
+                    if (ymap.BoxOccluders != null)
                     {
-                        var ntn = pn.Nodes.Add(b.ToString());
-                        ntn.Tag = b;
+                        foreach (var b in ymap.BoxOccluders)
+                        {
+                            var ntn = pn.Nodes.Add(b.ToString());
+                            ntn.Tag = b;
+                        }
                     }
+                }
+                finally
+                {
+                    ProjectTreeView.EndUpdate();
                 }
             }
         }
@@ -2477,19 +2677,27 @@ namespace CodeWalker.Project.Panels
             var tn = FindOccludeModelTreeNode(model);
             if ((tn != null) && (tn.Parent != null) && (model != null))
             {
-                var pn = tn.Parent;
-                var yn = pn.Parent;
-                yn.Nodes.Remove(pn);
-                pn = yn.Nodes.Add("Occlude Models (" + (ymap?.OccludeModels?.Length.ToString() ?? "0") + ")");
-                pn.Name = "OccludeModels";
-                pn.Tag = ymap;
-                if (ymap.OccludeModels != null)
+                ProjectTreeView.BeginUpdate();
+                try
                 {
-                    foreach (var m in ymap.OccludeModels)
+                    var pn = tn.Parent;
+                    var yn = pn.Parent;
+                    yn.Nodes.Remove(pn);
+                    pn = yn.Nodes.Add("Occlude Models (" + (ymap?.OccludeModels?.Length.ToString() ?? "0") + ")");
+                    pn.Name = "OccludeModels";
+                    pn.Tag = ymap;
+                    if (ymap.OccludeModels != null)
                     {
-                        var ntn = pn.Nodes.Add(m.ToString());
-                        ntn.Tag = m;
+                        foreach (var m in ymap.OccludeModels)
+                        {
+                            var ntn = pn.Nodes.Add(m.ToString());
+                            ntn.Tag = m;
+                        }
                     }
+                }
+                finally
+                {
+                    ProjectTreeView.EndUpdate();
                 }
             }
         }

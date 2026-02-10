@@ -2160,7 +2160,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddEntityTreeNode(ent);
                 ProjectExplorer?.TrySelectEntityTreeNode(ent);
                 CurrentEntity = ent;
                 ShowEditYmapEntityPanel(false);
@@ -2333,7 +2333,7 @@ namespace CodeWalker.Project
                 CurrentYmapFile.AddGrassBatch(batch);
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddGrassBatchTreeNode(batch);
 
             ProjectExplorer?.TrySelectGrassBatchTreeNode(batch);
             CurrentGrassBatch = batch;
@@ -2556,7 +2556,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddCarGenTreeNode(cg);
                 ProjectExplorer?.TrySelectCarGenTreeNode(cg);
                 CurrentCarGen = cg;
                 ShowEditYmapCarGenPanel(false);
@@ -2677,7 +2677,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddLodLightTreeNode(yll);
                 ProjectExplorer?.TrySelectLodLightTreeNode(yll);
                 CurrentLodLight = yll;
                 ShowEditYmapLodLightPanel(false);
@@ -2807,7 +2807,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddBoxOccluderTreeNode(bo);
                 ProjectExplorer?.TrySelectBoxOccluderTreeNode(bo);
                 CurrentBoxOccluder = bo;
                 ShowEditYmapBoxOccluderPanel(false);
@@ -2925,7 +2925,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddOccludeModelTreeNode(om);
                 ProjectExplorer?.TrySelectOccludeModelTreeNode(om);
                 CurrentOccludeModel = om;
                 ShowEditYmapOccludeModelPanel(false);
@@ -3441,7 +3441,7 @@ namespace CodeWalker.Project
             }
             archetype._BaseArchetypeDef = archetypeDef;
 
-            LoadProjectTree();
+            ProjectExplorer?.AddArchetypeTreeNode(archetype);
             ProjectExplorer?.TrySelectArchetypeTreeNode(archetype);
             CurrentArchetype = archetype;
 
