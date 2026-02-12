@@ -709,6 +709,33 @@ namespace CodeWalker
 
                 return;
             }
+
+            // If folder has RpfFolder but no TreeNode, we need to find/create the RPF in the tree first
+            if (f.TreeNode == null && f.RpfFolder != null)
+            {
+                var rpfRoot = f;
+                while (rpfRoot.Parent != null && rpfRoot.RpfFile == null)
+                {
+                    rpfRoot = rpfRoot.Parent;
+                }
+                if (rpfRoot.RpfFile != null && rpfRoot.TreeNode == null)
+                {
+                    var parentFolder = rpfRoot.Parent;
+                    if (parentFolder?.TreeNode != null)
+                    {
+                        var node = CreateRpfTreeFolder(rpfRoot.RpfFile, rpfRoot.Path, rpfRoot.FullPath);
+                        node.Parent = parentFolder;
+                        parentFolder.Children ??= new List<MainTreeFolder>();
+                        if (!parentFolder.Children.Contains(node))
+                        {
+                            parentFolder.Children.Add(node);
+                        }
+                        RecurseAddMainTreeViewNodes(node, parentFolder.TreeNode);
+                        parentFolder.TreeNode.Expand();
+                    }
+                }
+            }
+
             List<MainTreeFolder> hierarchy = new();
             var pf = f;
             while (pf != null)
@@ -5005,6 +5032,13 @@ namespace CodeWalker
                 }
                 if ((RpfFolder != null) && (RpfFolder.Files != null))
                 {
+                    if (RpfFolder.Directories != null)
+                    {
+                        foreach (var dir in RpfFolder.Directories)
+                        {
+                            ListItems.Add(new MainListItem(dir, this));
+                        }
+                    }
                     foreach (var file in RpfFolder.Files)
                     {
                         if (file.NameLower.EndsWith(".rpf")) continue; //RPF files are already added..
@@ -5181,6 +5215,13 @@ namespace CodeWalker
             Name = file.Name;
             Path = file.Path;
             FullPath = rootpath + file.Path;
+        }
+        public MainListItem(RpfDirectoryEntry dir, MainTreeFolder parent)
+        {
+            Parent = parent;
+            Folder = new MainTreeFolder { RpfFolder = dir, Name = dir.Name, Path = dir.Path };
+            Name = dir.Name;
+            Path = dir.Path;
         }
 
         public override string ToString()
