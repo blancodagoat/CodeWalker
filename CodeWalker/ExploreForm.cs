@@ -1,4 +1,4 @@
-﻿using CodeWalker.Forms;
+using CodeWalker.Forms;
 using CodeWalker.GameFiles;
 using CodeWalker.Properties;
 using CodeWalker.Tools;
@@ -50,6 +50,10 @@ namespace CodeWalker
         private List<RpfFile> AllRpfs { get; set; }
         private GameFileCache FileCache { get; set; } = GameFileCacheFactory.Create();
         private object FileCacheSyncRoot = new object();
+
+        private List<FileSystemWatcher> RpfFileWatchers = [];
+        private System.Timers.Timer? RefreshDebounceTimer;
+        private bool PendingRefresh = false;
 
         public bool EditMode { get; private set; } = false;
 
@@ -218,6 +222,8 @@ namespace CodeWalker
 
                 UpdateStatus("Scan complete.");
 
+                SetupFileWatcher();
+
                 InitFileCache();
 
                 while (!IsDisposed) //run the file cache content thread until the form exits.
@@ -280,6 +286,237 @@ namespace CodeWalker
             }
             InitFileCache(); //if we got here, it's not inited yet - init it!
             return FileCache; //return it even though it's probably not inited yet..
+        }
+
+        private void SetupFileWatcher()
+        {
+            var gtaFolder = GTAFolder.GetCurrentGTAFolderWithTrailingSlash();
+            if (string.IsNullOrEmpty(gtaFolder) || !Directory.Exists(gtaFolder))
+            {
+                return;
+            }
+
+            try
+            {
+                var foldersToWatch = new List<string> { gtaFolder };
+
+                lock (FileCacheSyncRoot)
+                {
+                    foreach (var extraFolder in ExtraRootFolders)
+                    {
+                        var folderPath = extraFolder.FullPath;
+                        var exists = !string.IsNullOrEmpty(folderPath) && Directory.Exists(folderPath);
+                        if (!exists)
+                        {
+                            UpdateErrorLog($"Extra folder not found or doesn't exist: {folderPath}");
+                        }
+                        if (exists)
+                        {
+                            foldersToWatch.Add(folderPath);
+                        }
+                    }
+                }
+
+                foreach (var folder in foldersToWatch)
+                {
+                    var watcher = new FileSystemWatcher(folder)
+                    {
+                        Filter = "*",
+                        IncludeSubdirectories = true,
+                        EnableRaisingEvents = true,
+                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                    };
+                    watcher.Created += OnRpfFileChanged;
+                    watcher.Deleted += OnRpfFileDeleted;
+                    watcher.Renamed += OnRpfFileRenamed;
+                    RpfFileWatchers.Add(watcher);
+                }
+
+                RefreshDebounceTimer = new System.Timers.Timer(1000);
+                RefreshDebounceTimer.Elapsed += OnRefreshDebounceElapsed;
+                RefreshDebounceTimer.AutoReset = false;
+            }
+            catch (Exception ex)
+            {
+                UpdateErrorLog($"Failed to setup file watcher: {ex.Message}");
+            }
+        }
+
+        private void OnRpfFileChanged(object sender, FileSystemEventArgs e)
+        {
+            TriggerRefreshDebounced();
+        }
+
+        private void OnRpfFileDeleted(object sender, FileSystemEventArgs e)
+        {
+            TriggerRefreshDebounced();
+        }
+
+        private void OnRpfFileRenamed(object sender, RenamedEventArgs e)
+        {
+            TriggerRefreshDebounced();
+        }
+
+        private void TriggerRefreshDebounced()
+        {
+            lock (this)
+            {
+                PendingRefresh = true;
+                RefreshDebounceTimer?.Stop();
+                RefreshDebounceTimer?.Start();
+            }
+        }
+
+        private void OnRefreshDebounceElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            bool needsRefresh;
+            lock (this)
+            {
+                needsRefresh = PendingRefresh;
+                PendingRefresh = false;
+            }
+
+            if (needsRefresh && !IsDisposed)
+            {
+                try
+                {
+                    Invoke(() =>
+                    {
+                        var folder = CurrentFolder;
+                        if (folder != null && !string.IsNullOrEmpty(folder.FullPath))
+                        {
+                            RescanCurrentFolder(folder);
+                            RefreshMainListView();
+                            UpdateStatus("File changes detected and refreshed.");
+                        }
+                    });
+                }
+                catch { }
+            }
+        }
+
+        private void RescanCurrentFolder(MainTreeFolder folder)
+        {
+            folder.ListItems = null;
+
+            if (!Directory.Exists(folder.FullPath)) return;
+
+            var fullPath = folder.FullPath;
+            var subPath = folder.Path ?? "";
+            var isExtra = folder.IsExtraFolder;
+
+            try
+            {
+                var allpaths = Directory.GetFileSystemEntries(fullPath);
+                var currentPathsSet = new HashSet<string>(allpaths);
+
+                var existingFiles = folder.Files ?? new List<string>();
+                var existingChildren = folder.Children ?? new List<MainTreeFolder>();
+
+                foreach (var child in existingChildren)
+                {
+                    if (child.TreeNode != null && !currentPathsSet.Contains(child.FullPath))
+                    {
+                        child.TreeNode.Remove();
+                    }
+                }
+
+                folder.Files = new List<string>();
+                folder.Children = new List<MainTreeFolder>();
+
+                var existingChildPaths = new Dictionary<string, MainTreeFolder>();
+                foreach (var child in existingChildren)
+                {
+                    if (!string.IsNullOrEmpty(child.FullPath) && currentPathsSet.Contains(child.FullPath))
+                    {
+                        existingChildPaths[child.FullPath] = child;
+                    }
+                }
+
+                foreach (var path in allpaths)
+                {
+                    var relpath = path.Replace(fullPath, "");
+                    var isFile = File.Exists(path);
+
+                    if (isFile)
+                    {
+                        if (path.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (existingChildPaths.TryGetValue(path, out var existingNode))
+                            {
+                                existingNode.Parent = folder;
+                                folder.Children.Add(existingNode);
+                            }
+                            else
+                            {
+                                var rpfPath = isExtra ? path : subPath + relpath;
+                                var rpf = new RpfFile(path, rpfPath);
+                                rpf.ScanStructure(UpdateStatus, UpdateErrorLog);
+                                if (rpf.LastException == null)
+                                {
+                                    var node = CreateRpfTreeFolder(rpf, rpfPath, path);
+                                    node.Parent = folder;
+                                    folder.Children.Add(node);
+                                    AddMainTreeViewNode(node);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            folder.Files.Add(path);
+                        }
+                    }
+                    else
+                    {
+                        if (existingChildPaths.TryGetValue(path, out var existingNode))
+                        {
+                            existingNode.Parent = folder;
+                            folder.Children.Add(existingNode);
+                        }
+                        else
+                        {
+                            var name = Path.GetFileName(path);
+                            var node = CreateRootDirTreeFolder(name, subPath + relpath, path);
+                            node.Parent = folder;
+                            folder.Children.Add(node);
+                            AddMainTreeViewNode(node);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateErrorLog($"Error rescan folder: {ex.Message}");
+            }
+
+            if (folder.Children != null)
+            {
+                folder.Children.Sort((a, b) => a.Name.CompareTo(b.Name));
+            }
+            if (folder.Files != null)
+            {
+                folder.Files.Sort();
+            }
+        }
+
+        private void CleanupFileWatcher()
+        {
+            foreach (var watcher in RpfFileWatchers)
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Created -= OnRpfFileChanged;
+                watcher.Deleted -= OnRpfFileDeleted;
+                watcher.Renamed -= OnRpfFileRenamed;
+                watcher.Dispose();
+            }
+            RpfFileWatchers.Clear();
+
+            if (RefreshDebounceTimer != null)
+            {
+                RefreshDebounceTimer.Stop();
+                RefreshDebounceTimer.Dispose();
+                RefreshDebounceTimer = null;
+            }
         }
 
         private void InitFileTypes()
@@ -3644,6 +3881,28 @@ namespace CodeWalker
             root.IsExtraFolder = true;
             ExtraRootFolders.Add(root);
 
+            if (Directory.Exists(folderPath))
+            {
+                try
+                {
+                    var watcher = new FileSystemWatcher(folderPath)
+                    {
+                        Filter = "*",
+                        IncludeSubdirectories = true,
+                        EnableRaisingEvents = true,
+                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                    };
+                    watcher.Created += OnRpfFileChanged;
+                    watcher.Deleted += OnRpfFileDeleted;
+                    watcher.Renamed += OnRpfFileRenamed;
+                    RpfFileWatchers.Add(watcher);
+                }
+                catch (Exception ex)
+                {
+                    UpdateErrorLog($"Failed to setup file watcher for extra folder: {ex.Message}");
+                }
+            }
+
             Task.Run(() =>
             {
                 try
@@ -3668,6 +3927,16 @@ namespace CodeWalker
 
             folder.TreeNode.Remove();
             ExtraRootFolders.Remove(folder);
+
+            var watchersToRemove = RpfFileWatchers.Where(w => folder.FullPath != null && w.Path.StartsWith(folder.FullPath, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var watcher in watchersToRemove)
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Created -= OnRpfFileChanged;
+                watcher.Renamed -= OnRpfFileRenamed;
+                watcher.Dispose();
+                RpfFileWatchers.Remove(watcher);
+            }
         }
         private void Paste()
         {
@@ -3807,6 +4076,7 @@ namespace CodeWalker
         private void ExploreForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             CleanupDropFolder();
+            CleanupFileWatcher();
             SaveSettings();
             Environment.Exit(0);
         }
