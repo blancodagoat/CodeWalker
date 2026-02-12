@@ -215,6 +215,30 @@ float TraceHeight(Texture2D<float4> heightMapSampler, SamplerState samplerState,
     return clamp(finalHeight, 0.0, 1.0f);
 }
 
+// Parallax self-shadow: traces through heightmap in light direction to find occlusion
+// Returns shadow factor (0 = fully lit, 1 = fully in shadow)
+float TraceSelfShadow(Texture2D<float4> heightMapSampler, SamplerState samplerState, float2 texCoords, float3 tanLightDir, float edgeWeight, float hScale)
+{
+    float2 inXY = (tanLightDir.xy * hScale * edgeWeight) / max(tanLightDir.z, 0.01f);
+
+    // Sample base height at current (displaced) position
+    float sh0 = heightMapSampler.SampleLevel(samplerState, texCoords, 0).r;
+
+    // Trace 7 samples along light direction with increasing weight for closer occlusion
+    float shA = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.88, 0).r - sh0 - 0.88) *  1;
+    float sh9 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.77, 0).r - sh0 - 0.77) *  2;
+    float sh8 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.66, 0).r - sh0 - 0.66) *  4;
+    float sh7 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.55, 0).r - sh0 - 0.55) *  6;
+    float sh6 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.44, 0).r - sh0 - 0.44) *  8;
+    float sh5 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.33, 0).r - sh0 - 0.33) * 10;
+    float sh4 = (heightMapSampler.SampleLevel(samplerState, texCoords + inXY * 0.22, 0).r - sh0 - 0.22) * 12;
+
+    float finalHeight = max(max(max(max(max(max(shA, sh9), sh8), sh7), sh6), sh5), sh4);
+    return saturate(finalHeight);
+}
+
+#define PARALLAX_SELF_SHADOW_AMOUNT 0.95f
+
 // Calculate parallax texture coordinate offset
 float2 ParallaxOffset(Texture2D<float4> heightMapSampler, SamplerState samplerState, float2 texCoords,
                        float3 viewDir, float3 normal, float3 tangent, float3 bitangent,

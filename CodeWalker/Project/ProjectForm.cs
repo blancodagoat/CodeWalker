@@ -101,17 +101,17 @@ namespace CodeWalker.Project
         private object projectsyncroot = new object();
         public object ProjectSyncRoot { get { return projectsyncroot; } }
 
-        private Dictionary<string, YbnFile> visibleybns = new();
-        private Dictionary<int, YndFile> visibleynds = new();
-        private Dictionary<int, YnvFile> visibleynvs = new();
-        private Dictionary<string, TrainTrack> visibletrains = new();
-        private Dictionary<string, YmtFile> visiblescenarios = new();
-        private Dictionary<uint, YmapEntityDef> visiblemloentities = new();
-        private Dictionary<uint, RelFile> visibleaudiofiles = new();
+        private Dictionary<string, YbnFile> visibleybns = new Dictionary<string, YbnFile>();
+        private Dictionary<int, YndFile> visibleynds = new Dictionary<int, YndFile>();
+        private Dictionary<int, YnvFile> visibleynvs = new Dictionary<int, YnvFile>();
+        private Dictionary<string, TrainTrack> visibletrains = new Dictionary<string, TrainTrack>();
+        private Dictionary<string, YmtFile> visiblescenarios = new Dictionary<string, YmtFile>();
+        private Dictionary<uint, YmapEntityDef> visiblemloentities = new Dictionary<uint, YmapEntityDef>();
+        private Dictionary<uint, RelFile> visibleaudiofiles = new Dictionary<uint, RelFile>();
 
-        private Dictionary<uint, YbnFile> projectybns = new();//used for handling interior ybns
+        private Dictionary<uint, YbnFile> projectybns = new Dictionary<uint, YbnFile>();//used for handling interior ybns
 
-        private List<YmapEntityDef> interiorslist = new(); //used for handling interiors ybns
+        private List<YmapEntityDef> interiorslist = new List<YmapEntityDef>(); //used for handling interiors ybns
 
         private bool ShowProjectItemInProcess = false;
         private bool WorldSelectionChangeInProcess = false;
@@ -2036,7 +2036,7 @@ namespace CodeWalker.Project
             {
                 ymap.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYmapFileTreeNode(ymap);
             }
             CurrentYmapFile = ymap;
             RefreshUI();
@@ -2061,9 +2061,9 @@ namespace CodeWalker.Project
         {
             if (CurrentYmapFile == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYmapFile);
             CurrentProjectFile.RemoveYmapFile(CurrentYmapFile);
             CurrentYmapFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YmapExistsInProject(YmapFile ymap)
@@ -2115,7 +2115,7 @@ namespace CodeWalker.Project
             Vector3 pos = cp ? copy.Position : GetSpawnPos(spawndist);
 
 
-            CEntityDef cent = new();
+            CEntityDef cent = new CEntityDef();
 
             if (copy != null)
             {
@@ -2140,7 +2140,7 @@ namespace CodeWalker.Project
             cent.position = pos;
 
 
-            YmapEntityDef ent = new(CurrentYmapFile, 0, ref cent);
+            YmapEntityDef ent = new YmapEntityDef(CurrentYmapFile, 0, ref cent);
 
             ent.SetArchetype(GameFileCache.GetArchetype(cent.archetypeName));
 
@@ -2160,7 +2160,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddEntityTreeNode(ent);
                 ProjectExplorer?.TrySelectEntityTreeNode(ent);
                 CurrentEntity = ent;
                 ShowEditYmapEntityPanel(false);
@@ -2333,7 +2333,7 @@ namespace CodeWalker.Project
                 CurrentYmapFile.AddGrassBatch(batch);
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddGrassBatchTreeNode(batch);
 
             ProjectExplorer?.TrySelectGrassBatchTreeNode(batch);
             CurrentGrassBatch = batch;
@@ -2483,8 +2483,8 @@ namespace CodeWalker.Project
                         var gb = ymap.GrassInstanceBatches[i];
                         if (!batchFilter(gb)) continue;
 
-                        BoundingBox bbox = new();
-                        MapBox mb = new();
+                        BoundingBox bbox = new BoundingBox();
+                        MapBox mb = new MapBox();
                         mb.BBMin = gb.AABBMin;
                         mb.BBMax = gb.AABBMax;
                         mb.Orientation = Quaternion.Identity;
@@ -2515,7 +2515,7 @@ namespace CodeWalker.Project
 
             Vector3 pos = GetSpawnPos(10.0f);
 
-            CCarGen ccg = new();
+            CCarGen ccg = new CCarGen();
 
             if (copy != null)
             {
@@ -2539,7 +2539,7 @@ namespace CodeWalker.Project
             }
 
 
-            YmapCarGen cg = new(CurrentYmapFile, ccg);
+            YmapCarGen cg = new YmapCarGen(CurrentYmapFile, ccg);
 
             if (WorldForm != null)
             {
@@ -2556,7 +2556,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddCarGenTreeNode(cg);
                 ProjectExplorer?.TrySelectCarGenTreeNode(cg);
                 CurrentCarGen = cg;
                 ShowEditYmapCarGenPanel(false);
@@ -2636,7 +2636,7 @@ namespace CodeWalker.Project
 
             Vector3 pos = GetSpawnPos(10.0f);
 
-            YmapLODLight yll = new();
+            YmapLODLight yll = new YmapLODLight();
 
             if (copy != null)
             {
@@ -2677,7 +2677,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddLodLightTreeNode(yll);
                 ProjectExplorer?.TrySelectLodLightTreeNode(yll);
                 CurrentLodLight = yll;
                 ShowEditYmapLodLightPanel(false);
@@ -2807,7 +2807,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddBoxOccluderTreeNode(bo);
                 ProjectExplorer?.TrySelectBoxOccluderTreeNode(bo);
                 CurrentBoxOccluder = bo;
                 ShowEditYmapBoxOccluderPanel(false);
@@ -2925,7 +2925,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddOccludeModelTreeNode(om);
                 ProjectExplorer?.TrySelectOccludeModelTreeNode(om);
                 CurrentOccludeModel = om;
                 ShowEditYmapOccludeModelPanel(false);
@@ -3043,7 +3043,6 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
                 ProjectExplorer?.TrySelectOccludeModelTriangleTreeNode(ot);
                 CurrentOccludeModel = ot.Model;
                 CurrentOccludeModelTri = ot;
@@ -3148,7 +3147,7 @@ namespace CodeWalker.Project
 
             var finf = new FileInfo(xmlpath);
 
-            MenyooXml menyooXml = new();
+            MenyooXml menyooXml = new MenyooXml();
             menyooXml.FilePath = xmlpath;
             menyooXml.FileName = finf.Name;
             menyooXml.Name = Path.GetFileNameWithoutExtension(finf.Name);
@@ -3185,7 +3184,7 @@ namespace CodeWalker.Project
                 }
                 else if (placement.Type == 2)
                 {
-                    CCarGen ccg = new();
+                    CCarGen ccg = new CCarGen();
                     var rotq = Quaternion.Invert(new Quaternion(placement.Rotation));
                     Vector3 cdir = rotq.Multiply(new Vector3(0, 5, 0));
                     ccg.flags = 3680;
@@ -3204,7 +3203,7 @@ namespace CodeWalker.Project
                         ccg.livery = livery;
                     }
 
-                    YmapCarGen cg = new(CurrentYmapFile, ccg);
+                    YmapCarGen cg = new YmapCarGen(CurrentYmapFile, ccg);
 
                     if (WorldForm != null)
                     {
@@ -3222,7 +3221,7 @@ namespace CodeWalker.Project
                 }
                 else if (placement.Type == 3) //standard entity
                 {
-                    CEntityDef cent = new();
+                    CEntityDef cent = new CEntityDef();
                     cent.archetypeName = placement.ModelHash;
                     cent.position = placement.Position;
                     cent.rotation = placement.Rotation;
@@ -3240,7 +3239,7 @@ namespace CodeWalker.Project
                         cent.tintValue = tint;
                     }
 
-                    YmapEntityDef ent = new(CurrentYmapFile, 0, ref cent);
+                    YmapEntityDef ent = new YmapEntityDef(CurrentYmapFile, 0, ref cent);
 
                     ent.SetArchetype(GameFileCache.GetArchetype(cent.archetypeName));
 
@@ -3402,7 +3401,7 @@ namespace CodeWalker.Project
             {
                 ytyp.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYtypFileTreeNode(ytyp);
             }
             CurrentYtypFile = ytyp;
             RefreshUI();
@@ -3413,9 +3412,9 @@ namespace CodeWalker.Project
             if (CurrentYtypFile == null) return;
             if (CurrentProjectFile == null) return;
             RemoveProjectArchetypes(CurrentYtypFile);
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYtypFile);
             CurrentProjectFile.RemoveYtypFile(CurrentYtypFile);
             CurrentYtypFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YtypExistsInProject(YtypFile ytyp)
@@ -3441,7 +3440,7 @@ namespace CodeWalker.Project
             }
             archetype._BaseArchetypeDef = archetypeDef;
 
-            LoadProjectTree();
+            ProjectExplorer?.AddArchetypeTreeNode(archetype);
             ProjectExplorer?.TrySelectArchetypeTreeNode(archetype);
             CurrentArchetype = archetype;
 
@@ -3461,7 +3460,7 @@ namespace CodeWalker.Project
             foreach (var file in files)
             {
                 archetype = CurrentYtypFile.AddArchetype();
-                YdrFile ydr = new();
+                YdrFile ydr = new YdrFile();
                 RpfFile.LoadResourceFile(ydr, File.ReadAllBytes(file), 165);
                 var name = Path.GetFileNameWithoutExtension(file);
                 var hash = JenkHash.GenHash(name);
@@ -3482,7 +3481,7 @@ namespace CodeWalker.Project
                 AddProjectArchetype(archetype);
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddArchetypeTreeNode(archetype);
             ProjectExplorer?.TrySelectArchetypeTreeNode(archetype);
             CurrentArchetype = archetype;
 
@@ -3561,7 +3560,7 @@ namespace CodeWalker.Project
             Quaternion rot = cp ? copy.CEntityDef.rotation.ToQuaternion() : Quaternion.Identity;
 
 
-            CEntityDef cent = new();
+            CEntityDef cent = new CEntityDef();
 
             if (copy != null)
             {
@@ -3618,7 +3617,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddMloEntityTreeNode(ment);
                 ProjectExplorer?.TrySelectMloEntityTreeNode(ment);
                 CurrentEntity = outEnt;
                 CurrentMloEntity = ment;
@@ -3658,7 +3657,7 @@ namespace CodeWalker.Project
             {
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddMloRoomTreeNode(room);
             ProjectExplorer?.TrySelectMloRoomTreeNode(room);
             CurrentMloRoom = room;
             CurrentYtypFile = room?.OwnerMlo?.Ytyp;
@@ -3698,7 +3697,7 @@ namespace CodeWalker.Project
             {
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddMloPortalTreeNode(portal);
             ProjectExplorer?.TrySelectMloPortalTreeNode(portal);
             CurrentMloPortal = portal;
             CurrentYtypFile = portal?.OwnerMlo?.Ytyp;
@@ -3734,7 +3733,7 @@ namespace CodeWalker.Project
                 mloInstance.AddEntitySet(set);
             }
 
-            LoadProjectTree();
+            ProjectExplorer?.AddMloEntitySetTreeNode(set);
             ProjectExplorer?.TrySelectMloEntitySetTreeNode(set);
             CurrentMloEntitySet = set;
             CurrentYtypFile = set?.OwnerMlo?.Ytyp;
@@ -4090,7 +4089,7 @@ namespace CodeWalker.Project
             {
                 ybn.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYbnFileTreeNode(ybn);
             }
             CurrentYbnFile = ybn;
             RefreshUI();
@@ -4111,9 +4110,9 @@ namespace CodeWalker.Project
         {
             if (CurrentYbnFile == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYbnFile);
             CurrentProjectFile.RemoveYbnFile(CurrentYbnFile);
             CurrentYbnFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YbnExistsInProject(YbnFile ybn)
@@ -4211,7 +4210,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddCollisionBoundsTreeNode(b, bcomp);
                 ProjectExplorer?.TrySelectCollisionBoundsTreeNode(b);
                 CurrentCollisionBounds = b;
                 //ShowEditYbnPanel(false);;
@@ -4718,7 +4717,7 @@ namespace CodeWalker.Project
             {
                 ynd.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYndFileTreeNode(ynd);
             }
             CurrentYndFile = ynd;
             RefreshUI();
@@ -4731,9 +4730,9 @@ namespace CodeWalker.Project
         {
             if (CurrentYndFile == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYndFile);
             CurrentProjectFile.RemoveYndFile(CurrentYndFile);
             CurrentYndFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YndExistsInProject(YndFile ynd)
@@ -4807,7 +4806,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddPathNodeTreeNode(n);
                 ProjectExplorer?.TrySelectPathNodeTreeNode(n);
                 CurrentPathNode = n;
                 //ShowEditYndPanel(false);;
@@ -5003,7 +5002,7 @@ namespace CodeWalker.Project
             {
                 ynv.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYnvFileTreeNode(ynv);
             }
             CurrentYnvFile = ynv;
             RefreshUI();
@@ -5016,9 +5015,9 @@ namespace CodeWalker.Project
         {
             if (CurrentYnvFile == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYnvFile);
             CurrentProjectFile.RemoveYnvFile(CurrentYnvFile);
             CurrentYnvFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YnvExistsInProject(YnvFile ynv)
@@ -5185,7 +5184,7 @@ namespace CodeWalker.Project
             {
                 track.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddTrainTrackFileTreeNode(track);
             }
             CurrentTrainTrack = track;
             RefreshUI();
@@ -5198,9 +5197,9 @@ namespace CodeWalker.Project
         {
             if (CurrentTrainTrack == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentTrainTrack);
             CurrentProjectFile.RemoveTrainsFile(CurrentTrainTrack);
             CurrentTrainTrack = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool TrainTrackExistsInProject(TrainTrack track)
@@ -5237,7 +5236,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddTrainNodeTreeNode(n);
                 ProjectExplorer?.TrySelectTrainNodeTreeNode(n);
                 CurrentTrainNode = n;
                 ShowEditTrainNodePanel(false);
@@ -5434,7 +5433,7 @@ namespace CodeWalker.Project
             {
                 ymt.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddScenarioFileTreeNode(ymt);
             }
             CurrentScenario = ymt;
             RefreshUI();
@@ -5447,9 +5446,9 @@ namespace CodeWalker.Project
         {
             if (CurrentScenario == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentScenario);
             CurrentProjectFile.RemoveScenarioFile(CurrentScenario);
             CurrentScenario = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool ScenarioExistsInProject(YmtFile ymt)
@@ -5480,7 +5479,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddScenarioNodeTreeNode(n);
                 ProjectExplorer?.TrySelectScenarioNodeTreeNode(n);
                 CurrentScenarioNode = n;
                 //ShowEditScenarioPanel(false);
@@ -5569,7 +5568,7 @@ namespace CodeWalker.Project
             var copye = CurrentScenarioChainEdge;
             var copycl = CurrentScenarioNode?.Cluster;
 
-            MCScenarioChain chain = new();
+            MCScenarioChain chain = new MCScenarioChain();
             chain.Unk1 = 1; //default value
             if (copy != null)
             {
@@ -5588,7 +5587,7 @@ namespace CodeWalker.Project
 
             if (copycl != null)
             {
-                ScenarioNode copyclnode = new(CurrentScenario);
+                ScenarioNode copyclnode = new ScenarioNode(CurrentScenario);
                 copyclnode.Cluster = copycl;
                 copyclnode.ClusterMyPoint = new MCScenarioPoint(CurrentScenario.CScenarioPointRegion);
                 copyclnode.ClusterMyPoint.InteriorName = 493038497; //JenkHash.GenHash("none");
@@ -5691,8 +5690,8 @@ namespace CodeWalker.Project
             var copy = CurrentScenarioNode?.Cluster;
 
 
-            MCScenarioPointCluster cluster = new(rgn, copy);
-            List<MCScenarioPoint> clusterpoints = new();
+            MCScenarioPointCluster cluster = new MCScenarioPointCluster(rgn, copy);
+            List<MCScenarioPoint> clusterpoints = new List<MCScenarioPoint>();
 
             if (copy != null)
             {
@@ -5821,8 +5820,8 @@ namespace CodeWalker.Project
             var copy = CurrentScenarioNode?.Entity;
 
 
-            MCScenarioEntityOverride entity = new(rgn, copy);
-            List<MCExtensionDefSpawnPoint> entpoints = new();
+            MCScenarioEntityOverride entity = new MCScenarioEntityOverride(rgn, copy);
+            List<MCExtensionDefSpawnPoint> entpoints = new List<MCExtensionDefSpawnPoint>();
 
             if (copy != null)
             {
@@ -6111,7 +6110,7 @@ namespace CodeWalker.Project
             var rgn = CurrentScenario.ScenarioRegion;
             if (rgn == null) return;
 
-            TextInputForm f = new();
+            TextInputForm f = new TextInputForm();
             f.TitleText = "Import scenario chain points";
             f.PromptText = "Input chain points in CSV (or TSV) format. Direction is in radians. NavSpeed is from 0 to 15. NavMode can be either Direct, NavMesh, or Roads. ScenarioType is the name of the scenario type to use.";
             f.MainText = "X, Y, Z, Direction, NavSpeed, NavMode, ScenarioType, ModelSet, Flags";
@@ -6142,7 +6141,7 @@ namespace CodeWalker.Project
 
 
 
-            MCScenarioChain chain = new();
+            MCScenarioChain chain = new MCScenarioChain();
 
             paths.AddChain(chain);
 
@@ -6200,7 +6199,8 @@ namespace CodeWalker.Project
                 if (vals.Length > 7)
                 {
                     var mshash = JenkHash.GenHash(vals[7].Trim().ToLowerInvariant());
-                    modelset = stypes?.GetPedModelSet(mshash) ?? stypes?.GetVehicleModelSet(mshash);
+                    modelset = stypes?.GetPedModelSet(mshash) ?? null;
+                    if (modelset == null) modelset = stypes?.GetVehicleModelSet(mshash) ?? null;
                 }
                 if (vals.Length > 8)
                 {
@@ -6401,7 +6401,7 @@ namespace CodeWalker.Project
             {
                 rel.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddAudioRelFileTreeNode(rel);
             }
             CurrentAudioFile = rel;
             RefreshUI();
@@ -6422,9 +6422,9 @@ namespace CodeWalker.Project
         {
             if (CurrentAudioFile == null) return;
             if (CurrentProjectFile == null) return;
+            ProjectExplorer?.RemoveFileTreeNode(CurrentAudioFile);
             CurrentProjectFile.RemoveAudioRelFile(CurrentAudioFile);
             CurrentAudioFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool AudioFileExistsInProject(RelFile rel)
@@ -6495,7 +6495,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddAudioAmbientZoneTreeNode(ap);
 
                 ProjectExplorer?.TrySelectAudioAmbientZoneTreeNode(ap);
                 CurrentAudioAmbientZone = ap;
@@ -6606,7 +6606,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddAudioAmbientRuleTreeNode(ap);
 
                 ProjectExplorer?.TrySelectAudioAmbientRuleTreeNode(ap);
                 CurrentAudioAmbientRule = ap;
@@ -6728,7 +6728,7 @@ namespace CodeWalker.Project
 
             if (selectNew)
             {
-                LoadProjectTree();
+                ProjectExplorer?.AddAudioStaticEmitterTreeNode(ap);
 
                 ProjectExplorer?.TrySelectAudioStaticEmitterTreeNode(ap);
                 CurrentAudioStaticEmitter = ap;
@@ -6806,7 +6806,7 @@ namespace CodeWalker.Project
 
             CurrentAudioFile.AddRelData(zonelist);
 
-            LoadProjectTree();
+            ProjectExplorer?.AddAudioAmbientZoneListTreeNode(zonelist);
 
             ProjectExplorer?.TrySelectAudioAmbientZoneListTreeNode(zonelist);
             CurrentAudioAmbientZoneList = zonelist;
@@ -6869,7 +6869,7 @@ namespace CodeWalker.Project
 
             CurrentAudioFile.AddRelData(emlist);
 
-            LoadProjectTree();
+            ProjectExplorer?.AddAudioStaticEmitterListTreeNode(emlist);
 
             ProjectExplorer?.TrySelectAudioStaticEmitterListTreeNode(emlist);
             CurrentAudioStaticEmitterList = emlist;
@@ -6934,7 +6934,7 @@ namespace CodeWalker.Project
 
             CurrentAudioFile.AddRelData(interior);
 
-            LoadProjectTree();
+            ProjectExplorer?.AddAudioInteriorTreeNode(interior);
 
             ProjectExplorer?.TrySelectAudioInteriorTreeNode(interior);
             CurrentAudioInterior = interior;
@@ -7001,7 +7001,7 @@ namespace CodeWalker.Project
 
             CurrentAudioFile.AddRelData(room);
 
-            LoadProjectTree();
+            ProjectExplorer?.AddAudioInteriorRoomTreeNode(room);
 
             ProjectExplorer?.TrySelectAudioInteriorRoomTreeNode(room);
             CurrentAudioInteriorRoom = room;
@@ -7069,7 +7069,7 @@ namespace CodeWalker.Project
             {
                 //ydr.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYdrFileTreeNode(ydr);
             }
             CurrentYdrFile = ydr;
             RefreshUI();
@@ -7080,9 +7080,9 @@ namespace CodeWalker.Project
             if (CurrentYdrFile == null) return;
             if (CurrentProjectFile == null) return;
             GameFileCache?.RemoveProjectFile(CurrentYdrFile);
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYdrFile);
             CurrentProjectFile.RemoveYdrFile(CurrentYdrFile);
             CurrentYdrFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YdrExistsInProject(YdrFile ydr)
@@ -7105,7 +7105,7 @@ namespace CodeWalker.Project
             {
                 //ydd.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYddFileTreeNode(ydd);
             }
             CurrentYddFile = ydd;
             RefreshUI();
@@ -7116,9 +7116,9 @@ namespace CodeWalker.Project
             if (CurrentYddFile == null) return;
             if (CurrentProjectFile == null) return;
             GameFileCache?.RemoveProjectFile(CurrentYddFile);
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYddFile);
             CurrentProjectFile.RemoveYddFile(CurrentYddFile);
             CurrentYddFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YddExistsInProject(YddFile ydd)
@@ -7141,7 +7141,7 @@ namespace CodeWalker.Project
             {
                 //yft.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYftFileTreeNode(yft);
             }
             CurrentYftFile = yft;
             RefreshUI();
@@ -7152,9 +7152,9 @@ namespace CodeWalker.Project
             if (CurrentYftFile == null) return;
             if (CurrentProjectFile == null) return;
             GameFileCache?.RemoveProjectFile(CurrentYftFile);
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYftFile);
             CurrentProjectFile.RemoveYftFile(CurrentYftFile);
             CurrentYftFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YftExistsInProject(YftFile yft)
@@ -7177,7 +7177,7 @@ namespace CodeWalker.Project
             {
                 //ytd.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
-                LoadProjectTree();
+                ProjectExplorer?.AddYtdFileTreeNode(ytd);
             }
             CurrentYtdFile = ytd;
             RefreshUI();
@@ -7188,9 +7188,9 @@ namespace CodeWalker.Project
             if (CurrentYtdFile == null) return;
             if (CurrentProjectFile == null) return;
             GameFileCache?.RemoveProjectFile(CurrentYtdFile);
+            ProjectExplorer?.RemoveFileTreeNode(CurrentYtdFile);
             CurrentProjectFile.RemoveYtdFile(CurrentYtdFile);
             CurrentYtdFile = null;
-            LoadProjectTree();
             RefreshUI();
         }
         public bool YtdExistsInProject(YtdFile ytd)
@@ -7602,8 +7602,8 @@ namespace CodeWalker.Project
                 if (arch == null) return null;
                 MetaHash name = arch._BaseArchetypeDef.name;
                 if (name == 0) return null;
-                if (!visiblemloentities.TryGetValue(name, out var entity)) return null;
-                return entity?.MloInstance;
+                if (!visiblemloentities.ContainsKey(name)) return null;
+                return visiblemloentities[name]?.MloInstance;
             }
         }
 
@@ -8783,7 +8783,7 @@ namespace CodeWalker.Project
 
             if (WorldForm != null)
             {
-                HashSet<YndFile> updatedFiles = new();
+                HashSet<YndFile> updatedFiles = new HashSet<YndFile>();
                 Dictionary<YndFile, List<YndFile>> dependencyCache = new Dictionary<YndFile, List<YndFile>>();
 
                 foreach (var file in CurrentProjectFile.YndFiles)

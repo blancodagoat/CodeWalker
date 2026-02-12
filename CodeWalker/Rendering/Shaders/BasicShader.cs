@@ -793,9 +793,27 @@ namespace CodeWalker.Rendering
             PSGeomVars.Vars.wetnessMultiplier = geom.wetnessMultiplier;
             PSGeomVars.Vars.SpecOnly = geom.SpecOnly ? 1u : 0u;
             PSGeomVars.Vars.TextureAlphaMask = textureAlphaMask;
+            // Disable POM for wind-displaced geometry - wind moves vertices without
+            // updating the tangent frame, causing POM to displace in the wrong direction
+            if (windflag != 0)
+            {
+                useheight = false;
+            }
             PSGeomVars.Vars.EnableHeightMap = useheight ? 1u : 0u;
-            PSGeomVars.Vars.heightScale = geom.heightScale;
-            PSGeomVars.Vars.heightBias = geom.heightBias;
+
+            // DPM shaders store heightScale/heightBias calibrated for tessellation vertex
+            // displacement (default 0.4 / -0.5, range -10 to 10). POM needs much smaller
+            // positive values (default 0.03 / 0.015, range 0.01-0.05). Detect tessellation-
+            // range values and convert them to POM range to prevent excessive UV warping.
+            float hs = geom.heightScale;
+            float hb = geom.heightBias;
+            if (Math.Abs(hs) > 0.1f || hb < 0.0f)
+            {
+                hs = Math.Abs(hs) * 0.075f; // DPM(0.4) -> POM(0.03)
+                hb = hs * 0.5f;             // POM convention: bias = scale/2
+            }
+            PSGeomVars.Vars.heightScale = hs;
+            PSGeomVars.Vars.heightBias = hb;
             PSGeomVars.Vars.Pad0 = 0.0f;
             PSGeomVars.Update(context);
             PSGeomVars.SetPSCBuffer(context, 2);

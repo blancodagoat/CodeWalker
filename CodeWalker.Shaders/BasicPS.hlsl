@@ -5,14 +5,27 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 {
     // Calculate parallax offset if height mapping is enabled
     float2 parallaxTexOffset = float2(0, 0);
+    float parallaxSelfShadow = 1.0;
     if (EnableHeightMap && RenderMode == 0)
     {
         float3 viewDir = -normalize(input.CamRelPos); // Negate to get direction FROM surface TO camera
+        float3 norm0 = normalize(input.Normal);
+        float3 tang0 = normalize(input.Tangent.xyz);
+        float3 bitang0 = normalize(input.Bitangent.xyz);
         parallaxTexOffset = ParallaxOffset(
             Heightmap, TextureSS, input.Texcoord0,
-            viewDir, normalize(input.Normal),
-            normalize(input.Tangent.xyz), normalize(input.Bitangent.xyz),
+            viewDir, norm0, tang0, bitang0,
             heightScale, heightBias);
+
+        // Parallax self-shadow, transform light dir to tangent space and trace
+        float3 tanLightDir;
+        tanLightDir.x = dot(tang0, GlobalLights.LightDir.xyz);
+        tanLightDir.y = dot(bitang0, GlobalLights.LightDir.xyz);
+        tanLightDir.z = dot(norm0, GlobalLights.LightDir.xyz);
+        float shadowAmount = TraceSelfShadow(Heightmap, TextureSS,
+            input.Texcoord0 + parallaxTexOffset,
+            tanLightDir, 1.0, heightScale);
+        parallaxSelfShadow = 1.0 - shadowAmount * PARALLAX_SELF_SHADOW_AMOUNT;
     }
 
     // Apply parallax offset to base texture coordinates
@@ -176,7 +189,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     float4 fc = c;
 
-    c.rgb = FullLighting(c.rgb, spec, norm, input.Colour0, GlobalLights, EnableShadows, input.Shadows.x, input.LightShadow);
+    c.rgb = FullLighting(c.rgb, spec, norm, input.Colour0, GlobalLights, EnableShadows, input.Shadows.x, input.LightShadow, parallaxSelfShadow);
 
 
     if (IsEmissive==1)

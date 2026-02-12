@@ -169,6 +169,25 @@ float2 CalculateTerrainParallaxOffset(float4 layerBlends, float2 texCoord, float
     return heightBiasOffset + (maxParallaxOffset * (1.0f - saturate(refinedHeight)));
 }
 
+// Terrain-specific self-shadow using blended heightmaps
+float TraceTerrainSelfShadow(float4 layerBlends, float2 texCoords, float3 tanLightDir, float edgeWeight, float hScale)
+{
+    float2 inXY = (tanLightDir.xy * hScale * edgeWeight) / max(tanLightDir.z, 0.01f);
+
+    float sh0 = 1.0f - BlendTerrainHeight(layerBlends, texCoords);
+
+    float shA = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.88) - sh0 - 0.88) *  1;
+    float sh9 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.77) - sh0 - 0.77) *  2;
+    float sh8 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.66) - sh0 - 0.66) *  4;
+    float sh7 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.55) - sh0 - 0.55) *  6;
+    float sh6 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.44) - sh0 - 0.44) *  8;
+    float sh5 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.33) - sh0 - 0.33) * 10;
+    float sh4 = (1.0f - BlendTerrainHeight(layerBlends, texCoords + inXY * 0.22) - sh0 - 0.22) * 12;
+
+    float finalHeight = max(max(max(max(max(max(shA, sh9), sh8), sh7), sh6), sh5), sh4);
+    return saturate(finalHeight);
+}
+
 float4 main(VS_OUTPUT input) : SV_TARGET
 {
     float4 vc0 = input.Colour0;
@@ -192,7 +211,8 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     layerBlends.z = vc1.g * (1.0f - vc1.b);
     layerBlends.w = vc1.g * vc1.b;
 
-    // Calculate single parallax offset using blended heights (GTA V approach)
+    // Calculate single parallax offset using blended heights
+    float parallaxSelfShadow = 1.0;
     if (EnableHeightMap && RenderMode == 0)
     {
         float3 viewDir = -normalize(input.CamRelPos); // Negate to get direction FROM surface TO camera
@@ -209,6 +229,17 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         sc2 += parallaxOffset;
         sc3 += parallaxOffset;
         sc4 += parallaxOffset;
+
+        // Parallax self-shadow, transform light dir to tangent space and trace blended heights
+        float3 tanLightDir;
+        tanLightDir.x = dot(tang, GlobalLights.LightDir.xyz);
+        tanLightDir.y = dot(bitang, GlobalLights.LightDir.xyz);
+        tanLightDir.z = dot(norm, GlobalLights.LightDir.xyz);
+        float2 blendedScaleBias = GetBlendedScaleBias(layerBlends);
+        float blendedHScale = blendedScaleBias.x * POM_HEIGHT_SCALE;
+        float edgeWeight = 1.0f - saturate(input.EdgeWeight.x);
+        float shadowAmount = TraceTerrainSelfShadow(layerBlends, sc0, tanLightDir, edgeWeight, blendedHScale);
+        parallaxSelfShadow = 1.0 - shadowAmount * PARALLAX_SELF_SHADOW_AMOUNT;
     }
 
     float4 bc0 = float4(0.5, 0.5, 0.5, 1);
@@ -392,7 +423,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     float3 spec = 0;
 
-    tv.rgb = FullLighting(tv.rgb, spec, norm, vc0, GlobalLights, EnableShadows, input.Shadows.x, input.LightShadow);
+    tv.rgb = FullLighting(tv.rgb, spec, norm, vc0, GlobalLights, EnableShadows, input.Shadows.x, input.LightShadow, parallaxSelfShadow);
 
 
     return float4(tv.rgb, saturate(tv.a));
