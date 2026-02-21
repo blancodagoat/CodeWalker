@@ -391,9 +391,9 @@ namespace CodeWalker.GameFiles
         public CacheFileDate(string line)
         {
             string[] p = line.Split(' ');
-            if (p.Length > 0) FileName = new MetaHash(uint.Parse(p[0]));
-            if (p.Length > 1) TimeStamp = long.Parse(p[1]);
-            if (p.Length > 2) FileID = uint.Parse(p[2]);
+            if (p.Length > 0 && uint.TryParse(p[0], out uint hash)) FileName = new MetaHash(hash);
+            if (p.Length > 1 && long.TryParse(p[1], out long ts)) TimeStamp = ts;
+            if (p.Length > 2 && uint.TryParse(p[2], out uint fid)) FileID = fid;
         }
 
         public string ToCacheFileString()

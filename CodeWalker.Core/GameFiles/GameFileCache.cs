@@ -2674,7 +2674,7 @@ namespace CodeWalker.GameFiles
                     if (req.Loaded)
                         continue; //it's already loaded... (somehow)
 
-                    if ((req.LastUseTime - DateTime.Now).TotalSeconds > 0.5)
+                    if ((DateTime.Now - req.LastUseTime).TotalSeconds > 0.5)
                         continue; //hasn't been requested lately..! ignore, will try again later if necessary
 
                     itemcount++;
@@ -5535,9 +5535,12 @@ namespace CodeWalker.GameFiles
                 {
                     var defval = ap.Value.FirstOrDefault();
                     MetaXml.OpenTag(sb, 3, $"Item name=\"{(ShaderParamNames)ap.Key}\" type=\"Array\"");
-                    foreach (var vec in defval)
+                    if (defval != null)
                     {
-                        MetaXml.SelfClosingTag(sb, 4, "Value " + FloatUtil.GetVector4XmlString(vec));
+                        foreach (var vec in defval)
+                        {
+                            MetaXml.SelfClosingTag(sb, 4, "Value " + FloatUtil.GetVector4XmlString(vec));
+                        }
                     }
                     MetaXml.CloseTag(sb, 3, "Item");
                 }

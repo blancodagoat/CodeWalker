@@ -427,7 +427,7 @@ namespace CodeWalker
                     StatusLabel.Text = text;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         public void UpdateErrorLog(string text)
         {
@@ -442,7 +442,7 @@ namespace CodeWalker
                     //StatusLabel.Text = text;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
 
 
@@ -976,7 +976,7 @@ namespace CodeWalker
                     MainListView.VirtualListSize = 0; //also clear the list view...
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void AddMainTreeViewRoot(MainTreeFolder f)
         {
@@ -996,7 +996,7 @@ namespace CodeWalker
                     f.TreeNode = rn;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void AddMainTreeViewNode(MainTreeFolder f)
         {
@@ -1016,7 +1016,7 @@ namespace CodeWalker
                     root.Expand();
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void RecurseAddMainTreeViewNodes(MainTreeFolder f, TreeNode parent)
         {
@@ -1082,7 +1082,7 @@ namespace CodeWalker
                     FirstRefreshed = true;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void AddNewFolderTreeNode(MainTreeFolder f)
         {

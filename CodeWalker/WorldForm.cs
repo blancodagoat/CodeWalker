@@ -6157,7 +6157,7 @@ namespace CodeWalker
                     }
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void SetSelectionUI(MapSelection item)
         {
@@ -6804,7 +6804,7 @@ namespace CodeWalker
                 catch (Exception ex)
                 {
                     try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting DLC level: {ex.Message}"); })); }
-                    catch { }
+                    catch (ObjectDisposedException) { }
                 }
             });
         }
@@ -6833,7 +6833,7 @@ namespace CodeWalker
                 catch (Exception ex)
                 {
                     try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting mods enabled: {ex.Message}"); })); }
-                    catch { }
+                    catch (ObjectDisposedException) { }
                 }
             });
         }
@@ -6959,7 +6959,7 @@ namespace CodeWalker
                     StatusLabel.Text = text;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void UpdateMousedLabel(string text)
         {
@@ -6974,7 +6974,7 @@ namespace CodeWalker
                     MousedLabel.Text = text;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void UpdateWeatherTypesComboBox(Weather weather)
         {
@@ -7000,7 +7000,7 @@ namespace CodeWalker
                     WeatherRegionComboBox.SelectedIndex = Math.Max(WeatherRegionComboBox.FindString(Settings.Default.Region), 0);
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void UpdateCloudTypesComboBox(Clouds clouds)
         {
@@ -7028,7 +7028,7 @@ namespace CodeWalker
                     CloudParamComboBox.SelectedIndex = 0;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void UpdateDlcListComboBox(List<string> dlcnames)
         {
@@ -7056,7 +7056,7 @@ namespace CodeWalker
                     }
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
 
         private void LogError(string text)
@@ -7073,7 +7073,7 @@ namespace CodeWalker
                     //MessageBox.Show(text);
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
 
 
@@ -7092,7 +7092,7 @@ namespace CodeWalker
                     UpdateMarkerSelectionPanel();
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void UpdateMarkerSelectionPanel()
         {
@@ -7556,7 +7556,7 @@ namespace CodeWalker
                     ToolsMenuJenkInd.Enabled = true;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
         private void EnableDLCModsUI()
         {
@@ -7575,7 +7575,7 @@ namespace CodeWalker
                     DlcLevelComboBox.Enabled = true;
                 }
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
 
 
@@ -8513,7 +8513,7 @@ namespace CodeWalker
                 {
                     BeginInvoke(new Action(() => { ShowSubtitle(text, duration); }));
                 }
-                catch { }
+                catch (ObjectDisposedException) { }
                 return;
             }
 
