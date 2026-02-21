@@ -1791,7 +1791,7 @@ namespace CodeWalker.GameFiles
         public FlagsUint Flags { get; set; }
 
         public FlagsUint Flags2 { get; set; }
-        public ushort MaxHeaderSize { get; set; }
+        public ushort ParentOverrides { get; set; } // bit 0=Volume, 1=Pitch, 2=Pan, 3=PreDelay, 4=StartOffset, 5=AttackTime, 6=ReleaseTime, 7=DopplerFactor, 8=LPFCutoff, 9=HPFCutoff, 10=VolumeCurve, 11=VolumeCurveScale, 12=VolumeCurvePlateau, 13=SpeakerMask
         public short Volume { get; set; }
         public ushort VolumeVariance { get; set; } //0xD-0xF
         public short Pitch { get; set; } //0xF-0x11
@@ -1841,7 +1841,7 @@ namespace CodeWalker.GameFiles
             if ((Flags & 0xFF) != 0xAA)
             {
                 if (Bit(0)) Flags2 = br.ReadUInt32();
-                if (Bit(1)) MaxHeaderSize = br.ReadUInt16();
+                if (Bit(1)) ParentOverrides = br.ReadUInt16();
                 if (Bit(2)) Volume = br.ReadInt16();
                 if (Bit(3)) VolumeVariance = br.ReadUInt16();
                 if (Bit(4)) Pitch = br.ReadInt16();
@@ -1895,7 +1895,7 @@ namespace CodeWalker.GameFiles
             if ((Flags & 0xFF) != 0xAA)
             {
                 if (Bit(0)) bw.Write(Flags2);
-                if (Bit(1)) bw.Write(MaxHeaderSize);
+                if (Bit(1)) bw.Write(ParentOverrides);
                 if (Bit(2)) bw.Write(Volume);
                 if (Bit(3)) bw.Write(VolumeVariance);
                 if (Bit(4)) bw.Write(Pitch);
@@ -1946,7 +1946,18 @@ namespace CodeWalker.GameFiles
             if ((Flags & 0xFF) != 0xAA)
             {
                 if (Bit(0)) RelXml.ValueTag(sb, indent, "Flags2", "0x" + Flags2.Hex);
-                if (Bit(1)) RelXml.ValueTag(sb, indent, "MaxHeaderSize", MaxHeaderSize.ToString());
+                if (Bit(1))
+                {
+                    RelXml.Indent(sb, indent);
+                    sb.AppendLine("<ParentOverrides>");
+                    foreach (ParentOverrideFlags flag in Enum.GetValues(typeof(ParentOverrideFlags)))
+                    {
+                        bool set = (ParentOverrides & (1 << (int)flag)) != 0;
+                        RelXml.SelfClosingTag(sb, indent + 1, flag.ToString() + $" value=\"{set.ToString().ToLower()}\"");
+                    }
+                    RelXml.Indent(sb, indent);
+                    sb.AppendLine("</ParentOverrides>");
+                }
                 if (Bit(2)) RelXml.ValueTag(sb, indent, "Volume", Volume.ToString());
                 if (Bit(3)) RelXml.ValueTag(sb, indent, "VolumeVariance", VolumeVariance.ToString());
                 if (Bit(4)) RelXml.ValueTag(sb, indent, "Pitch", Pitch.ToString());
@@ -1996,7 +2007,33 @@ namespace CodeWalker.GameFiles
             if ((Flags & 0xFF) != 0xAA)
             {
                 if (Bit(0)) Flags2 = Xml.GetChildUIntAttribute(node, "Flags2", "value");
-                if (Bit(1)) MaxHeaderSize = (ushort)Xml.GetChildUIntAttribute(node, "MaxHeaderSize", "value");
+                if (Bit(1))
+                {
+                    // support old format: <MaxHeaderSize value="1023" /> or <ParentOverrides value="0x03FF" />
+                    uint legacyValue = Xml.GetChildUIntAttribute(node, "MaxHeaderSize", "value") | Xml.GetChildUIntAttribute(node, "ParentOverrides", "value");
+                    // support new format: <ParentOverrides><VolumeOverridesParent value="true" />...</ParentOverrides>
+                    XmlNode poNode = node.SelectSingleNode("ParentOverrides");
+                    if (poNode != null && poNode.HasChildNodes)
+                    {
+                        ushort flags = 0;
+                        foreach (XmlNode flagNode in poNode.ChildNodes)
+                        {
+                            if (Enum.TryParse(flagNode.Name, out ParentOverrideFlags flag))
+                            {
+                                string valueStr = flagNode.Attributes?["value"]?.Value;
+                                if (string.Equals(valueStr, "true", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    flags |= (ushort)(1 << (int)flag);
+                                }
+                            }
+                        }
+                        ParentOverrides = flags;
+                    }
+                    else
+                    {
+                        ParentOverrides = (ushort)legacyValue;
+                    }
+                }
                 if (Bit(2)) Volume = (short)Xml.GetChildIntAttribute(node, "Volume", "value");
                 if (Bit(3)) VolumeVariance = (ushort)Xml.GetChildUIntAttribute(node, "VolumeVariance", "value");
                 if (Bit(4)) Pitch = (short)Xml.GetChildIntAttribute(node, "Pitch", "value");
@@ -2047,7 +2084,7 @@ namespace CodeWalker.GameFiles
             if ((Flags & 0xFF) != 0xAA)
             {
                 if (Bit(0)) length += 4;// Flags2 = br.ReadUInt32();
-                if (Bit(1)) length += 2;// MaxHeaderSize = br.ReadUInt16();
+                if (Bit(1)) length += 2;// ParentOverrides = br.ReadUInt16();
                 if (Bit(2)) length += 2;// Volume = br.ReadUInt16();
                 if (Bit(3)) length += 2;// VolumeVariance = br.ReadUInt16();
                 if (Bit(4)) length += 2;// Pitch = br.ReadUInt16();
@@ -2232,6 +2269,24 @@ namespace CodeWalker.GameFiles
     }
 
 
+
+    public enum ParentOverrideFlags
+    {
+        VolumeOverridesParent,
+        PitchOverridesParent,
+        PanOverridesParent,
+        PreDelayOverridesParent,
+        StartOffsetOverridesParent,
+        AttackTimeOverridesParent,
+        ReleaseTimeOverridesParent,
+        DopplerFactorOverridesParent,
+        LPFCutoffOverridesParent,
+        HPFCutoffOverridesParent,
+        VolumeCurveOverridesParent,
+        VolumeCurveScaleOverridesParent,
+        VolumeCurvePlateauOverridesParent,
+        SpeakerMaskOverridesParent,
+    }
 
     public enum Dat54SoundType : byte
     {
