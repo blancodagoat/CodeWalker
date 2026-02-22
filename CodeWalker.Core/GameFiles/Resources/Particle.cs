@@ -2733,7 +2733,7 @@ namespace CodeWalker.GameFiles
         public byte InvertBiasLink { get; set; }
         public byte RandomIndex { get; set; }
         public short unused00 { get; set; }
-        public ResourceSimpleList64<ParticleKeyframePropValue> Values { get; set; }
+        public ResourceSimpleList64<ParticleKeyframePropValue> Values { get; set; } = new ResourceSimpleList64<ParticleKeyframePropValue>();
         public ulong padding12 { get; set; }
         public ulong padding13 { get; set; }
 
