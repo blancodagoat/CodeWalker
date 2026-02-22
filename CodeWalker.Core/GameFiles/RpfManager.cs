@@ -57,15 +57,6 @@ namespace CodeWalker.GameFiles
             ModRpfDict = new();
             ModEntryDict = new();
 
-            // Load RPF structure cache
-            string cacheDir = GetCacheDirectory();
-            string cacheFilePath = System.IO.Path.Combine(cacheDir, "rpfcache.dat");
-            var structureCache = new RpfStructureCache();
-            bool cacheLoaded = structureCache.TryLoad(cacheFilePath, gen9, folder);
-            int cacheHits = 0;
-            int cacheMisses = 0;
-            var scannedRpfs = new List<(string filePath, long fileSize, DateTime lastWriteUtc, RpfFile rpf)>();
-
             foreach (string rpfpath in allfiles)
             {
                 try
@@ -86,27 +77,13 @@ namespace CodeWalker.GameFiles
                         if (excl) continue; //skip files in exclude paths.
                     }
 
-                    // Try to load from cache
-                    FileInfo fi = new FileInfo(rpfpath);
-                    RpfFile cached = cacheLoaded ? structureCache.TryGetCached(rpfpath, fi.Length, fi.LastWriteTimeUtc) : null;
-
-                    if (cached != null)
-                    {
-                        rf = cached;
-                        cacheHits++;
-                    }
-                    else
-                    {
-                        rf.ScanStructure(updateStatus, errorLog);
-                        cacheMisses++;
-                    }
+                    rf.ScanStructure(updateStatus, errorLog);
 
                     if (rf.LastException != null) //incase of corrupted rpf (or renamed NG encrypted RPF)
                     {
                         continue;
                     }
 
-                    scannedRpfs.Add((rpfpath, fi.Length, fi.LastWriteTimeUtc, rf));
                     AddRpfFile(rf, false, false);
                 }
                 catch (Exception ex)
@@ -115,24 +92,13 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-            // Save updated cache
-            try
-            {
-                updateStatus("Saving RPF cache...");
-                structureCache.Save(cacheFilePath, gen9, folder, scannedRpfs);
-            }
-            catch (Exception ex)
-            {
-                errorLog("Failed to save RPF cache: " + ex.ToString());
-            }
-
             if (buildIndex)
             {
                 updateStatus("Building jenkindex...");
                 BuildBaseJenkIndex();
             }
 
-            updateStatus($"Scan complete ({cacheHits} cached, {cacheMisses} scanned)");
+            updateStatus("Scan complete");
 
             IsInited = true;
         }
@@ -667,12 +633,6 @@ namespace CodeWalker.GameFiles
                 }
             }
 
-        }
-
-        private static string GetCacheDirectory()
-        {
-            var path = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            return System.IO.Path.GetDirectoryName(path) ?? string.Empty;
         }
 
     }

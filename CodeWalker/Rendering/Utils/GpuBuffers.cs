@@ -37,8 +37,14 @@ namespace CodeWalker.Rendering
             try
             {
                 var dataBox = context.MapSubresource(Buffer, 0, MapMode.WriteDiscard, MapFlags.None);
-                Utilities.Write(dataBox.DataPointer, ref Vars);
-                context.UnmapSubresource(Buffer, 0);
+                try
+                {
+                    Utilities.Write(dataBox.DataPointer, ref Vars);
+                }
+                finally
+                {
+                    context.UnmapSubresource(Buffer, 0);
+                }
             }
             catch { } //not much we can do about this except ignore it..
         }
@@ -78,8 +84,14 @@ namespace CodeWalker.Rendering
         public void Update(DeviceContext context, T[] data)
         {
             var dataBox = context.MapSubresource(Buffer, 0, MapMode.WriteDiscard, MapFlags.None);
-            Utilities.Write(dataBox.DataPointer, data, 0, Math.Min(data.Length, StructCount));
-            context.UnmapSubresource(Buffer, 0);
+            try
+            {
+                Utilities.Write(dataBox.DataPointer, data, 0, Math.Min(data.Length, StructCount));
+            }
+            finally
+            {
+                context.UnmapSubresource(Buffer, 0);
+            }
         }
 
         public void SetVSCBuffer(DeviceContext context, int slot)
@@ -186,14 +198,26 @@ namespace CodeWalker.Rendering
                 DataArray[i] = Data[i];
             }
             var dataBox = context.MapSubresource(Buffer, 0, MapMode.WriteDiscard, MapFlags.None);
-            Utilities.Write(dataBox.DataPointer, DataArray, 0, CurrentCount);
-            context.UnmapSubresource(Buffer, 0);
+            try
+            {
+                Utilities.Write(dataBox.DataPointer, DataArray, 0, CurrentCount);
+            }
+            finally
+            {
+                context.UnmapSubresource(Buffer, 0);
+            }
         }
         public void Update(DeviceContext context, T[] data)
         {
             var dataBox = context.MapSubresource(Buffer, 0, MapMode.WriteDiscard, MapFlags.None);
-            Utilities.Write(dataBox.DataPointer, data, 0, data.Length);
-            context.UnmapSubresource(Buffer, 0);
+            try
+            {
+                Utilities.Write(dataBox.DataPointer, data, 0, data.Length);
+            }
+            finally
+            {
+                context.UnmapSubresource(Buffer, 0);
+            }
         }
 
         public void SetVSResource(DeviceContext context, int slot)

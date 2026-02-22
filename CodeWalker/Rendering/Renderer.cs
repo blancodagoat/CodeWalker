@@ -6,6 +6,7 @@ using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -84,19 +85,19 @@ namespace CodeWalker.Rendering
 
         private RenderLodManager LodManager = new RenderLodManager();
 
-        private List<YmapEntityDef> renderworldentities = new List<YmapEntityDef>(); //used when rendering world view.
-        private List<RenderableEntity> renderworldrenderables = new List<RenderableEntity>();
-        private Dictionary<Archetype, Renderable> ArchetypeRenderables = new Dictionary<Archetype, Renderable>();
-        private Dictionary<YmapEntityDef, Renderable> RequiredParents = new Dictionary<YmapEntityDef, Renderable>();
-        private List<YmapEntityDef> RenderEntities = new List<YmapEntityDef>();
+        private List<YmapEntityDef> renderworldentities = new List<YmapEntityDef>(512); //used when rendering world view.
+        private List<RenderableEntity> renderworldrenderables = new List<RenderableEntity>(512);
+        private Dictionary<Archetype, Renderable> ArchetypeRenderables = new Dictionary<Archetype, Renderable>(256);
+        private Dictionary<YmapEntityDef, Renderable> RequiredParents = new Dictionary<YmapEntityDef, Renderable>(128);
+        private List<YmapEntityDef> RenderEntities = new List<YmapEntityDef>(512);
 
         public Dictionary<uint, YmapEntityDef> HideEntities = new Dictionary<uint, YmapEntityDef>();//dictionary of entities to hide, for cutscenes to use
 
         private Dictionary<MetaHash, Ped> ScenarioPeds = new Dictionary<MetaHash, Ped>();//cache for scenario ped models
 
         public bool ShowScriptedYmaps = true;
-        public List<YmapFile> VisibleYmaps = new List<YmapFile>();
-        public List<YmapEntityDef> VisibleMlos = new List<YmapEntityDef>();
+        public List<YmapFile> VisibleYmaps = new List<YmapFile>(128);
+        public List<YmapEntityDef> VisibleMlos = new List<YmapEntityDef>(64);
 
         public rage__eLodType renderworldMaxLOD = rage__eLodType.LODTYPES_DEPTH_ORPHANHD;
         public float renderworldLodDistMult = 1.0f;
@@ -1580,7 +1581,7 @@ namespace CodeWalker.Rendering
             YddFile skydomeydd = gameFileCache.GetYdd(2640562617); //skydome hash
             if ((skydomeydd != null) && (skydomeydd.Loaded) && (skydomeydd.Dict != null))
             {
-                skydomeydr = skydomeydd.Dict.Values.FirstOrDefault();
+                foreach (var v in skydomeydd.Dict.Values) { skydomeydr = v; break; } //avoid LINQ boxing via FirstOrDefault
             }
 
             Texture starfield = null;
@@ -1915,7 +1916,8 @@ namespace CodeWalker.Rendering
                     var pent = ent.Parent;
                     if (waitforchildrentoload && (pent != null))
                     {
-                        if (!RequiredParents.ContainsKey(pent))
+                        ref Renderable parentRef = ref CollectionsMarshal.GetValueRefOrAddDefault(RequiredParents, pent, out bool alreadyExists);
+                        if (!alreadyExists)
                         {
                             bool allok = true;
                             var pcnode = pent.LodManagerChildren?.First;
@@ -1936,7 +1938,7 @@ namespace CodeWalker.Rendering
                                     RenderEntities.Add(pent);
                                 }
                             }
-                            RequiredParents[pent] = rndbl;
+                            parentRef = rndbl;
                         }
                     }
 

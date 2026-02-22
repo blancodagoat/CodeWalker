@@ -1355,7 +1355,7 @@ namespace CodeWalker.GameFiles
             uint e1end = GetHeaderBlockCount();//start searching for space after the end of the header
             uint e1next = e1end;
 
-            for (int i = 0; i < allfiles.Count(); i++)
+            for (int i = 0; i < allfiles.Count; i++)
             {
                 RpfFileEntry e2 = allfiles[i];
                 uint e2cnt = GetBlockCount(e2.GetFileSize());

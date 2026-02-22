@@ -491,6 +491,7 @@ namespace ST.Library.UI.NodeEditor
 
         private bool m_is_process_mouse_event = true; //Whether to pass down (Node or NodeControls) mouse related events such as disconnection related operations should not pass down
         private bool m_is_buildpath; //The path used to determine whether to re-establish the cache connection this time during the redraw process
+        private volatile bool m_threads_running = true; //signals background threads to stop on dispose
         private Pen m_p_line = new(Color.Cyan, 2f); // used to draw connected lines
         private Pen m_p_line_hover = new(Color.Cyan, 4f); //Used to draw the line when the mouse is hovered
         private GraphicsPath m_gp_hover; //The path of the current mouse hover
@@ -624,6 +625,11 @@ namespace ST.Library.UI.NodeEditor
             m_sf.Alignment = StringAlignment.Near;
             m_sf.FormatFlags = StringFormatFlags.NoWrap;
             m_sf.SetTabStops(0, new float[] { 40 });
+        }
+
+        protected override void Dispose(bool disposing) {
+            m_threads_running = false;
+            base.Dispose(disposing);
         }
 
         protected override void WndProc(ref Message m) {
@@ -1284,7 +1290,7 @@ namespace ST.Library.UI.NodeEditor
 
         private void MoveCanvasThread() {
             bool bRedraw;
-            while (true) {
+            while (m_threads_running) {
                 bRedraw = false;
                 if (m_real_canvas_x != this._CanvasOffsetX) {
                     float nx = m_real_canvas_x - this._CanvasOffsetX;
@@ -1323,7 +1329,7 @@ namespace ST.Library.UI.NodeEditor
         }
 
         private void ShowAlertThread() {
-            while (true) {
+            while (m_threads_running) {
                 int nTime = m_time_alert - (int)DateTime.Now.Subtract(m_dt_alert).TotalMilliseconds;
                 if (nTime > 0) {
                     Thread.Sleep(nTime);

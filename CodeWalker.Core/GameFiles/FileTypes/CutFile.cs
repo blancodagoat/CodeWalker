@@ -74,6 +74,8 @@ namespace CodeWalker.GameFiles
         public uint[] iCutsceneFlags { get; set; } //iCutsceneFlags, PsoDataType.Array, 528, 4, (MetaName)262146),
         public Vector3 vOffset { get; set; } //vOffset, PsoDataType.Float3, 544, 0, 0),
         public float fRotation { get; set; } //fRotation, PsoDataType.Float, 560, 0, 0),
+        public float fPitch { get; set; } //fPitch, PsoDataType.Float, 564, 0, 0),
+        public float fRoll { get; set; } //fRoll, PsoDataType.Float, 568, 0, 0),
         public Vector3 vTriggerOffset { get; set; } //vTriggerOffset, PsoDataType.Float3, 576, 0, 0),
         public object[] pCutsceneObjects { get; set; } //pCutsceneObjects, PsoDataType.Array, 592, 0, (MetaName)7),
         public object[] pCutsceneLoadEventList { get; set; } //pCutsceneLoadEventList, PsoDataType.Array, 608, 0, (MetaName)9),
@@ -112,6 +114,8 @@ namespace CodeWalker.GameFiles
             iCutsceneFlags = Xml.GetChildRawUintArray(node, "iCutsceneFlags");
             vOffset = Xml.GetChildVector3Attributes(node, "vOffset");
             fRotation = Xml.GetChildFloatAttribute(node, "fRotation", "value");
+            fPitch = Xml.GetChildFloatAttribute(node, "fPitch", "value");
+            fRoll = Xml.GetChildFloatAttribute(node, "fRoll", "value");
             vTriggerOffset = Xml.GetChildVector3Attributes(node, "vTriggerOffset");
             pCutsceneObjects = ReadObjectArray(node, "pCutsceneObjects");
             pCutsceneLoadEventList = ReadObjectArray(node, "pCutsceneLoadEventList");
@@ -273,6 +277,11 @@ namespace CodeWalker.GameFiles
                 case "rage__cutfTriggerLightEffectEventArgs": return new CutTriggerLightEffectEventArgs();
                 case "rage__cutfVehicleExtraEventArgs": return new CutVehicleExtraEventArgs();
                 case "rage__cutfFixupModelObject": return new CutFixupModelObject();
+                case "rage__cutfTwoFloatValuesEventArgs": return new CutTwoFloatValuesEventArgs();
+                case "rage__cutfFloatBoolValueEventArgs": return new CutFloatBoolValueEventArgs();
+                case "rage__cutfAttachmentEventArgs": return new CutAttachmentEventArgs();
+                case "rage__cutfObjectIdPartialHashEventArgs": return new CutObjectIdPartialHashEventArgs();
+                case "rage__cutfObjectIdListEvent": return new CutObjectIdListEvent();
                 case "cutf_float": return new CutFloat();
                 case "cutf_int": return new CutInt();
                 case "cutf_string": return new CutString();
@@ -303,6 +312,7 @@ namespace CodeWalker.GameFiles
                     {
                         var type = Xml.GetStringAttribute(inode, "type");
                         var o = ConstructObject(type);
+                        if (o == null) continue;
                         o.ReadXml(inode);
                         oList.Add(o);
                     }
@@ -605,6 +615,7 @@ namespace CodeWalker.GameFiles
     }
     [TC(typeof(EXP))] public class CutLightObject : CutNamedObject  // rage__cutfLightObject
     {
+        public Vector4 vVolumeOuterColourAndIntensity { get; set; } // PsoDataType.Float4
         public Vector3 vDirection { get; set; } // PsoDataType.Float3, 64, 0, 0),
         public Vector3 vColour { get; set; } // PsoDataType.Float3, 80, 0, 0),
         public Vector3 vPosition { get; set; } // PsoDataType.Float3, 96, 0, 0),
@@ -623,13 +634,17 @@ namespace CodeWalker.GameFiles
         public int iLightProperty { get; set; } // PsoDataType.SInt, 160, 0, 0),
         public int TextureDictID { get; set; } // PsoDataType.SInt, 164, 0, 0),
         public int TextureKey { get; set; } // PsoDataType.SInt, 168, 0, 0),
+        public int AttachParentId { get; set; } // PsoDataType.SInt
         public uint uLightFlags { get; set; } // PsoDataType.UInt, 176, 0, 0),
         public uint uHourFlags { get; set; } // PsoDataType.UInt, 180, 0, 0),
-        public bool bStatic { get; set; } // PsoDataType.Bool, 186, 0, 0)
+        public ushort AttachBoneHash { get; set; } // PsoDataType.UShort
+        public bool bStatic { get; set; } // PsoDataType.Bool, 186, 0, 0),
+        public byte uFlashiness { get; set; } // PsoDataType.UByte
 
         public override void ReadXml(XmlNode node)
         {
             base.ReadXml(node);
+            vVolumeOuterColourAndIntensity = Xml.GetChildVector4Attributes(node, "vVolumeOuterColourAndIntensity");
             vDirection = Xml.GetChildVector3Attributes(node, "vDirection");
             vColour = Xml.GetChildVector3Attributes(node, "vColour");
             vPosition = Xml.GetChildVector3Attributes(node, "vPosition");
@@ -648,13 +663,17 @@ namespace CodeWalker.GameFiles
             iLightProperty = Xml.GetChildIntAttribute(node, "iLightProperty", "value");
             TextureDictID = Xml.GetChildIntAttribute(node, "TextureDictID", "value");
             TextureKey = Xml.GetChildIntAttribute(node, "TextureKey", "value");
+            AttachParentId = Xml.GetChildIntAttribute(node, "AttachParentId", "value");
             uLightFlags = Xml.GetChildUIntAttribute(node, "uLightFlags", "value");
             uHourFlags = Xml.GetChildUIntAttribute(node, "uHourFlags", "value");
+            AttachBoneHash = (ushort)Xml.GetChildUIntAttribute(node, "AttachBoneHash", "value");
             bStatic = Xml.GetChildBoolAttribute(node, "bStatic", "value");
+            uFlashiness = (byte)Xml.GetChildUIntAttribute(node, "uFlashiness", "value");
         }
     }
     [TC(typeof(EXP))] public class CutAnimatedLightObject : CutNamedObject  // rage__cutfAnimatedLightObject
     {
+        public Vector4 vVolumeOuterColourAndIntensity { get; set; } // PsoDataType.Float4
         public Vector3 vDirection { get; set; } // PsoDataType.Float3, 64, 0, 0),
         public Vector3 vColour { get; set; } // PsoDataType.Float3, 80, 0, 0),
         public Vector3 vPosition { get; set; } // PsoDataType.Float3, 96, 0, 0),
@@ -673,16 +692,18 @@ namespace CodeWalker.GameFiles
         public int iLightProperty { get; set; } // PsoDataType.SInt, 160, 0, 0),
         public int TextureDictID { get; set; } // PsoDataType.SInt, 164, 0, 0),
         public int TextureKey { get; set; } // PsoDataType.SInt, 168, 0, 0),
-        //public int Unk_34975788 { get; set; } // PsoDataType.SInt, 216, 0, 0),
+        public int AttachParentId { get; set; } // PsoDataType.SInt
         public uint uLightFlags { get; set; } // PsoDataType.UInt, 176, 0, 0),
         public uint uHourFlags { get; set; } // PsoDataType.UInt, 180, 0, 0),
-        //public ushort Unk_1437992521 { get; set; } // PsoDataType.UShort, 228, 0, 0),
+        public ushort AttachBoneHash { get; set; } // PsoDataType.UShort
         public bool bStatic { get; set; } // PsoDataType.Bool, 186, 0, 0),
+        public byte uFlashiness { get; set; } // PsoDataType.UByte
         public uint AnimStreamingBase { get; set; } // PsoDataType.UInt, 192, 0, 0)
 
         public override void ReadXml(XmlNode node)
         {
             base.ReadXml(node);
+            vVolumeOuterColourAndIntensity = Xml.GetChildVector4Attributes(node, "vVolumeOuterColourAndIntensity");
             vDirection = Xml.GetChildVector3Attributes(node, "vDirection");
             vColour = Xml.GetChildVector3Attributes(node, "vColour");
             vPosition = Xml.GetChildVector3Attributes(node, "vPosition");
@@ -701,11 +722,12 @@ namespace CodeWalker.GameFiles
             iLightProperty = Xml.GetChildIntAttribute(node, "iLightProperty", "value");
             TextureDictID = Xml.GetChildIntAttribute(node, "TextureDictID", "value");
             TextureKey = Xml.GetChildIntAttribute(node, "TextureKey", "value");
-            //Unk_34975788 = Xml.GetChildIntAttribute(node, "hash_0215B02C", "value");
+            AttachParentId = Xml.GetChildIntAttribute(node, "AttachParentId", "value");
             uLightFlags = Xml.GetChildUIntAttribute(node, "uLightFlags", "value");
             uHourFlags = Xml.GetChildUIntAttribute(node, "uHourFlags", "value");
-            //Unk_1437992521 = (ushort)Xml.GetChildUIntAttribute(node, "hash_55B60649", "value");
+            AttachBoneHash = (ushort)Xml.GetChildUIntAttribute(node, "AttachBoneHash", "value");
             bStatic = Xml.GetChildBoolAttribute(node, "bStatic", "value");
+            uFlashiness = (byte)Xml.GetChildUIntAttribute(node, "uFlashiness", "value");
             AnimStreamingBase = Xml.GetChildUIntAttribute(node, "AnimStreamingBase", "value");
         }
     }
@@ -1109,21 +1131,32 @@ namespace CodeWalker.GameFiles
     [TC(typeof(EXP))] public class CutCameraCutCharacterLightParams : CutBase  // rage__cutfCameraCutCharacterLightParams
     {
         public bool bUseTimeCycleValues { get; set; } // PsoDataType.Bool, 8, 0, 0),
+        public bool bUseAsIntensityModifier { get; set; } // PsoDataType.Bool, 9, 0, 0),
         public Vector3 vDirection { get; set; } // PsoDataType.Float3, 16, 0, 0),
         public Vector3 vColour { get; set; } // PsoDataType.Float3, 32, 0, 0),
-        public float fIntensity { get; set; } // PsoDataType.Float, 48, 0, 0)
+        public float fIntensity { get; set; } // PsoDataType.Float, 48, 0, 0),
+        public float fNightIntensity { get; set; } // PsoDataType.Float, 52, 0, 0)
 
         public override void ReadXml(XmlNode node)
         {
             bUseTimeCycleValues = Xml.GetChildBoolAttribute(node, "bUseTimeCycleValues", "value");
+            bUseAsIntensityModifier = Xml.GetChildBoolAttribute(node, "bUseAsIntensityModifier", "value");
             vDirection = Xml.GetChildVector3Attributes(node, "vDirection");
             vColour = Xml.GetChildVector3Attributes(node, "vColour");
             fIntensity = Xml.GetChildFloatAttribute(node, "fIntensity", "value");
+            fNightIntensity = Xml.GetChildFloatAttribute(node, "fNightIntensity", "value");
         }
     }
     [TC(typeof(EXP))] public class CutCameraCutTimeOfDayDofModifier : CutBase  // rage__cutfCameraCutTimeOfDayDofModifier
     {
-        //no definition available for this??
+        public uint TimeOfDayFlags { get; set; } // PsoDataType.UInt
+        public int DofStrengthModifier { get; set; } // PsoDataType.SInt
+
+        public override void ReadXml(XmlNode node)
+        {
+            TimeOfDayFlags = Xml.GetChildUIntAttribute(node, "TimeOfDayFlags", "value");
+            DofStrengthModifier = Xml.GetChildIntAttribute(node, "DofStrengthModifier", "value");
+        }
     }
 
     [TC(typeof(EXP))] public class CutObjectIdNameEventArgs : CutObjectIdEventArgs  // rage__cutfObjectIdNameEventArgs
@@ -1156,10 +1189,11 @@ namespace CodeWalker.GameFiles
         public int iSecondBodyColour { get; set; } // PsoDataType.SInt, 44, 0, 0),
         public int iSpecularColour { get; set; } // PsoDataType.SInt, 48, 0, 0),
         public int iWheelTrimColour { get; set; } // PsoDataType.SInt, 52, 0, 0),
-        public int Unk_2747538743 { get; set; } // PsoDataType.SInt, 56, 0, 0),
-        public int iLivery { get; set; } // PsoDataType.SInt, 60, 0, 0),
-        public int iLivery2 { get; set; } // PsoDataType.SInt, 64, 0, 0),
-        public float fDirtLevel { get; set; } // PsoDataType.Float, 68, 0, 0)
+        public int iBodyColour5 { get; set; } // PsoDataType.SInt, 56, 0, 0), (hash_A3C41D37)
+        public int iBodyColour6 { get; set; } // PsoDataType.SInt, 60, 0, 0),
+        public int iLivery { get; set; } // PsoDataType.SInt, 64, 0, 0),
+        public int iLivery2 { get; set; } // PsoDataType.SInt, 68, 0, 0),
+        public float fDirtLevel { get; set; } // PsoDataType.Float, 72, 0, 0)
 
         public override void ReadXml(XmlNode node)
         {
@@ -1168,7 +1202,9 @@ namespace CodeWalker.GameFiles
             iSecondBodyColour = Xml.GetChildIntAttribute(node, "iSecondBodyColour", "value");
             iSpecularColour = Xml.GetChildIntAttribute(node, "iSpecularColour", "value");
             iWheelTrimColour = Xml.GetChildIntAttribute(node, "iWheelTrimColour", "value");
-            Unk_2747538743 = Xml.GetChildIntAttribute(node, "hash_A3C41D37", "value");
+            iBodyColour5 = Xml.GetChildIntAttribute(node, "iBodyColour5");
+            if (iBodyColour5 == 0) iBodyColour5 = Xml.GetChildIntAttribute(node, "hash_A3C41D37", "value"); // fallback for old PSO hash
+            iBodyColour6 = Xml.GetChildIntAttribute(node, "iBodyColour6", "value");
             iLivery = Xml.GetChildIntAttribute(node, "iLivery", "value");
             iLivery2 = Xml.GetChildIntAttribute(node, "iLivery2", "value");
             fDirtLevel = Xml.GetChildFloatAttribute(node, "fDirtLevel", "value");
@@ -1205,15 +1241,13 @@ namespace CodeWalker.GameFiles
             fLifeTime = Xml.GetChildFloatAttribute(node, "fLifeTime", "value");
         }
     }
-    [TC(typeof(EXP))] public class CutScreenFadeEventArgs : CutEventArgs  // rage__cutfScreenFadeEventArgs
+    [TC(typeof(EXP))] public class CutScreenFadeEventArgs : CutFloatValueEventArgs  // rage__cutfScreenFadeEventArgs
     {
-        public float fValue { get; set; } // PsoDataType.Float, 32, 0, 0),
         public uint color { get; set; } // PsoDataType.UInt, 40, 1, 0)
 
         public override void ReadXml(XmlNode node)
         {
             base.ReadXml(node);
-            fValue = Xml.GetChildFloatAttribute(node, "fValue", "value");
             color = Xml.GetChildUIntAttribute(node, "color", "value");
         }
     }
@@ -1251,6 +1285,58 @@ namespace CodeWalker.GameFiles
             iAttachParentId = Xml.GetChildIntAttribute(node, "iAttachParentId", "value");
             iAttachBoneHash = (ushort)Xml.GetChildUIntAttribute(node, "iAttachBoneHash", "value");
             AttachedParentName = XmlMeta.GetHash(Xml.GetChildInnerText(node, "AttachedParentName"));
+        }
+    }
+    [TC(typeof(EXP))] public class CutTwoFloatValuesEventArgs : CutFloatValueEventArgs  // rage__cutfTwoFloatValuesEventArgs
+    {
+        public float fValue2 { get; set; } // PsoDataType.Float
+
+        public override void ReadXml(XmlNode node)
+        {
+            base.ReadXml(node);
+            fValue2 = Xml.GetChildFloatAttribute(node, "fValue2", "value");
+        }
+    }
+    [TC(typeof(EXP))] public class CutFloatBoolValueEventArgs : CutBoolValueEventArgs  // rage__cutfFloatBoolValueEventArgs
+    {
+        public float fValue { get; set; } // PsoDataType.Float
+
+        public override void ReadXml(XmlNode node)
+        {
+            base.ReadXml(node);
+            fValue = Xml.GetChildFloatAttribute(node, "fValue", "value");
+        }
+    }
+    [TC(typeof(EXP))] public class CutAttachmentEventArgs : CutObjectIdEventArgs  // rage__cutfAttachmentEventArgs
+    {
+        public MetaHash cBoneName { get; set; } // PsoDataType.String, 7
+
+        public override void ReadXml(XmlNode node)
+        {
+            base.ReadXml(node);
+            cBoneName = XmlMeta.GetHash(Xml.GetChildInnerText(node, "cBoneName"));
+        }
+    }
+    [TC(typeof(EXP))] public class CutObjectIdPartialHashEventArgs : CutObjectIdEventArgs  // rage__cutfObjectIdPartialHashEventArgs
+    {
+        public uint PartialHash { get; set; } // PsoDataType.UInt
+
+        public override void ReadXml(XmlNode node)
+        {
+            base.ReadXml(node);
+            PartialHash = Xml.GetChildUIntAttribute(node, "PartialHash", "value");
+        }
+    }
+    [TC(typeof(EXP))] public class CutObjectIdListEvent : CutEvent  // rage__cutfObjectIdListEvent
+    {
+        public int[] iObjectIdList { get; set; } // PsoDataType.Array
+        public int[] iEventArgsIndexList { get; set; } // PsoDataType.Array
+
+        public override void ReadXml(XmlNode node)
+        {
+            base.ReadXml(node);
+            iObjectIdList = Xml.GetChildRawIntArray(node, "iObjectIdList");
+            iEventArgsIndexList = Xml.GetChildRawIntArray(node, "iEventArgsIndexList");
         }
     }
     [TC(typeof(EXP))] public class CutPlayParticleEffectEventArgs : CutEventArgs  // rage__cutfPlayParticleEffectEventArgs
