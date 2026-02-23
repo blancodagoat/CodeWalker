@@ -1027,9 +1027,11 @@ namespace CodeWalker.GameFiles
             Flags = (byte)Xml.GetChildUIntAttribute(node, "Flags");
             RuntimeFlags = (byte)Xml.GetChildUIntAttribute(node, "RuntimeFlags");
             EffectSpawnerAtRatio = new ParticleEffectSpawner();
-            EffectSpawnerAtRatio.ReadXml(node.SelectSingleNode("EffectSpawnerAtRatio"));
+            var esarNode = node.SelectSingleNode("EffectSpawnerAtRatio");
+            if (esarNode != null) EffectSpawnerAtRatio.ReadXml(esarNode);
             EffectSpawnerOnCollision = new ParticleEffectSpawner();
-            EffectSpawnerOnCollision.ReadXml(node.SelectSingleNode("EffectSpawnerOnCollision"));
+            var esocNode = node.SelectSingleNode("EffectSpawnerOnCollision");
+            if (esocNode != null) EffectSpawnerOnCollision.ReadXml(esocNode);
 
 
 
@@ -1170,8 +1172,8 @@ namespace CodeWalker.GameFiles
         public override Tuple<long, IResourceBlock>[] GetParts()
         {
             return new Tuple<long, IResourceBlock>[] {
-                new Tuple<long, IResourceBlock>(88, EffectSpawnerAtRatio),
-                new Tuple<long, IResourceBlock>(96, EffectSpawnerOnCollision),
+                new Tuple<long, IResourceBlock>(0x20, EffectSpawnerAtRatio),
+                new Tuple<long, IResourceBlock>(0x90, EffectSpawnerOnCollision),
                 new Tuple<long, IResourceBlock>(0x128, AllBehaviours),
                 new Tuple<long, IResourceBlock>(0x138, InitBehaviours),
                 new Tuple<long, IResourceBlock>(0x148, UpdateBehaviours),
@@ -1376,7 +1378,7 @@ namespace CodeWalker.GameFiles
         }
         public void WriteXml(StringBuilder sb, int indent)
         {
-            YptXml.StringTag(sb, indent, "EffectRule", EffectRule?.Name?.Value ?? "");
+            YptXml.StringTag(sb, indent, "EffectRule", YptXml.XmlEscape(EffectRuleName?.Value ?? ""));
             YptXml.ValueTag(sb, indent, "DurationScalarMin", FloatUtil.ToString(DurationScalarMin));
             YptXml.ValueTag(sb, indent, "PlaybackRateScalarMin", FloatUtil.ToString(PlaybackRateScalarMin));
             YptXml.ValueTag(sb, indent, "ColourTintScalarMin", YptXml.UintString(ColourTintScalarMin));
@@ -1396,7 +1398,8 @@ namespace CodeWalker.GameFiles
         public void ReadXml(XmlNode node)
         {
             var ername = Xml.GetChildInnerText(node, "EffectRule");
-            EffectRuleName = (string_r)(ername ?? "");
+            EffectRuleName = !string.IsNullOrEmpty(ername) ? (string_r)ername : null;
+            if (EffectRuleName != null) EffectRule = null;
             DurationScalarMin = Xml.GetChildFloatAttribute(node, "DurationScalarMin");
             PlaybackRateScalarMin = Xml.GetChildFloatAttribute(node, "PlaybackRateScalarMin");
             ColourTintScalarMin = Xml.GetChildUIntAttribute(node, "ColourTintScalarMin");
