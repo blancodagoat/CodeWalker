@@ -4641,43 +4641,47 @@ namespace CodeWalker
         private Vector3 _lastMouseRayPosition;
         private Vector3 _lastMouseRayDirection;
         private Vector3 _lastCameraPosition;
-        
+        private bool _lastDrawableCollisionEnabled;
+
         public SpaceRayIntersectResult GetSpaceMouseRay()
         {
             if (!space.Inited || space.BoundsStore == null)
             {
                 return new SpaceRayIntersectResult();
             }
-            
+
             // check if we can use cached result
             var currentMouseRayPos = camera.MouseRay.Position;
             var currentMouseRayDir = camera.MouseRay.Direction;
             var currentCameraPos = camera.Position;
-            
-            if (_cachedMouseRay.Hit && 
+            var drawableCollisionEnabled = Renderer.rendercollisionmeshlayerdrawable;
+
+            if (_cachedMouseRay.Hit &&
                 _lastMouseRayPosition == currentMouseRayPos &&
                 _lastMouseRayDirection == currentMouseRayDir &&
-                _lastCameraPosition == currentCameraPos)
+                _lastCameraPosition == currentCameraPos &&
+                _lastDrawableCollisionEnabled == drawableCollisionEnabled)
             {
                 return _cachedMouseRay;
             }
-            
+
             // calculate new ray intersection
             Ray mray = new();
             mray.Position = currentMouseRayPos + currentCameraPos;
             mray.Direction = currentMouseRayDir;
-            
-            _cachedMouseRay = space.RayIntersect(mray, float.MaxValue, collisionmeshlayers);
+
+            _cachedMouseRay = space.RayIntersect(mray, float.MaxValue, collisionmeshlayers, drawableCollisionEnabled);
             _lastMouseRayPosition = currentMouseRayPos;
             _lastMouseRayDirection = currentMouseRayDir;
             _lastCameraPosition = currentCameraPos;
-            
+            _lastDrawableCollisionEnabled = drawableCollisionEnabled;
+
             return _cachedMouseRay;
         }
 
         public SpaceRayIntersectResult Raycast(Ray ray)
         {
-            return space.RayIntersect(ray, float.MaxValue, collisionmeshlayers);
+            return space.RayIntersect(ray, float.MaxValue, collisionmeshlayers, Renderer.rendercollisionmeshlayerdrawable);
         }
 
         private void UpdateMouseHits()

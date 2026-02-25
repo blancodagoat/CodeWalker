@@ -1328,7 +1328,7 @@ namespace CodeWalker.World
         }
 
 
-        public SpaceRayIntersectResult RayIntersect(Ray ray, float maxdist = float.MaxValue, bool[] layers = null)
+        public SpaceRayIntersectResult RayIntersect(Ray ray, float maxdist = float.MaxValue, bool[] layers = null, bool testDrawableCollisions = true)
         {
             var res = new SpaceRayIntersectResult();
             if (GameFileCache == null) return res;
@@ -1340,7 +1340,6 @@ namespace CodeWalker.World
             if ((BoundsStore == null) || (MapDataStore == null)) return res;
 
             var boundslist = BoundsStore.GetItems(ref ray, layers);
-            var mapdatalist = MapDataStore.GetItems(ref ray);
 
             for (int i = 0; i < boundslist.Count; i++)
             {
@@ -1370,6 +1369,18 @@ namespace CodeWalker.World
                     res.TryUpdate(ref bhit);
                 }
             }
+
+            if (!testDrawableCollisions)
+            {
+                if (res.Hit)
+                {
+                    res.Position = ray.Position + ray.Direction * res.HitDist;
+                }
+                res.TestComplete = testcomplete;
+                return res;
+            }
+
+            var mapdatalist = MapDataStore.GetItems(ref ray);
 
             for (int i = 0; i < mapdatalist.Count; i++)
             {
