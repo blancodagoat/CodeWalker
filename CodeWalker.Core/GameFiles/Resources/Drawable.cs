@@ -3669,7 +3669,18 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            return "(" + (Geometries?.Length ?? 0).ToString() + " geometr" + ((Geometries?.Length ?? 0) != 1 ? "ies)" : "y)");
+            var gc = Geometries?.Length ?? 0;
+            uint totalPolys = 0;
+            uint totalVerts = 0;
+            if (Geometries != null)
+            {
+                for (int i = 0; i < Geometries.Length; i++)
+                {
+                    totalPolys += Geometries[i].TrianglesCount;
+                    totalVerts += Geometries[i].VerticesCount;
+                }
+            }
+            return "(" + gc.ToString() + " geometr" + (gc != 1 ? "ies" : "y") + ", " + totalPolys.ToString() + " polys, " + totalVerts.ToString() + " verts)";
         }
 
     }
@@ -3976,7 +3987,7 @@ namespace CodeWalker.GameFiles
 
         public override string ToString()
         {
-            return VerticesCount.ToString() + " verts, " + Shader.ToString();
+            return TrianglesCount.ToString() + " polys, " + VerticesCount.ToString() + " verts, " + Shader.ToString();
         }
     }
 
