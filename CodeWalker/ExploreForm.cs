@@ -54,6 +54,7 @@ namespace CodeWalker
         private List<FileSystemWatcher> RpfFileWatchers = [];
         private System.Timers.Timer? RefreshDebounceTimer;
         private bool PendingRefresh = false;
+        private string? PendingRefreshPath = null;
 
         public bool EditMode { get; private set; } = false;
 
@@ -324,7 +325,7 @@ namespace CodeWalker
                         Filter = "*",
                         IncludeSubdirectories = true,
                         EnableRaisingEvents = true,
-                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite
                     };
                     watcher.Created += OnRpfFileChanged;
                     watcher.Deleted += OnRpfFileDeleted;
@@ -344,24 +345,25 @@ namespace CodeWalker
 
         private void OnRpfFileChanged(object sender, FileSystemEventArgs e)
         {
-            TriggerRefreshDebounced();
+            TriggerRefreshDebounced(e.FullPath);
         }
 
         private void OnRpfFileDeleted(object sender, FileSystemEventArgs e)
         {
-            TriggerRefreshDebounced();
+            TriggerRefreshDebounced(e.FullPath);
         }
 
         private void OnRpfFileRenamed(object sender, RenamedEventArgs e)
         {
-            TriggerRefreshDebounced();
+            TriggerRefreshDebounced(e.FullPath);
         }
 
-        private void TriggerRefreshDebounced()
+        private void TriggerRefreshDebounced(string? changedPath = null)
         {
             lock (this)
             {
                 PendingRefresh = true;
+                PendingRefreshPath = changedPath;
                 RefreshDebounceTimer?.Stop();
                 RefreshDebounceTimer?.Start();
             }
@@ -378,16 +380,48 @@ namespace CodeWalker
 
             if (needsRefresh && !IsDisposed)
             {
+                string? refreshPath;
+                lock (this)
+                {
+                    refreshPath = PendingRefreshPath;
+                    PendingRefreshPath = null;
+                }
+
                 try
                 {
                     Invoke(() =>
                     {
-                        var folder = CurrentFolder;
-                        if (folder != null && !string.IsNullOrEmpty(folder.FullPath))
+                        MainTreeFolder? folderToRescan = null;
+
+                        if (!string.IsNullOrEmpty(refreshPath))
                         {
-                            RescanCurrentFolder(folder);
-                            RefreshMainListView();
-                            UpdateStatus("File changes detected and refreshed.");
+                            folderToRescan = FindFolderForPath(refreshPath);
+                        }
+
+                        if (folderToRescan == null)
+                        {
+                            folderToRescan = CurrentFolder;
+                        }
+
+                        if (folderToRescan != null && !string.IsNullOrEmpty(folderToRescan.FullPath))
+                        {
+                            if (Directory.Exists(folderToRescan.FullPath))
+                            {
+                                RescanCurrentFolder(folderToRescan);
+
+                                if (folderToRescan == CurrentFolder)
+                                {
+                                    RefreshMainListView();
+                                }
+
+                                if (folderToRescan.TreeNode != null && !folderToRescan.TreeNode.IsExpanded)
+                                {
+                                    folderToRescan.TreeNode.Expand();
+                                    folderToRescan.TreeNode.TreeView?.Refresh();
+                                }
+
+                                UpdateStatus("File changes detected and refreshed.");
+                            }
                         }
                     });
                 }
@@ -395,11 +429,134 @@ namespace CodeWalker
             }
         }
 
+        private MainTreeFolder? FindFolderForPath(string filePath)
+        {
+            var directory = File.Exists(filePath) ? Path.GetDirectoryName(filePath) : filePath;
+            if (string.IsNullOrEmpty(directory)) return null;
+
+            if (RootFolder != null && directory.StartsWith(RootFolder.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return FindFolderInTree(RootFolder, directory);
+            }
+
+            foreach (var extraFolder in ExtraRootFolders)
+            {
+                if (extraFolder != null && directory.StartsWith(extraFolder.FullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return FindFolderInTree(extraFolder, directory);
+                }
+            }
+
+            return null;
+        }
+
+        private MainTreeFolder? FindFolderInTree(MainTreeFolder root, string targetPath)
+        {
+            if (root.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return root;
+            }
+
+            if (root.Children != null)
+            {
+                foreach (var child in root.Children)
+                {
+                    if (targetPath.StartsWith(child.FullPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var found = FindFolderInTree(child, targetPath);
+                        if (found != null) return found;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private void ScanFolderForRpfs(MainTreeFolder folder)
+        {
+            if (!Directory.Exists(folder.FullPath)) return;
+
+            var allpaths = Directory.GetFileSystemEntries(folder.FullPath, "*.rpf", SearchOption.AllDirectories);
+
+            foreach (var path in allpaths)
+            {
+                RpfFile rpf = new(path, path);
+                rpf.ScanStructure(UpdateStatus, UpdateErrorLog);
+
+                if (rpf.LastException != null) continue;
+
+                var node = CreateRpfTreeFolder(rpf, path, path);
+                node.Parent = folder;
+                folder.Children ??= [];
+                folder.Children.Add(node);
+
+                if (folder.TreeNode != null)
+                {
+                    RecurseAddMainTreeViewNodes(node, folder.TreeNode);
+                    node.TreeNode?.Expand();
+                }
+            }
+
+            if (folder.Children != null && folder.Children.Count > 0)
+            {
+                folder.Children.Sort((a, b) => a.Name.CompareTo(b.Name));
+            }
+        }
+
+        private void RescanNewFolderNode(MainTreeFolder folder, string subPath, string fullPath)
+        {
+            if (!Directory.Exists(fullPath)) return;
+
+            var allpaths = Directory.GetFileSystemEntries(fullPath);
+
+            foreach (var path in allpaths)
+            {
+                var relpath = path.Replace(fullPath, "");
+                var isFile = File.Exists(path);
+
+                if (isFile)
+                {
+                    if (path.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        RpfFile rpf = new(path, path);
+                        rpf.ScanStructure(UpdateStatus, UpdateErrorLog);
+                        if (rpf.LastException != null) continue;
+
+                        var node = CreateRpfTreeFolder(rpf, path, path);
+                        folder.AddChildToHierarchy(node);
+
+                        if (folder.TreeNode != null)
+                        {
+                            RecurseAddMainTreeViewNodes(node, folder.TreeNode);
+                            node.TreeNode?.Expand();
+                        }
+                    }
+                    else
+                    {
+                        folder.AddFile(path);
+                    }
+                }
+                else
+                {
+                    var name = Path.GetFileName(path);
+                    var node = CreateRootDirTreeFolder(name, subPath + relpath, path);
+                    folder.AddChild(node);
+
+                    if (folder.TreeNode != null)
+                    {
+                        RecurseAddMainTreeViewNodes(node, folder.TreeNode);
+                    }
+
+                    RescanNewFolderNode(node, subPath + relpath, path);
+                }
+            }
+        }
+
         private void RescanCurrentFolder(MainTreeFolder folder)
         {
-            folder.ListItems = null;
-
             if (!Directory.Exists(folder.FullPath)) return;
+
+            folder.ListItems = null;
 
             var fullPath = folder.FullPath;
             var subPath = folder.Path ?? "";
@@ -456,6 +613,7 @@ namespace CodeWalker
                                 {
                                     var node = CreateRpfTreeFolder(rpf, rpfPath, path);
                                     node.Parent = folder;
+
                                     folder.Children.Add(node);
                                     AddMainTreeViewNode(node);
                                 }
@@ -479,6 +637,16 @@ namespace CodeWalker
                             var node = CreateRootDirTreeFolder(name, subPath + relpath, path);
                             node.Parent = folder;
                             folder.Children.Add(node);
+
+                            if (isExtra)
+                            {
+                                ScanFolderForRpfs(node);
+                            }
+                            else
+                            {
+                                RescanNewFolderNode(node, subPath + relpath, path);
+                            }
+
                             AddMainTreeViewNode(node);
                         }
                     }
@@ -711,6 +879,7 @@ namespace CodeWalker
             }
 
             // If folder has RpfFolder but no TreeNode, we need to find/create the RPF in the tree first
+            // This handles lazy loading when navigating into RPF contents that weren't pre-built
             if (f.TreeNode == null && f.RpfFolder != null)
             {
                 var rpfRoot = f;
@@ -718,20 +887,34 @@ namespace CodeWalker
                 {
                     rpfRoot = rpfRoot.Parent;
                 }
-                if (rpfRoot.RpfFile != null && rpfRoot.TreeNode == null)
+                if (rpfRoot.RpfFile != null)
                 {
                     var parentFolder = rpfRoot.Parent;
+                    UpdateStatus($"[Navigate] f={f.Name}, rpfRoot={rpfRoot.Name}, parent.Children={parentFolder?.Children?.Count}");
                     if (parentFolder?.TreeNode != null)
                     {
-                        var node = CreateRpfTreeFolder(rpfRoot.RpfFile, rpfRoot.Path, rpfRoot.FullPath);
-                        node.Parent = parentFolder;
-                        parentFolder.Children ??= new List<MainTreeFolder>();
-                        if (!parentFolder.Children.Contains(node))
+                        // Find existing RPF node in parent's children
+                        var existingNode = parentFolder.Children?.FirstOrDefault(c => 
+                            c.RpfFile != null && c.RpfFile.FilePath == rpfRoot.RpfFile.FilePath);
+                        
+                        if (existingNode != null && existingNode.TreeNode != null)
                         {
-                            parentFolder.Children.Add(node);
+                            UpdateStatus($"[Navigate] Found existingNode={existingNode.Name}, reusing");
+                            // Reuse existing tree structure - just find the target folder's TreeNode
+                            rpfRoot.TreeNode = existingNode.TreeNode;
+                            f.TreeNode = FindTreeNode(f, rpfRoot.TreeNode);
                         }
-                        RecurseAddMainTreeViewNodes(node, parentFolder.TreeNode);
-                        parentFolder.TreeNode.Expand();
+                        else if (existingNode == null)
+                        {
+                            UpdateStatus($"[Navigate] Creating new RPF node for {rpfRoot.Name}");
+                            // RPF not in parent's Children - need to create it
+                            var node = CreateRpfTreeFolder(rpfRoot.RpfFile, rpfRoot.Path, rpfRoot.FullPath);
+                            node.Parent = parentFolder;
+                            parentFolder.Children ??= new List<MainTreeFolder>();
+                            parentFolder.Children.Add(node);
+                            RecurseAddMainTreeViewNodes(node, parentFolder.TreeNode);
+                            parentFolder.TreeNode.Expand();
+                        }
                     }
                 }
             }
@@ -1168,42 +1351,12 @@ namespace CodeWalker
                 rootpath = gamepath;
             }
 
-            var fld = f.RpfFolder;
-            if (fld != null)
-            {
-                if (fld.Directories != null)
-                {
-                    foreach (var dir in fld.Directories)
-                    {
-                        var relpath = dir.Path.Substring(fld.Path.Length);
-                        var fullpath = f.FullPath + relpath;
-                        var dirpath = dir.Path;
-                        if (fullpath.StartsWith(gamepath, StringComparison.InvariantCultureIgnoreCase) == false)
-                        {
-                            dirpath = fullpath;
-                        }
-                        var dtnf = CreateRpfDirTreeFolder(dir, dirpath, fullpath);
-                        f.AddChild(dtnf);
-                        RecurseMainTreeViewRPF(dtnf, allRpfs, rootpath);
-                    }
-                }
-            }
-
             var rpf = f.RpfFile;
             if (rpf != null)
             {
                 allRpfs.Add(rpf);
 
-                if (rpf.Children != null)
-                {
-                    foreach (var child in rpf.Children)
-                    {
-                        var cpath = rootpath + child.Path;
-                        var ctnf = CreateRpfTreeFolder(child, (rootpath != gamepath) ? cpath : child.Path, cpath);
-                        f.AddChildToHierarchy(ctnf);
-                        RecurseMainTreeViewRPF(ctnf, allRpfs, rootpath);
-                    }
-                }
+                // Nested RPF files are already added by CreateRpfTreeFolder via AddChildToHierarchy
 
                 //JenkIndex.Ensure(rpf.Name);
                 if (rpf.AllEntries != null)
@@ -1277,7 +1430,11 @@ namespace CodeWalker
 
                     RecurseAddMainTreeViewNodes(f, root);
 
-                    root.Expand();
+                    if (root != null)
+                    {
+                        root.Expand();
+                        root.TreeView?.Refresh();
+                    }
                 }
             }
             catch (ObjectDisposedException) { }
@@ -1410,6 +1567,29 @@ namespace CodeWalker
             node.Name = rpf.Name;
             node.Path = relpath;
             node.FullPath = fullpath;
+
+            // Recursively populate children from RPF directories
+            if (rpf.Root?.Directories != null)
+            {
+                foreach (var dir in rpf.Root.Directories)
+                {
+                    var dirNode = CreateRpfDirTreeFolder(dir, relpath + "\\" + dir.NameLower, fullpath + "\\" + dir.NameLower);
+                    node.AddChildToHierarchy(dirNode);
+                }
+            }
+
+            // Add nested RPF files as children
+            if (rpf.Children != null)
+            {
+                foreach (var childRpf in rpf.Children)
+                {
+                    var childRelPath = fullpath + "\\" + childRpf.Path;
+                    var childFullPath = childRelPath;
+                    var childNode = CreateRpfTreeFolder(childRpf, childRelPath, childFullPath);
+                    node.AddChildToHierarchy(childNode);
+                }
+            }
+
             return node;
         }
         private MainTreeFolder CreateRpfDirTreeFolder(RpfDirectoryEntry dir, string relpath, string fullpath)
@@ -1419,6 +1599,21 @@ namespace CodeWalker
             node.Name = dir.Name;
             node.Path = relpath;
             node.FullPath = fullpath;
+
+            // Recursively populate children from RPF directories
+            if (dir.Directories != null)
+            {
+                node.Children = new List<MainTreeFolder>();
+                foreach (var subDir in dir.Directories)
+                {
+                    var subDirRelPath = relpath + "\\" + subDir.NameLower;
+                    var subDirFullPath = fullpath + "\\" + subDir.NameLower;
+                    var subDirNode = CreateRpfDirTreeFolder(subDir, subDirRelPath, subDirFullPath);
+                    subDirNode.Parent = node;
+                    node.Children.Add(subDirNode);
+                }
+            }
+
             return node;
         }
         private MainTreeFolder CreateRootDirTreeFolder(string name, string path, string fullpath)
@@ -3917,7 +4112,7 @@ namespace CodeWalker
                         Filter = "*",
                         IncludeSubdirectories = true,
                         EnableRaisingEvents = true,
-                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite
                     };
                     watcher.Created += OnRpfFileChanged;
                     watcher.Deleted += OnRpfFileDeleted;
@@ -5032,13 +5227,6 @@ namespace CodeWalker
                 }
                 if ((RpfFolder != null) && (RpfFolder.Files != null))
                 {
-                    if (RpfFolder.Directories != null)
-                    {
-                        foreach (var dir in RpfFolder.Directories)
-                        {
-                            ListItems.Add(new MainListItem(dir, this));
-                        }
-                    }
                     foreach (var file in RpfFolder.Files)
                     {
                         if (file.NameLower.EndsWith(".rpf")) continue; //RPF files are already added..
