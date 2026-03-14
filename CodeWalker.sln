@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeWalker.Gen9Converter", 
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CodeWalker.NVTT", "CodeWalker.NVTT\CodeWalker.NVTT.vcxproj", "{8A2B7A2E-5D1C-4F3E-9B8A-1C2D3E4F5A6B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeWalker.Extractor", "CodeWalker.Extractor\CodeWalker.Extractor.csproj", "{1A8438F2-884C-4DA3-AF17-93CF28548E8C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -168,6 +170,18 @@ Global
 		{8A2B7A2E-5D1C-4F3E-9B8A-1C2D3E4F5A6B}.Release|x64.ActiveCfg = Release|x64
 		{8A2B7A2E-5D1C-4F3E-9B8A-1C2D3E4F5A6B}.Release|x64.Build.0 = Release|x64
 		{8A2B7A2E-5D1C-4F3E-9B8A-1C2D3E4F5A6B}.Release|x86.ActiveCfg = Release|x64
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|x64.Build.0 = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Debug|x86.Build.0 = Debug|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x64.ActiveCfg = Release|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x64.Build.0 = Release|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x86.ActiveCfg = Release|Any CPU
+		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
