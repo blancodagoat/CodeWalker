@@ -76,6 +76,7 @@
             this.ToolsJenkGenMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ToolsJenkIndMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ToolsAssetConverterMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsExtractorMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsStartInEditModeMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsStartInFolderMenu = new System.Windows.Forms.ToolStripMenuItem();
@@ -517,7 +518,8 @@
             this.ToolsRpfBrowserMenu,
             this.ToolsJenkGenMenu,
             this.ToolsJenkIndMenu,
-            this.ToolsAssetConverterMenu});
+            this.ToolsAssetConverterMenu,
+            this.ToolsExtractorMenu});
             this.ToolsMenu.Name = "ToolsMenu";
             this.ToolsMenu.Size = new System.Drawing.Size(46, 20);
             this.ToolsMenu.Text = "Tools";
@@ -563,6 +565,13 @@
             this.ToolsAssetConverterMenu.Size = new System.Drawing.Size(161, 22);
             this.ToolsAssetConverterMenu.Text = "Asset Converter";
             this.ToolsAssetConverterMenu.Click += new System.EventHandler(this.ToolsAssetConverterMenu_Click);
+            // 
+            // ToolsExtractorMenu
+            // 
+            this.ToolsExtractorMenu.Name = "ToolsExtractorMenu";
+            this.ToolsExtractorMenu.Size = new System.Drawing.Size(161, 22);
+            this.ToolsExtractorMenu.Text = "Extractor";
+            this.ToolsExtractorMenu.Click += new System.EventHandler(this.ToolsExtractorMenu_Click);
             // 
             // OptionsMenu
             // 
@@ -1519,6 +1528,7 @@
         private System.Windows.Forms.ToolStripMenuItem FileConfigureGameMenu;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator14;
         private System.Windows.Forms.ToolStripMenuItem ToolsAssetConverterMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsExtractorMenu;
         private System.Windows.Forms.Button CopyToModsFolderButton;
     }
 }

@@ -262,11 +262,6 @@ namespace CodeWalker.Extractor
                                 if (preserveStructure)
                                 {
                                     string relativePath = fileEntry.Path;
-                                    if (rpf.Path.Length > 0)
-                                    {
-                                        string rpfParent = Path.GetDirectoryName(rpf.Path) ?? "";
-                                        relativePath = Path.Combine(rpfParent, relativePath);
-                                    }
                                     fullPath = Path.Combine(outputFolder, relativePath);
                                 }
                                 else
