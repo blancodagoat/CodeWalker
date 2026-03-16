@@ -3379,7 +3379,7 @@ namespace CodeWalker
                     //delete an item in the filesystem.
                     if ((item.Folder != null) && (item.Folder.RpfFile == null))
                     {
-                        Directory.Delete(item.FullPath);
+                        Directory.Delete(item.FullPath, true);
                     }
                     else
                     {
