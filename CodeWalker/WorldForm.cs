@@ -6423,6 +6423,34 @@ namespace CodeWalker
                 }
             }
 
+            if (SelectionMode == MapSelectionMode.Scenario)
+            {
+                var scenarioList = new List<YmtFile>();
+                if (scenarios.Inited)
+                {
+                    scenarioList.AddRange(scenarios.ScenarioRegions);
+                }
+                if (ProjectForm != null)
+                {
+                    ProjectForm.GetVisibleScenarios(camera, scenarioList);
+                }
+
+                var viewDir = camera.ViewDirection;
+                var camPos = camera.Position;
+                var vpMatrix = camera.ViewProjMatrix;
+                float camW = camera.Width;
+                float camH = camera.Height;
+
+                foreach (var scenario in scenarioList)
+                {
+                    var sr = scenario.ScenarioRegion;
+                    if (sr?.BVH != null)
+                    {
+                        BoxSelectScenarioBVH(sr.BVH, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+                    }
+                }
+            }
+
             if (items.Count > 0)
             {
                 bool addToSelection = Input.CtrlPressed;
@@ -6431,6 +6459,44 @@ namespace CodeWalker
             else if (!Input.CtrlPressed)
             {
                 SelectItem(null); // clear selection if nothing was in the box
+            }
+        }
+        private void BoxSelectScenarioBVH(PathBVHNode bvhnode, ref Vector3 viewDir, ref Vector3 camPos, ref Matrix vpMatrix, float camW, float camH, float minSX, float maxSX, float minSY, float maxSY, List<MapSelection> items)
+        {
+            // Quick reject: check if the BVH node's bounding box is entirely behind the camera or off-screen
+            if ((bvhnode.Node1 != null) && (bvhnode.Node2 != null))
+            {
+                BoxSelectScenarioBVH(bvhnode.Node1, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+                BoxSelectScenarioBVH(bvhnode.Node2, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+            }
+            else if (bvhnode.Nodes != null)
+            {
+                BoundingBox nbox = new();
+                nbox.Minimum = new Vector3(-0.5f);
+                nbox.Maximum = new Vector3(0.5f);
+
+                foreach (var n in bvhnode.Nodes)
+                {
+                    var sn = n as ScenarioNode;
+                    if (sn == null) continue;
+
+                    var camrel = sn.Position - camPos;
+                    if (Vector3.Dot(camrel, viewDir) <= 0) continue;
+
+                    var ndc = vpMatrix.MultiplyW(camrel);
+                    float sx = (ndc.X * 0.5f + 0.5f) * camW;
+                    float sy = (-ndc.Y * 0.5f + 0.5f) * camH;
+
+                    if (sx >= minSX && sx <= maxSX && sy >= minSY && sy <= maxSY)
+                    {
+                        var item = new MapSelection();
+                        item.ScenarioNode = sn;
+                        item.HitDist = camrel.Length();
+                        item.CamRel = camrel;
+                        item.AABB = nbox;
+                        items.Add(item);
+                    }
+                }
             }
         }
         private void UpdateSelectionUI(bool wait)
