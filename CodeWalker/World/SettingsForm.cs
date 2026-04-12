@@ -75,6 +75,7 @@ namespace CodeWalker.World
             FolderTextBox.Text = GTAFolder.CurrentGTAFolder;
             ExcludeFoldersTextBox.Text = Settings.Default.ExcludeFolders;
             ShadowCascadesUpDown.Value = Settings.Default.ShadowCascades;
+            ShadowMaxDistanceUpDown.Value = Math.Min(Math.Max((decimal)Settings.Default.ShadowMaxDistance, ShadowMaxDistanceUpDown.Minimum), ShadowMaxDistanceUpDown.Maximum);
             CacheSizeUpDown.Value = Math.Min(Math.Max(Settings.Default.CacheSize / 1048576, CacheSizeUpDown.Minimum), CacheSizeUpDown.Maximum);
             CacheTimeUpDown.Value = Math.Min(Math.Max((decimal)Settings.Default.CacheTime, CacheTimeUpDown.Minimum), CacheTimeUpDown.Maximum);
             GPUCacheTimeUpDown.Value = Math.Min(Math.Max((decimal)Settings.Default.GPUCacheTime, GPUCacheTimeUpDown.Minimum), GPUCacheTimeUpDown.Maximum);
@@ -285,6 +286,11 @@ namespace CodeWalker.World
         private void ShadowCascadesUpDown_ValueChanged(object sender, EventArgs e)
         {
             Settings.Default.ShadowCascades = (int)ShadowCascadesUpDown.Value;
+        }
+
+        private void ShadowMaxDistanceUpDown_ValueChanged(object sender, EventArgs e)
+        {
+            Settings.Default.ShadowMaxDistance = (float)ShadowMaxDistanceUpDown.Value;
         }
 
         private void CacheTimeUpDown_ValueChanged(object sender, EventArgs e)

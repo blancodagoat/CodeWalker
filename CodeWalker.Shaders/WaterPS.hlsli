@@ -6,6 +6,7 @@ Texture2D<float4> Foammap : register(t3);
 Texture2D<float4> WaterBumpSampler : register(t4); // graphics.ytd, waterbump and waterbump2
 Texture2D<float4> WaterBumpSampler2 : register(t5);
 Texture2D<float4> WaterFog : register(t6);
+Texture2D<float4> SceneRefraction : register(t7); //screen-space copy of scene colour for refraction
 SamplerState TextureSS : register(s0);
 
 
@@ -18,11 +19,12 @@ cbuffer PSSceneVars : register(b0)
     uint RenderSamplerCoord;
     uint EnableWaterbumps; //if the waterbump textures are ready..
     uint EnableFogtex; //if the fog texture is ready
-    uint ScnPad1;
+    uint EnableRefraction; //if the scene-refraction copy is bound
     uint ScnPad2;
     float4 gFlowParams;
     float4 CameraPos;
     float4 WaterFogParams; //xy = base location, zw = inverse size
+    float4 RefractionParams; //x = inv screen w, y = inv screen h, z = distortion strength, w = tint
 }
 cbuffer PSGeomVars : register(b2)
 {

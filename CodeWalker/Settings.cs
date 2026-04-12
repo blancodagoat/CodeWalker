@@ -179,6 +179,12 @@ public sealed partial class Settings
         set => SettingsManager.SetInt(nameof(ShadowCascades), value);
     }
 
+    public float ShadowMaxDistance
+    {
+        get => SettingsManager.GetFloat(nameof(ShadowMaxDistance), 3000f);
+        set => SettingsManager.SetFloat(nameof(ShadowMaxDistance), value);
+    }
+
     public bool Grass
     {
         get => SettingsManager.GetBool(nameof(Grass), true);

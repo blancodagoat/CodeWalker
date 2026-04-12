@@ -38,6 +38,7 @@ namespace CodeWalker
         Occlusion = 19,
         CalmingQuad = 20,
         WaveQuad = 21,
+        Geometry = 22,
     }
 
 
@@ -1546,6 +1547,11 @@ namespace CodeWalker
             {
                 ms.GrassBatch = batch;
                 ms.AABB = new BoundingBox(batch.AABBMin, batch.AABBMax);
+            }
+            else if (o is YmapTimeCycleModifier tcm)
+            {
+                ms.TimeCycleModifier = tcm;
+                ms.AABB = new BoundingBox(tcm.BBMin, tcm.BBMax);
             }
             else if (o is MCMloRoomDef room)
             {

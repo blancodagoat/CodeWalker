@@ -3,7 +3,8 @@
 
 PS_OUTPUT main(VS_OUTPUT input)
 {
-    float4 c = float4(0.1, 0.18, 0.25, 0.8);
+    float4 baseWater = float4(0.1, 0.18, 0.25, 0.8);
+    float4 c = baseWater;
     //if (RenderMode == 0) c = float4(1, 1, 1, 1);
 
     //c.a *= input.Colour0.a;
@@ -69,7 +70,18 @@ PS_OUTPUT main(VS_OUTPUT input)
         float3 tc = c.rgb;
         c.rgb = tc; // *r0.z; //diffuse factors...
 
-        
+        // screen-space refraction (deferred path): sample the pre-water gbuffer diffuse copy
+        if (EnableRefraction && (ShaderMode == 0) && (EnableFoamMap == 0))
+        {
+            float2 screenUV = input.Position.xy * RefractionParams.xy;
+            float2 distort = norm.xy * RefractionParams.z;
+            float2 refrUV = saturate(screenUV + distort);
+            float3 refrCol = SceneRefraction.Sample(TextureSS, refrUV).rgb;
+            float3 waterTint = baseWater.rgb;
+            c.rgb = lerp(refrCol, refrCol * waterTint * 2.0, RefractionParams.w);
+            c.a = max(c.a, 0.85);
+        }
+
         spec.xy = sqrt(10.0 * SpecularIntensity);
         spec.z = 1;//r0.z;
 

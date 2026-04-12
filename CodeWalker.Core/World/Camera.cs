@@ -7,6 +7,16 @@ using System.Threading.Tasks;
 
 namespace CodeWalker.World;
 
+public struct CameraState
+{
+    public Vector3 TargetRotation;
+    public Vector3 CurrentRotation;
+    public float TargetDistance;
+    public float CurrentDistance;
+    public Vector3 EntityPosition;
+    public bool IsValid;
+}
+
 public class Camera(float smoothness, float sensitivity, float fov)
 {
     public Vector3 TargetRotation = Vector3.Zero;
@@ -275,6 +285,38 @@ public class Camera(float smoothness, float sensitivity, float fov)
                 float v = (z < 0) ? 1.1f : (z > 0) ? 1.0f / 1.1f : 1.0f;
                 TargetDistance *= v;
                 OrthographicTargetSize *= v;
+            }
+        }
+
+        public CameraState SaveState()
+        {
+            lock (syncRoot)
+            {
+                return new CameraState
+                {
+                    TargetRotation = TargetRotation,
+                    CurrentRotation = CurrentRotation,
+                    TargetDistance = TargetDistance,
+                    CurrentDistance = CurrentDistance,
+                    EntityPosition = FollowEntity != null ? FollowEntity.Position : Vector3.Zero,
+                    IsValid = true,
+                };
+            }
+        }
+
+        public void RestoreState(CameraState state)
+        {
+            if (!state.IsValid) return;
+            lock (syncRoot)
+            {
+                TargetRotation = state.TargetRotation;
+                CurrentRotation = state.CurrentRotation;
+                TargetDistance = state.TargetDistance;
+                CurrentDistance = state.CurrentDistance;
+                if (FollowEntity != null)
+                {
+                    FollowEntity.Position = state.EntityPosition;
+                }
             }
         }
 

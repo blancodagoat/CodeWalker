@@ -72,6 +72,9 @@
             this.label10 = new System.Windows.Forms.Label();
             this.label8 = new System.Windows.Forms.Label();
             this.ShadowCascadesUpDown = new System.Windows.Forms.NumericUpDown();
+            this.labelShadowMaxDist = new System.Windows.Forms.Label();
+            this.ShadowMaxDistanceUpDown = new System.Windows.Forms.NumericUpDown();
+            this.labelShadowMaxDistDesc = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
             this.label6 = new System.Windows.Forms.Label();
             this.FolderBrowseButton = new System.Windows.Forms.Button();
@@ -95,6 +98,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.CacheTimeUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.CacheSizeUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.ShadowCascadesUpDown)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.ShadowMaxDistanceUpDown)).BeginInit();
             this.SuspendLayout();
             // 
             // MainTabControl
@@ -321,6 +325,9 @@
             this.AdvancedTabPage.Controls.Add(this.label10);
             this.AdvancedTabPage.Controls.Add(this.label8);
             this.AdvancedTabPage.Controls.Add(this.ShadowCascadesUpDown);
+            this.AdvancedTabPage.Controls.Add(this.labelShadowMaxDist);
+            this.AdvancedTabPage.Controls.Add(this.ShadowMaxDistanceUpDown);
+            this.AdvancedTabPage.Controls.Add(this.labelShadowMaxDistDesc);
             this.AdvancedTabPage.Controls.Add(this.label7);
             this.AdvancedTabPage.Controls.Add(this.label6);
             this.AdvancedTabPage.Controls.Add(this.FolderBrowseButton);
@@ -713,7 +720,53 @@
             0,
             0});
             this.ShadowCascadesUpDown.ValueChanged += new System.EventHandler(this.ShadowCascadesUpDown_ValueChanged);
-            // 
+            //
+            // labelShadowMaxDist
+            //
+            this.labelShadowMaxDist.AutoSize = true;
+            this.labelShadowMaxDist.Location = new System.Drawing.Point(6, 126);
+            this.labelShadowMaxDist.Name = "labelShadowMaxDist";
+            this.labelShadowMaxDist.Size = new System.Drawing.Size(104, 13);
+            this.labelShadowMaxDist.TabIndex = 54;
+            this.labelShadowMaxDist.Text = "Shadow max distance:";
+            //
+            // ShadowMaxDistanceUpDown
+            //
+            this.ShadowMaxDistanceUpDown.Location = new System.Drawing.Point(110, 124);
+            this.ShadowMaxDistanceUpDown.Maximum = new decimal(new int[] {
+            20000,
+            0,
+            0,
+            0});
+            this.ShadowMaxDistanceUpDown.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            0});
+            this.ShadowMaxDistanceUpDown.Increment = new decimal(new int[] {
+            100,
+            0,
+            0,
+            0});
+            this.ShadowMaxDistanceUpDown.Name = "ShadowMaxDistanceUpDown";
+            this.ShadowMaxDistanceUpDown.Size = new System.Drawing.Size(60, 20);
+            this.ShadowMaxDistanceUpDown.TabIndex = 55;
+            this.ShadowMaxDistanceUpDown.Value = new decimal(new int[] {
+            3000,
+            0,
+            0,
+            0});
+            this.ShadowMaxDistanceUpDown.ValueChanged += new System.EventHandler(this.ShadowMaxDistanceUpDown_ValueChanged);
+            //
+            // labelShadowMaxDistDesc
+            //
+            this.labelShadowMaxDistDesc.AutoSize = true;
+            this.labelShadowMaxDistDesc.Location = new System.Drawing.Point(174, 126);
+            this.labelShadowMaxDistDesc.Name = "labelShadowMaxDistDesc";
+            this.labelShadowMaxDistDesc.Size = new System.Drawing.Size(236, 13);
+            this.labelShadowMaxDistDesc.TabIndex = 56;
+            this.labelShadowMaxDistDesc.Text = "Maximum shadow draw distance. Cascade intervals scale proportionally.";
+            //
             // label7
             // 
             this.label7.AutoSize = true;
@@ -826,6 +879,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.CacheTimeUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.CacheSizeUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.ShadowCascadesUpDown)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.ShadowMaxDistanceUpDown)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -883,5 +937,8 @@
         private System.Windows.Forms.NumericUpDown TextureCacheSizeUpDown;
         private System.Windows.Forms.Label label21;
         private System.Windows.Forms.CheckBox MouseInvertCheckBox;
+        private System.Windows.Forms.Label labelShadowMaxDist;
+        private System.Windows.Forms.NumericUpDown ShadowMaxDistanceUpDown;
+        private System.Windows.Forms.Label labelShadowMaxDistDesc;
     }
 }

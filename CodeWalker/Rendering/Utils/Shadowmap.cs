@@ -45,7 +45,9 @@ namespace CodeWalker.Rendering
         Vector3 SceneCenter;
         Vector3 SceneExtent;
 
-        float[] fCascadeIntervals = { 7.0f, 20.0f, 65.0f, 160.0f, 600.0f, 3000.0f, 5000.0f, 10000.0f };
+        static readonly float[] fDefaultCascadeIntervals = { 7.0f, 20.0f, 65.0f, 160.0f, 600.0f, 3000.0f, 5000.0f, 10000.0f };
+        static readonly float DefaultMaxShadowDistance = 3000.0f;
+        float[] fCascadeIntervals;
         public float maxShadowDistance = 3000.0f;
 
 
@@ -65,6 +67,14 @@ namespace CodeWalker.Rendering
             PCFSize = 3;
             PCFOffset = 0.000125f; //0.002f
             BlurBetweenCascades = 0.05f;
+
+            maxShadowDistance = Math.Max(Settings.Default.ShadowMaxDistance, 100.0f);
+            float distScale = maxShadowDistance / DefaultMaxShadowDistance;
+            fCascadeIntervals = new float[fDefaultCascadeIntervals.Length];
+            for (int i = 0; i < fDefaultCascadeIntervals.Length; i++)
+            {
+                fCascadeIntervals[i] = fDefaultCascadeIntervals[i] * distScale;
+            }
 
             ShadowVars = new GpuVarsBuffer<ShadowmapVars>(device);
 

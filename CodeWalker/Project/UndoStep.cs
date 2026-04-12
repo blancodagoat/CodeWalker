@@ -469,6 +469,330 @@ namespace CodeWalker.Project
     }
 
 
+    public class AddEntityUndoStep : UndoStep
+    {
+        public YmapEntityDef Entity { get; set; }
+        public YmapFile Ymap { get; set; }
+
+        public AddEntityUndoStep(YmapEntityDef ent, YmapFile ymap)
+        {
+            Entity = ent;
+            Ymap = ymap;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo an add = remove the entity
+            if (Entity == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.RemoveEntity(Entity);
+            }
+            wf.SelectItem(null);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo an add = add the entity back
+            if (Entity == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.AddEntity(Entity);
+            }
+            wf.SelectObject(Entity);
+        }
+
+        public override string ToString()
+        {
+            return "Add Entity " + (Entity?._CEntityDef.archetypeName.ToString() ?? "");
+        }
+    }
+    public class DeleteEntityUndoStep : UndoStep
+    {
+        public YmapEntityDef Entity { get; set; }
+        public YmapFile Ymap { get; set; }
+
+        public DeleteEntityUndoStep(YmapEntityDef ent, YmapFile ymap)
+        {
+            Entity = ent;
+            Ymap = ymap;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo a delete = add the entity back
+            if (Entity == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.AddEntity(Entity);
+            }
+            wf.SelectObject(Entity);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo a delete = remove the entity again
+            if (Entity == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.RemoveEntity(Entity);
+            }
+            wf.SelectItem(null);
+        }
+
+        public override string ToString()
+        {
+            return "Delete Entity " + (Entity?._CEntityDef.archetypeName.ToString() ?? "");
+        }
+    }
+
+    public class AddCarGenUndoStep : UndoStep
+    {
+        public YmapCarGen CarGen { get; set; }
+        public YmapFile Ymap { get; set; }
+
+        public AddCarGenUndoStep(YmapCarGen cargen, YmapFile ymap)
+        {
+            CarGen = cargen;
+            Ymap = ymap;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo an add = remove the car gen
+            if (CarGen == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.RemoveCarGen(CarGen);
+            }
+            wf.SelectItem(null);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo an add = add the car gen back
+            if (CarGen == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.AddCarGen(CarGen);
+            }
+            wf.SelectObject(CarGen);
+        }
+
+        public override string ToString()
+        {
+            return "Add CarGen " + (CarGen?._CCarGen.carModel.ToString() ?? "");
+        }
+    }
+    public class DeleteCarGenUndoStep : UndoStep
+    {
+        public YmapCarGen CarGen { get; set; }
+        public YmapFile Ymap { get; set; }
+
+        public DeleteCarGenUndoStep(YmapCarGen cargen, YmapFile ymap)
+        {
+            CarGen = cargen;
+            Ymap = ymap;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo a delete = add the car gen back
+            if (CarGen == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.AddCarGen(CarGen);
+            }
+            wf.SelectObject(CarGen);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo a delete = remove the car gen again
+            if (CarGen == null || Ymap == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymap.RemoveCarGen(CarGen);
+            }
+            wf.SelectItem(null);
+        }
+
+        public override string ToString()
+        {
+            return "Delete CarGen " + (CarGen?._CCarGen.carModel.ToString() ?? "");
+        }
+    }
+
+    public class AddPathNodeUndoStep : UndoStep
+    {
+        public YndNode PathNode { get; set; }
+        public YndFile Ynd { get; set; }
+
+        public AddPathNodeUndoStep(YndNode node, YndFile ynd)
+        {
+            PathNode = node;
+            Ynd = ynd;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo an add = remove the path node
+            if (PathNode == null || Ynd == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ynd.RemoveYndNode(wf.Space, PathNode, true, out _);
+                Ynd.UpdateAllNodePositions();
+                Ynd.BuildBVH();
+            }
+            wf.UpdatePathYndGraphics(Ynd, false);
+            wf.SelectItem(null);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo an add = add the path node back
+            if (PathNode == null || Ynd == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ynd.MigrateNode(PathNode);
+                Ynd.UpdateAllNodePositions();
+                Ynd.BuildBVH();
+            }
+            wf.UpdatePathYndGraphics(Ynd, false);
+            wf.SelectObject(PathNode);
+        }
+
+        public override string ToString()
+        {
+            return "Add PathNode " + (PathNode?.ToString() ?? "");
+        }
+    }
+    public class DeletePathNodeUndoStep : UndoStep
+    {
+        public YndNode PathNode { get; set; }
+        public YndFile Ynd { get; set; }
+
+        public DeletePathNodeUndoStep(YndNode node, YndFile ynd)
+        {
+            PathNode = node;
+            Ynd = ynd;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo a delete = add the path node back
+            if (PathNode == null || Ynd == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ynd.MigrateNode(PathNode);
+                Ynd.UpdateAllNodePositions();
+                Ynd.BuildBVH();
+            }
+            wf.UpdatePathYndGraphics(Ynd, false);
+            wf.SelectObject(PathNode);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo a delete = remove the path node again
+            if (PathNode == null || Ynd == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ynd.RemoveYndNode(wf.Space, PathNode, true, out _);
+                Ynd.UpdateAllNodePositions();
+                Ynd.BuildBVH();
+            }
+            wf.UpdatePathYndGraphics(Ynd, false);
+            wf.SelectItem(null);
+        }
+
+        public override string ToString()
+        {
+            return "Delete PathNode " + (PathNode?.ToString() ?? "");
+        }
+    }
+
+    public class AddScenarioNodeUndoStep : UndoStep
+    {
+        public ScenarioNode ScenarioNode { get; set; }
+        public YmtFile Ymt { get; set; }
+
+        public AddScenarioNodeUndoStep(ScenarioNode node, YmtFile ymt)
+        {
+            ScenarioNode = node;
+            Ymt = ymt;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo an add = remove the scenario node
+            if (ScenarioNode == null || Ymt == null || Ymt.ScenarioRegion == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymt.ScenarioRegion.RemoveNode(ScenarioNode);
+            }
+            wf.UpdateScenarioGraphics(Ymt, false);
+            wf.SelectItem(null);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo an add = add the scenario node back
+            if (ScenarioNode == null || Ymt == null || Ymt.ScenarioRegion == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymt.ScenarioRegion.AddNodeReAdd(ScenarioNode);
+            }
+            wf.UpdateScenarioGraphics(Ymt, false);
+            wf.SelectObject(ScenarioNode);
+        }
+
+        public override string ToString()
+        {
+            return "Add ScenarioNode " + (ScenarioNode?.ToString() ?? "");
+        }
+    }
+    public class DeleteScenarioNodeUndoStep : UndoStep
+    {
+        public ScenarioNode ScenarioNode { get; set; }
+        public YmtFile Ymt { get; set; }
+
+        public DeleteScenarioNodeUndoStep(ScenarioNode node, YmtFile ymt)
+        {
+            ScenarioNode = node;
+            Ymt = ymt;
+        }
+
+        public override void Undo(WorldForm wf, ref MapSelection sel)
+        {
+            // Undo a delete = add the scenario node back
+            if (ScenarioNode == null || Ymt == null || Ymt.ScenarioRegion == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymt.ScenarioRegion.AddNodeReAdd(ScenarioNode);
+            }
+            wf.UpdateScenarioGraphics(Ymt, false);
+            wf.SelectObject(ScenarioNode);
+        }
+
+        public override void Redo(WorldForm wf, ref MapSelection sel)
+        {
+            // Redo a delete = remove the scenario node again
+            if (ScenarioNode == null || Ymt == null || Ymt.ScenarioRegion == null) return;
+            lock (wf.RenderSyncRoot)
+            {
+                Ymt.ScenarioRegion.RemoveNode(ScenarioNode);
+            }
+            wf.UpdateScenarioGraphics(Ymt, false);
+            wf.SelectItem(null);
+        }
+
+        public override string ToString()
+        {
+            return "Delete ScenarioNode " + (ScenarioNode?.ToString() ?? "");
+        }
+    }
+
 
     public abstract class LodLightUndoStep : UndoStep
     {

@@ -315,7 +315,7 @@ namespace CodeWalker.GameFiles
                     if (entry is RpfBinaryFileEntry binentry)
                     {
                         var lname = binentry.NameLower;
-                        if (lname.EndsWith(".rpf") && IsValidPath(binentry.Path))
+                        if (lname.EndsWith(".rpf") && (Parent != null || IsValidPath(binentry.Path)))
                         {
                             br.BaseStream.Position = StartPos + ((long)binentry.FileOffset * 512);
 

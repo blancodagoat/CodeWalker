@@ -115,6 +115,11 @@ namespace CodeWalker.GameFiles
 
         public byte[] Save()
         {
+            if (Nodes == null || Nodes.Length == 0)
+            {
+                return null; //don't save empty ynd files
+            }
+
             if (BuildStructsOnSave)
             {
                 RecalculateNodeIndices();
@@ -431,6 +436,50 @@ namespace CodeWalker.GameFiles
         public bool HasAnyLinksForNode(YndNode node)
         {
             return Links.Any(l => l.Node1 == node || l.Node2 == node);
+        }
+
+        /// <summary>
+        /// Walks every link owned by every node in this ynd and re-resolves the
+        /// target node reference using the supplied space node grid.
+        /// </summary>
+        public void ResolveAllLinks(SpaceNodeGrid grid)
+        {
+            if (Nodes == null) return;
+            foreach (var n in Nodes)
+            {
+                if (n?.Links == null) continue;
+                foreach (var l in n.Links)
+                {
+                    l?.ResolveTarget(grid);
+                }
+            }
+
+            if (Links != null)
+            {
+                foreach (var l in Links)
+                {
+                    l?.ResolveTarget(grid);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns true if any link in this ynd points at a node owned by
+        /// <paramref name="targetArea"/>.
+        /// </summary>
+        public bool HasInboundLinksFromArea(int targetArea)
+        {
+            if (Nodes == null) return false;
+            foreach (var n in Nodes)
+            {
+                if (n?.Links == null) continue;
+                foreach (var l in n.Links)
+                {
+                    if (l == null) continue;
+                    if (l._RawData.AreaID == targetArea) return true;
+                }
+            }
+            return false;
         }
 
         public void UpdateBoundingBox()
@@ -1330,6 +1379,50 @@ namespace CodeWalker.GameFiles
             }
         }
 
+        // In-memory only (NOT serialized) -- caches the YndFile that owns Node2.
+        [Browsable(false)]
+        public YndFile TargetYnd { get; private set; }
+
+        /// <summary>
+        /// Re-resolves <see cref="Node2"/> + <see cref="TargetYnd"/> from the
+        /// serialized AreaID/NodeID using the supplied space node grid.
+        /// </summary>
+        public bool ResolveTarget(SpaceNodeGrid grid)
+        {
+            if (grid == null) return Node2 != null;
+
+            ushort areaid = _RawData.AreaID;
+            ushort nodeid = _RawData.NodeID;
+
+            YndNode tnode = null;
+            YndFile tynd = null;
+
+            if ((Ynd != null) && (areaid == Ynd.AreaID))
+            {
+                tynd = Ynd;
+                if ((Ynd.Nodes != null) && (nodeid < Ynd.Nodes.Length))
+                {
+                    tnode = Ynd.Nodes[nodeid];
+                }
+            }
+            else
+            {
+                var cell = grid.GetCell(areaid);
+                if ((cell != null) && (cell.Ynd != null))
+                {
+                    tynd = cell.Ynd;
+                    if ((cell.Ynd.Nodes != null) && (nodeid < cell.Ynd.Nodes.Length))
+                    {
+                        tnode = cell.Ynd.Nodes[nodeid];
+                    }
+                }
+            }
+
+            _node2 = tnode;
+            TargetYnd = tynd;
+            return tnode != null;
+        }
+
         public NodeLink _RawData;
         public NodeLink RawData { get { return _RawData; } set { _RawData = value; } }
         public FlagsByte Flags0 { get { return _RawData.Flags0; } set { _RawData.Flags0 = value; } }
@@ -1527,8 +1620,14 @@ namespace CodeWalker.GameFiles
 
         public void UpdateTargetIndex()
         {
-            _RawData.AreaID = Node2.AreaID;
-            _RawData.NodeID = Node2.NodeID;
+            if (_node2 == null)
+            {
+                TargetYnd = null;
+                return;
+            }
+            _RawData.AreaID = _node2.AreaID;
+            _RawData.NodeID = _node2.NodeID;
+            TargetYnd = _node2.Ynd;
         }
 
         public override string ToString()

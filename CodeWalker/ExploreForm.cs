@@ -2335,6 +2335,11 @@ namespace CodeWalker
             var nl = e?.NameLower ?? "";
             var fe = Path.GetExtension(nl);
             ModelForm f = new(this);
+            f.SourceFileEntry = e;
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                f.FilePath = path;
+            }
             f.Show();
             switch (fe)
             {

@@ -712,6 +712,90 @@ namespace CodeWalker.Project.Panels
             ProjectForm.ProjectExplorer?.UpdatePathNodeTreeNode(CurrentPathNode);
         }
 
+        // GTA V path-node grid constants: 32x32 grid with each cell 512 units
+        // (corner at -8192,-8192). AreaID = CellY * 32 + CellX. See YndFile.AreaID
+        // and SpaceNodeGrid in CodeWalker.Core for the authoritative formula.
+        private const float YndGridCornerX = -8192.0f;
+        private const float YndGridCornerY = -8192.0f;
+        private const float YndGridCellSize = 512.0f;
+        private const int YndGridCellCountX = 32;
+        private const int YndGridCellCountY = 32;
+
+        private static int GetAreaIdForPosition(Vector3 position)
+        {
+            int cellX = (int)Math.Floor((position.X - YndGridCornerX) / YndGridCellSize);
+            int cellY = (int)Math.Floor((position.Y - YndGridCornerY) / YndGridCellSize);
+            if (cellX < 0 || cellX >= YndGridCellCountX) return -1;
+            if (cellY < 0 || cellY >= YndGridCellCountY) return -1;
+            return cellY * YndGridCellCountX + cellX;
+        }
+
+        /// <summary>
+        /// Makes sure a YND file exists for the area containing <paramref name="newPosition"/>.
+        /// If the node is staying inside its current ynd, this is a no-op. If the node is
+        /// crossing into an area without a ynd yet, the user is prompted to create one.
+        /// Returns false when the move should be aborted (user cancelled, out-of-bounds, etc).
+        /// </summary>
+        private bool EnsureYndForPosition(Vector3 newPosition)
+        {
+            if (CurrentPathNode == null) return false;
+            if (ProjectForm?.WorldForm == null) return true; // no space => let caller no-op
+
+            int newAreaID = GetAreaIdForPosition(newPosition);
+            if (newAreaID < 0)
+            {
+                MessageBox.Show(
+                    "The new position is outside the GTA V path-node grid (-8192..8192). The move will be cancelled.",
+                    "Position out of range",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return false;
+            }
+
+            // Same area => nothing to do.
+            if (CurrentPathNode.Ynd != null && CurrentPathNode.Ynd.AreaID == newAreaID)
+            {
+                return true;
+            }
+
+            var targetYnd = ProjectForm.FindOrCreateYndForArea(newAreaID, promptUser: true);
+            return targetYnd != null;
+        }
+
+        /// <summary>
+        /// Public entry point that mirrors the algorithm used internally for auto-migration:
+        /// verifies the node's current position is consistent with its owning ynd, and if
+        /// not, arranges for it to be migrated to the correct area file (prompting to create
+        /// a new ynd when needed).
+        /// </summary>
+        public void CheckNodeAreaAfterMove(YndNode node)
+        {
+            if (node == null) return;
+            if (ProjectForm?.WorldForm == null) return;
+
+            int newAreaID = GetAreaIdForPosition(node.Position);
+            if (newAreaID < 0) return;
+            if (node.Ynd != null && node.Ynd.AreaID == newAreaID) return;
+
+            var targetYnd = ProjectForm.FindOrCreateYndForArea(newAreaID, promptUser: true);
+            if (targetYnd == null) return;
+
+            lock (ProjectForm.ProjectSyncRoot)
+            {
+                node.SetYndNodePosition(ProjectForm.WorldForm.Space, node.Position, out var affectedFiles);
+                if (affectedFiles != null)
+                {
+                    foreach (var af in affectedFiles)
+                    {
+                        if (af == null) continue;
+                        ProjectForm.AddYndToProject(af);
+                        ProjectForm.SetYndHasChanged(af, true);
+                    }
+                }
+                ProjectForm.SetYndHasChanged(true);
+            }
+        }
+
         private void PathNodePositionTextBox_TextChanged(object sender, EventArgs e)
         {
             if (populatingui) return;
@@ -722,12 +806,33 @@ namespace CodeWalker.Project.Panels
             {
                 if (CurrentPathNode.Position != v)
                 {
+                    // Ensure a YND exists for the area the node is being moved into.
+                    // If the user declines (or it's outside the map), abort the move
+                    // instead of letting SetYndNodePosition silently revert.
+                    if (!EnsureYndForPosition(v))
+                    {
+                        // Refresh the textbox back to the node's current position so
+                        // the UI doesn't show a phantom value.
+                        populatingui = true;
+                        PathNodePositionTextBox.Text = FloatUtil.GetVector3String(CurrentPathNode.Position);
+                        populatingui = false;
+                        return;
+                    }
+
                     CurrentPathNode.SetYndNodePosition(ProjectForm.WorldForm.Space, v, out var affectedFiles);
 
                     foreach (var affectedFile in affectedFiles)
                     {
                         ProjectForm.AddYndToProject(affectedFile);
                         ProjectForm.SetYndHasChanged(affectedFile, true);
+                    }
+
+                    // Node's owning Ynd may have changed -- keep the panel's
+                    // CurrentYndFile in sync with reality.
+                    CurrentYndFile = CurrentPathNode.Ynd;
+                    if (CurrentYndFile != null)
+                    {
+                        ProjectForm.AddYndToProject(CurrentYndFile);
                     }
 
                     ProjectForm.SetYndHasChanged(true);

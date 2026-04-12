@@ -62,6 +62,10 @@
             this.EditPasteMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.EditCloneMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.EditDeleteMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsExportMenyooXmlMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsImportFiveMJsonMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsExportFiveMJsonMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsGlobalTimecycleMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ViewMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ViewProjectExplorerMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
@@ -494,6 +498,7 @@
             this.EditDeleteMenu.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Shift | System.Windows.Forms.Keys.Delete)));
             this.EditDeleteMenu.Size = new System.Drawing.Size(190, 22);
             this.EditDeleteMenu.Text = "Delete Item";
+            this.EditDeleteMenu.Click += new System.EventHandler(this.EditDeleteMenu_Click);
             // 
             // ViewMenu
             // 
@@ -558,8 +563,12 @@
             this.ToolsNavMeshGeneratorMenu,
             this.toolStripSeparator2,
             this.ToolsImportMenyooXmlMenu,
+            this.ToolsExportMenyooXmlMenu,
+            this.ToolsImportFiveMJsonMenu,
+            this.ToolsExportFiveMJsonMenu,
             this.toolStripSeparator31,
-            this.deleteGrassToolStripMenuItem});
+            this.deleteGrassToolStripMenuItem,
+            this.ToolsGlobalTimecycleMenu});
             this.ToolsMenu.Name = "ToolsMenu";
             this.ToolsMenu.Size = new System.Drawing.Size(46, 20);
             this.ToolsMenu.Text = "Tools";
@@ -596,7 +605,28 @@
             this.ToolsImportMenyooXmlMenu.Size = new System.Drawing.Size(196, 22);
             this.ToolsImportMenyooXmlMenu.Text = "Import Menyoo XML...";
             this.ToolsImportMenyooXmlMenu.Click += new System.EventHandler(this.ToolsImportMenyooXmlMenu_Click);
-            // 
+            //
+            // ToolsExportMenyooXmlMenu
+            //
+            this.ToolsExportMenyooXmlMenu.Name = "ToolsExportMenyooXmlMenu";
+            this.ToolsExportMenyooXmlMenu.Size = new System.Drawing.Size(196, 22);
+            this.ToolsExportMenyooXmlMenu.Text = "Export Menyoo XML...";
+            this.ToolsExportMenyooXmlMenu.Click += new System.EventHandler(this.ToolsExportMenyooXmlMenu_Click);
+            //
+            // ToolsImportFiveMJsonMenu
+            //
+            this.ToolsImportFiveMJsonMenu.Name = "ToolsImportFiveMJsonMenu";
+            this.ToolsImportFiveMJsonMenu.Size = new System.Drawing.Size(196, 22);
+            this.ToolsImportFiveMJsonMenu.Text = "Import FiveM JSON...";
+            this.ToolsImportFiveMJsonMenu.Click += new System.EventHandler(this.ToolsImportFiveMJsonMenu_Click);
+            //
+            // ToolsExportFiveMJsonMenu
+            //
+            this.ToolsExportFiveMJsonMenu.Name = "ToolsExportFiveMJsonMenu";
+            this.ToolsExportFiveMJsonMenu.Size = new System.Drawing.Size(196, 22);
+            this.ToolsExportFiveMJsonMenu.Text = "Export FiveM JSON...";
+            this.ToolsExportFiveMJsonMenu.Click += new System.EventHandler(this.ToolsExportFiveMJsonMenu_Click);
+            //
             // toolStripSeparator31
             // 
             this.toolStripSeparator31.Name = "toolStripSeparator31";
@@ -608,7 +638,14 @@
             this.deleteGrassToolStripMenuItem.Size = new System.Drawing.Size(196, 22);
             this.deleteGrassToolStripMenuItem.Text = "Delete Grass...";
             this.deleteGrassToolStripMenuItem.Click += new System.EventHandler(this.ToolsDeleteGrassMenu_Click);
-            // 
+            //
+            // ToolsGlobalTimecycleMenu
+            //
+            this.ToolsGlobalTimecycleMenu.Name = "ToolsGlobalTimecycleMenu";
+            this.ToolsGlobalTimecycleMenu.Size = new System.Drawing.Size(196, 22);
+            this.ToolsGlobalTimecycleMenu.Text = "Global Timecycle / Weather...";
+            this.ToolsGlobalTimecycleMenu.Click += new System.EventHandler(this.ToolsGlobalTimecycleMenu_Click);
+            //
             // YmapMenu
             // 
             this.YmapMenu.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -1795,6 +1832,10 @@
         private System.Windows.Forms.ToolStripMenuItem EditPasteMenu;
         private System.Windows.Forms.ToolStripMenuItem EditCloneMenu;
         private System.Windows.Forms.ToolStripMenuItem EditDeleteMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsExportMenyooXmlMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsImportFiveMJsonMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsExportFiveMJsonMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsGlobalTimecycleMenu;
         private System.Windows.Forms.ToolStripMenuItem YmapMenu;
         private System.Windows.Forms.ToolStripMenuItem YtypMenu;
         private System.Windows.Forms.ToolStripMenuItem YndMenu;

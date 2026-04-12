@@ -50,6 +50,8 @@ namespace CodeWalker
             this.EnableModsCheckBox = new System.Windows.Forms.CheckBox();
             this.HideNorthYanktonCheckBox = new System.Windows.Forms.CheckBox();
             this.HideCayoPericoCheckBox = new System.Windows.Forms.CheckBox();
+            this.DataGroupsLabel = new System.Windows.Forms.Label();
+            this.DataGroupsCheckedListBox = new System.Windows.Forms.CheckedListBox();
             this.label30 = new System.Windows.Forms.Label();
             this.DlcLevelComboBox = new System.Windows.Forms.ComboBox();
             this.EnableDlcCheckBox = new System.Windows.Forms.CheckBox();
@@ -166,6 +168,8 @@ namespace CodeWalker
             this.label26 = new System.Windows.Forms.Label();
             this.SkeletonsCheckBox = new System.Windows.Forms.CheckBox();
             this.AudioOuterBoundsCheckBox = new System.Windows.Forms.CheckBox();
+            this.ShowGridCheckBox = new System.Windows.Forms.CheckBox();
+            this.PopZoneNamesCheckBox = new System.Windows.Forms.CheckBox();
             this.PopZonesCheckBox = new System.Windows.Forms.CheckBox();
             this.NavMeshesCheckBox = new System.Windows.Forms.CheckBox();
             this.TrainPathsCheckBox = new System.Windows.Forms.CheckBox();
@@ -567,6 +571,8 @@ namespace CodeWalker
             // 
             // ViewWorldTabPage
             //
+            this.ViewWorldTabPage.Controls.Add(this.DataGroupsLabel);
+            this.ViewWorldTabPage.Controls.Add(this.DataGroupsCheckedListBox);
             this.ViewWorldTabPage.Controls.Add(this.HideCayoPericoCheckBox);
             this.ViewWorldTabPage.Controls.Add(this.HideNorthYanktonCheckBox);
             this.ViewWorldTabPage.Controls.Add(this.EnableModsCheckBox);
@@ -627,6 +633,25 @@ namespace CodeWalker
             this.HideCayoPericoCheckBox.Text = "Hide Cayo Perico";
             this.HideCayoPericoCheckBox.UseVisualStyleBackColor = true;
             this.HideCayoPericoCheckBox.CheckedChanged += new System.EventHandler(this.HideCayoPericoCheckBox_CheckedChanged);
+            //
+            // DataGroupsLabel
+            //
+            this.DataGroupsLabel.AutoSize = true;
+            this.DataGroupsLabel.Location = new System.Drawing.Point(4, 415);
+            this.DataGroupsLabel.Name = "DataGroupsLabel";
+            this.DataGroupsLabel.Size = new System.Drawing.Size(108, 13);
+            this.DataGroupsLabel.TabIndex = 73;
+            this.DataGroupsLabel.Text = "Map Data Groups:";
+            //
+            // DataGroupsCheckedListBox
+            //
+            this.DataGroupsCheckedListBox.CheckOnClick = true;
+            this.DataGroupsCheckedListBox.FormattingEnabled = true;
+            this.DataGroupsCheckedListBox.Location = new System.Drawing.Point(7, 433);
+            this.DataGroupsCheckedListBox.Name = "DataGroupsCheckedListBox";
+            this.DataGroupsCheckedListBox.Size = new System.Drawing.Size(180, 64);
+            this.DataGroupsCheckedListBox.TabIndex = 74;
+            this.DataGroupsCheckedListBox.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.DataGroupsCheckedListBox_ItemCheck);
             //
             // label30
             //
@@ -2023,6 +2048,8 @@ namespace CodeWalker
             this.OptionsHelpersTabPage.Controls.Add(this.label26);
             this.OptionsHelpersTabPage.Controls.Add(this.SkeletonsCheckBox);
             this.OptionsHelpersTabPage.Controls.Add(this.AudioOuterBoundsCheckBox);
+            this.OptionsHelpersTabPage.Controls.Add(this.ShowGridCheckBox);
+            this.OptionsHelpersTabPage.Controls.Add(this.PopZoneNamesCheckBox);
             this.OptionsHelpersTabPage.Controls.Add(this.PopZonesCheckBox);
             this.OptionsHelpersTabPage.Controls.Add(this.NavMeshesCheckBox);
             this.OptionsHelpersTabPage.Controls.Add(this.TrainPathsCheckBox);
@@ -2133,7 +2160,29 @@ namespace CodeWalker
             this.AudioOuterBoundsCheckBox.Text = "Show audio outer bounds";
             this.AudioOuterBoundsCheckBox.UseVisualStyleBackColor = true;
             this.AudioOuterBoundsCheckBox.CheckedChanged += new System.EventHandler(this.AudioOuterBoundsCheckBox_CheckedChanged);
-            // 
+            //
+            // ShowGridCheckBox
+            //
+            this.ShowGridCheckBox.AutoSize = true;
+            this.ShowGridCheckBox.Location = new System.Drawing.Point(10, 480);
+            this.ShowGridCheckBox.Name = "ShowGridCheckBox";
+            this.ShowGridCheckBox.Size = new System.Drawing.Size(78, 17);
+            this.ShowGridCheckBox.TabIndex = 41;
+            this.ShowGridCheckBox.Text = "Show grid";
+            this.ShowGridCheckBox.UseVisualStyleBackColor = true;
+            this.ShowGridCheckBox.CheckedChanged += new System.EventHandler(this.ShowGridCheckBox_CheckedChanged);
+            //
+            // PopZoneNamesCheckBox
+            //
+            this.PopZoneNamesCheckBox.AutoSize = true;
+            this.PopZoneNamesCheckBox.Location = new System.Drawing.Point(30, 503);
+            this.PopZoneNamesCheckBox.Name = "PopZoneNamesCheckBox";
+            this.PopZoneNamesCheckBox.Size = new System.Drawing.Size(120, 17);
+            this.PopZoneNamesCheckBox.TabIndex = 42;
+            this.PopZoneNamesCheckBox.Text = "Show zone names";
+            this.PopZoneNamesCheckBox.UseVisualStyleBackColor = true;
+            this.PopZoneNamesCheckBox.CheckedChanged += new System.EventHandler(this.PopZoneNamesCheckBox_CheckedChanged);
+            //
             // PopZonesCheckBox
             // 
             this.PopZonesCheckBox.AutoSize = true;
@@ -4008,5 +4057,9 @@ namespace CodeWalker
         private System.Windows.Forms.ToolStripMenuItem ToolsMenuAudioExplorer;
         private System.Windows.Forms.CheckBox SaveTimeOfDayCheckBox;
         private System.Windows.Forms.CheckBox SavePositionCheckBox;
+        private System.Windows.Forms.CheckBox ShowGridCheckBox;
+        private System.Windows.Forms.CheckBox PopZoneNamesCheckBox;
+        private System.Windows.Forms.Label DataGroupsLabel;
+        private System.Windows.Forms.CheckedListBox DataGroupsCheckedListBox;
     }
 }

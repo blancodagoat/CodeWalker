@@ -127,6 +127,15 @@ namespace CodeWalker.Rendering
 
         public bool swaphemisphere = false;//can be used to get better lighting in model viewers
 
+        public bool RenderGrid = false;
+        public float GridSize = 10.0f;
+        public int GridCount = 200;
+        public float GridHeight = 0.0f;
+        public bool GridFollowCamera = true;
+        private List<VertexTypePC> gridLineVerts = new List<VertexTypePC>();
+        private float lastGridSize = -1.0f;
+        private int lastGridCount = -1;
+        private float lastGridHeight = float.NaN;
 
         public MapSelectionMode SelectionMode = MapSelectionMode.Entity; //to assist in rendering embedded collisions properly...
 
@@ -512,8 +521,9 @@ namespace CodeWalker.Rendering
                 float nightval = (((timeofday > 12.0f) ? (timeofday - 7.0f) : (timeofday + 17.0f)) / 9.0f);
                 float daycyc = (float)Math.PI * dayval;
                 float nightcyc = (float)Math.PI * nightval;
+                float wobble = moonwobamp * (float)Math.Sin(nightval * moonwobfreq * (float)Math.PI + moonwoboffs * (float)Math.PI * 2.0f);
                 Vector3 sdir = new Vector3((float)Math.Sin(daycyc), -(float)Math.Cos(daycyc), 0.0f);
-                Vector3 mdir = new Vector3(-(float)Math.Sin(nightcyc), 0.0f, -(float)Math.Cos(nightcyc));
+                Vector3 mdir = new Vector3(-(float)Math.Sin(nightcyc + wobble), 0.0f, -(float)Math.Cos(nightcyc + wobble));
                 Quaternion saxis = Quaternion.RotationYawPitchRoll(0.0f, sunroll, 0.0f);
                 Quaternion maxis = Quaternion.RotationYawPitchRoll(0.0f, -moonroll, 0.0f);
                 sundir = Vector3.Normalize(saxis.Multiply(sdir));
@@ -1560,7 +1570,86 @@ namespace CodeWalker.Rendering
             shaders.Paths.RenderLines(context, linelist, camera, shaders.GlobalLights);
         }
 
+        private void UpdateGridVerts()
+        {
+            if (GridSize == lastGridSize && GridCount == lastGridCount && GridHeight.Equals(lastGridHeight) && gridLineVerts.Count > 0)
+            {
+                return;
+            }
+            lastGridSize = GridSize;
+            lastGridCount = GridCount;
+            lastGridHeight = GridHeight;
 
+            gridLineVerts.Clear();
+
+            int count = Math.Max(1, GridCount);
+            float size = Math.Max(0.0001f, GridSize);
+            float s = size * count * 0.5f;
+            float h = GridHeight;
+
+            // semi-transparent colours (ABGR for ToRgba())
+            uint cgray = (uint)new Color(200, 200, 200, 80).ToRgba();
+            uint cblack = (uint)new Color(20, 20, 20, 160).ToRgba();
+            uint cred = (uint)new Color(220, 40, 40, 200).ToRgba();
+            uint cgrn = (uint)new Color(40, 220, 40, 200).ToRgba();
+            int interval = 10;
+
+            for (int i = 0; i <= count; i++)
+            {
+                float o = (size * i) - s;
+                if ((i % interval) != 0)
+                {
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(o, -s, h), Colour = cgray });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(o, s, h), Colour = cgray });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(-s, o, h), Colour = cgray });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(s, o, h), Colour = cgray });
+                }
+            }
+            for (int i = 0; i <= count; i++) //main lines last so they render on top
+            {
+                float o = (size * i) - s;
+                if ((i % interval) == 0)
+                {
+                    var cx = (o == 0) ? cred : cblack;
+                    var cy = (o == 0) ? cgrn : cblack;
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(o, -s, h), Colour = cy });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(o, s, h), Colour = cy });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(-s, o, h), Colour = cx });
+                    gridLineVerts.Add(new VertexTypePC() { Position = new Vector3(s, o, h), Colour = cx });
+                }
+            }
+        }
+
+        public void RenderGridLines()
+        {
+            if (!RenderGrid) return;
+
+            UpdateGridVerts();
+
+            if (gridLineVerts.Count > 0)
+            {
+                if (GridFollowCamera)
+                {
+                    float step = Math.Max(0.0001f, GridSize);
+                    var cp = camera.Position;
+                    var cx = (float)Math.Round(cp.X / step) * step;
+                    var cy = (float)Math.Round(cp.Y / step) * step;
+                    var offsetVerts = new List<VertexTypePC>(gridLineVerts.Count);
+                    for (int i = 0; i < gridLineVerts.Count; i++)
+                    {
+                        var v = gridLineVerts[i];
+                        v.Position.X += cx;
+                        v.Position.Y += cy;
+                        offsetVerts.Add(v);
+                    }
+                    RenderLines(offsetVerts);
+                }
+                else
+                {
+                    RenderLines(gridLineVerts);
+                }
+            }
+        }
 
 
 
@@ -1735,6 +1824,9 @@ namespace CodeWalker.Rendering
 
                         for (int gi = 0; gi < model.Geometries.Length; gi++)
                         {
+                            if (model.IsGeometryHidden(gi))
+                            { continue; } //filter out individually hidden geometries
+
                             var geom = model.Geometries[gi];
 
                             if (geom.VertexType != vtype)
@@ -3152,6 +3244,14 @@ namespace CodeWalker.Rendering
                     rndbl.ClipDict = animClip.Clip?.Ycd;
                     rndbl.HasAnims = true;
                 }
+                else
+                {
+                    //retry auto-loading archetype ClipDict every frame until the YCD resolves.
+                    //GetArchetypeRenderable caches the Renderable, so TryGetRenderable's initial
+                    //clip lookup only runs once - if the YCD was still loading, animations never
+                    //kick in. this call fixes that for world-view entities (turbines, ferris wheel, UFOs).
+                    EnsureRenderableClipDict(rndbl, arche);
+                }
 
 
                 res = RenderRenderable(rndbl, arche, entity);
@@ -3392,6 +3492,9 @@ namespace CodeWalker.Rendering
                             geom.Init(dgeom);
                             dgeom.UpdateRenderableParameters = false;
                         }
+
+                        if (model.IsGeometryHidden(gi))
+                        { continue; } //filter out individually hidden geometries
 
                         if (isselected)
                         {
@@ -3864,6 +3967,44 @@ namespace CodeWalker.Rendering
 
 
 
+        private void EnsureRenderableClipDict(Renderable rndbl, Archetype arche)
+        {
+            //auto-load ClipMapEntry animations for world-view entities.
+            //called every frame so that if the YCD wasn't loaded on first lookup
+            //(common: YCDs load async), we retry until it resolves. once ClipDict
+            //is assigned, subsequent calls short-circuit on the null-check below.
+            if (rndbl == null) return;
+            if (arche == null) return;
+            if (rndbl.ClipDict != null) return; //already resolved
+            uint clipDict = arche.ClipDict.Hash;
+            if (clipDict == 0) return;
+
+            YcdFile ycd = gameFileCache.GetYcd(clipDict);
+            if ((ycd == null) || !ycd.Loaded) return;
+
+            rndbl.ClipDict = ycd;
+            MetaHash ahash = arche.Hash;
+            if (ycd.ClipMap.TryGetValue(ahash, out rndbl.ClipMapEntry)) rndbl.HasAnims = true;
+
+            if (rndbl.HDModels != null)
+            {
+                foreach (var model in rndbl.HDModels)
+                {
+                    if (model == null) continue;
+                    foreach (var geom in model.Geometries)
+                    {
+                        if (geom == null) continue;
+                        if (geom.globalAnimUVEnable)
+                        {
+                            uint cmeindex = geom.DrawableGeom.ShaderID + 1u;
+                            MetaHash cmehash = ahash + cmeindex; //this goes to at least uv5! (from uv0) - see hw1_09.ycd
+                            if (ycd.ClipMap.TryGetValue(cmehash, out geom.ClipMapEntryUV)) rndbl.HasAnims = true;
+                        }
+                    }
+                }
+            }
+        }
+
         private Renderable TryGetRenderable(Archetype arche, DrawableBase drawable, uint txdHash = 0, TextureDictionary txdExtra = null, Texture diffOverride = null)
         {
             if (drawable == null) return null;
@@ -3889,31 +4030,7 @@ namespace CodeWalker.Rendering
             Renderable rndbl = renderableCache.GetRenderable(drawable);
             if (rndbl == null) return null;
 
-            if ((clipDict != 0) && (rndbl.ClipDict == null))
-            {
-                YcdFile ycd = gameFileCache.GetYcd(clipDict);
-                if ((ycd != null) && (ycd.Loaded))
-                {
-                    rndbl.ClipDict = ycd;
-                    MetaHash ahash = arche.Hash;
-                    if (ycd.ClipMap.TryGetValue(ahash, out rndbl.ClipMapEntry)) rndbl.HasAnims = true;
-
-                    foreach (var model in rndbl.HDModels)
-                    {
-                        if (model == null) continue;
-                        foreach (var geom in model.Geometries)
-                        {
-                            if (geom == null) continue;
-                            if (geom.globalAnimUVEnable)
-                            {
-                                uint cmeindex = geom.DrawableGeom.ShaderID + 1u;
-                                MetaHash cmehash = ahash + cmeindex; //this goes to at least uv5! (from uv0) - see hw1_09.ycd
-                                if (ycd.ClipMap.TryGetValue(cmehash, out geom.ClipMapEntryUV)) rndbl.HasAnims = true;
-                            }
-                        }
-                    }
-                }
-            }
+            EnsureRenderableClipDict(rndbl, arche);
 
 
             var extraTexDict = (drawable.Owner as YptFile)?.PtfxList?.TextureDictionary;
@@ -4026,13 +4143,17 @@ namespace CodeWalker.Rendering
                             var ttex = tex as Texture;
                             Texture dtex = null;
                             RenderableTexture rdtex = null;
+                            if (extraTexDict != null && tex != null)
+                            {
+                                dtex = extraTexDict.Lookup(tex.NameHash);
+                                if (dtex != null)
+                                {
+                                    ttex = dtex;
+                                    geom.Textures[i] = dtex;
+                                }
+                            }
                             if ((tex != null) && (ttex == null))
                             {
-                                //TextureRef means this RenderableTexture needs to be loaded from texture dict...
-                                if (extraTexDict != null) //for ypt files, first try the embedded tex dict..
-                                {
-                                    dtex = extraTexDict.Lookup(tex.NameHash);
-                                }
 
                                 if (dtex == null) //else //if (texDict != 0)
                                 {
@@ -4089,6 +4210,27 @@ namespace CodeWalker.Rendering
                                                 dtex = drawable.ShaderGroup.TextureDictionary.Lookup(tex.NameHash);
                                                 if (dtex != null)
                                                 { } //this shouldn't really happen as embedded textures should already be loaded! (not as TextureRef)
+                                            }
+
+                                            //for vehicle wheel/window FragDrawables, the embedded texdict lives on
+                                            //the parent fragment's main drawable - not on the child drawable itself.
+                                            //fall back to the parent fragment's embedded textures so wheel textures
+                                            //don't come out as missing/wrong.
+                                            if (dtex == null)
+                                            {
+                                                var fdrwbl = drawable as FragDrawable;
+                                                if (fdrwbl != null)
+                                                {
+                                                    var pdrwbl = fdrwbl.OwnerDrawable;
+                                                    if ((pdrwbl == null) && (fdrwbl.OwnerFragment != null))
+                                                    {
+                                                        pdrwbl = fdrwbl.OwnerFragment.Drawable ?? fdrwbl.OwnerFragment.DrawableCloth;
+                                                    }
+                                                    if ((pdrwbl != null) && (pdrwbl != fdrwbl) && (pdrwbl.ShaderGroup?.TextureDictionary != null))
+                                                    {
+                                                        dtex = pdrwbl.ShaderGroup.TextureDictionary.Lookup(tex.NameHash);
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -4353,7 +4495,12 @@ namespace CodeWalker.Rendering
                 if (EntityVisibleAtMaxLodLevel(ent))
                 {
                     ent.Distance = MapViewEnabled ? MapViewDist : (ent.Position - Position).Length();
-                    if (ent.Distance <= (ent.LodDist * LodDistMult))
+                    //use distance from the bounding sphere surface (not the center) so that
+                    //very large objects like the Del Perro Pier ferris wheel (~60m radius)
+                    //aren't prematurely culled when the camera is inside their bounding sphere
+                    //but still outside the archetype's lodDist.
+                    float effDist = MapViewEnabled ? ent.Distance : Math.Max(0.0f, ent.Distance - ent.BSRadius);
+                    if (effDist <= (ent.LodDist * LodDistMult))
                     {
                         RecurseAddVisibleLeaves(ent);
                     }
@@ -4432,7 +4579,9 @@ namespace CodeWalker.Rendering
                 {
                     ent.Distance = MapViewEnabled ? MapViewDist : (ent.Position - Position).Length();
                 }
-                if (ent.Distance <= (ent.ChildLodDist * LodDistMult))
+                //distance-to-sphere-surface for ferris wheel / large objects
+                float effDist = MapViewEnabled ? ent.Distance : Math.Max(0.0f, ent.Distance - ent.BSRadius);
+                if (effDist <= (ent.ChildLodDist * LodDistMult))
                 {
                     return clist;
                 }
@@ -4443,7 +4592,8 @@ namespace CodeWalker.Rendering
                     {
                         var child = cnode.Value;
                         child.Distance = MapViewEnabled ? MapViewDist : (child.Position - Position).Length();
-                        if (child.Distance <= (child.LodDist * LodDistMult))
+                        float childEffDist = MapViewEnabled ? child.Distance : Math.Max(0.0f, child.Distance - child.BSRadius);
+                        if (childEffDist <= (child.LodDist * LodDistMult))
                         {
                             return clist;
                         }

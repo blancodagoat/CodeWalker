@@ -61,6 +61,7 @@
             this.EntityScaleZTextBox = new System.Windows.Forms.TextBox();
             this.EntityLodDistTextBox = new System.Windows.Forms.TextBox();
             this.EntityArchetypeTextBox = new System.Windows.Forms.TextBox();
+            this.EntityArchetypeBrowseButton = new System.Windows.Forms.Button();
             this.label16 = new System.Windows.Forms.Label();
             this.EntityPositionTextBox = new System.Windows.Forms.TextBox();
             this.EntityGoToButton = new System.Windows.Forms.Button();
@@ -72,6 +73,10 @@
             this.EntityNumChildrenTextBox = new System.Windows.Forms.TextBox();
             this.label25 = new System.Windows.Forms.Label();
             this.EntityExtensionsTabPage = new System.Windows.Forms.TabPage();
+            this.EntityExtensionsListBox = new System.Windows.Forms.ListBox();
+            this.EntityExtensionsPropertyGrid = new System.Windows.Forms.PropertyGrid();
+            this.EntityExtensionAddButton = new System.Windows.Forms.Button();
+            this.EntityExtensionDeleteButton = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.EntityPivotTabPage = new System.Windows.Forms.TabPage();
             this.EntityPivotRotationQuatBox = new CodeWalker.WinForms.QuaternionBox();
@@ -147,6 +152,7 @@
             this.EntityGeneralTabPage.Controls.Add(this.EntityScaleZTextBox);
             this.EntityGeneralTabPage.Controls.Add(this.EntityLodDistTextBox);
             this.EntityGeneralTabPage.Controls.Add(this.EntityArchetypeTextBox);
+            this.EntityGeneralTabPage.Controls.Add(this.EntityArchetypeBrowseButton);
             this.EntityGeneralTabPage.Controls.Add(this.label16);
             this.EntityGeneralTabPage.Controls.Add(this.EntityPositionTextBox);
             this.EntityGeneralTabPage.Controls.Add(this.EntityGoToButton);
@@ -480,14 +486,25 @@
             // 
             // EntityArchetypeTextBox
             // 
-            this.EntityArchetypeTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.EntityArchetypeTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.EntityArchetypeTextBox.Location = new System.Drawing.Point(93, 61);
             this.EntityArchetypeTextBox.Name = "EntityArchetypeTextBox";
-            this.EntityArchetypeTextBox.Size = new System.Drawing.Size(196, 20);
+            this.EntityArchetypeTextBox.Size = new System.Drawing.Size(174, 20);
             this.EntityArchetypeTextBox.TabIndex = 8;
             this.EntityArchetypeTextBox.TextChanged += new System.EventHandler(this.EntityArchetypeTextBox_TextChanged);
-            // 
+            //
+            // EntityArchetypeBrowseButton
+            //
+            this.EntityArchetypeBrowseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.EntityArchetypeBrowseButton.Location = new System.Drawing.Point(270, 60);
+            this.EntityArchetypeBrowseButton.Name = "EntityArchetypeBrowseButton";
+            this.EntityArchetypeBrowseButton.Size = new System.Drawing.Size(19, 22);
+            this.EntityArchetypeBrowseButton.TabIndex = 46;
+            this.EntityArchetypeBrowseButton.Text = "...";
+            this.EntityArchetypeBrowseButton.UseVisualStyleBackColor = true;
+            this.EntityArchetypeBrowseButton.Click += new System.EventHandler(this.EntityArchetypeBrowseButton_Click);
+            //
             // label16
             // 
             this.label16.AutoSize = true;
@@ -593,22 +610,71 @@
             // EntityExtensionsTabPage
             // 
             this.EntityExtensionsTabPage.Controls.Add(this.label1);
+            this.EntityExtensionsTabPage.Controls.Add(this.EntityExtensionsListBox);
+            this.EntityExtensionsTabPage.Controls.Add(this.EntityExtensionAddButton);
+            this.EntityExtensionsTabPage.Controls.Add(this.EntityExtensionDeleteButton);
+            this.EntityExtensionsTabPage.Controls.Add(this.EntityExtensionsPropertyGrid);
             this.EntityExtensionsTabPage.Location = new System.Drawing.Point(4, 22);
             this.EntityExtensionsTabPage.Name = "EntityExtensionsTabPage";
             this.EntityExtensionsTabPage.Size = new System.Drawing.Size(555, 406);
             this.EntityExtensionsTabPage.TabIndex = 2;
             this.EntityExtensionsTabPage.Text = "Extensions";
             this.EntityExtensionsTabPage.UseVisualStyleBackColor = true;
-            // 
+            //
             // label1
-            // 
+            //
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(27, 27);
+            this.label1.Location = new System.Drawing.Point(6, 6);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(157, 13);
+            this.label1.Size = new System.Drawing.Size(63, 13);
             this.label1.TabIndex = 0;
-            this.label1.Text = "Entity extensions editing TODO!";
-            // 
+            this.label1.Text = "Extensions:";
+            //
+            // EntityExtensionsListBox
+            //
+            this.EntityExtensionsListBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)));
+            this.EntityExtensionsListBox.FormattingEnabled = true;
+            this.EntityExtensionsListBox.IntegralHeight = false;
+            this.EntityExtensionsListBox.Location = new System.Drawing.Point(6, 22);
+            this.EntityExtensionsListBox.Name = "EntityExtensionsListBox";
+            this.EntityExtensionsListBox.Size = new System.Drawing.Size(200, 349);
+            this.EntityExtensionsListBox.TabIndex = 1;
+            this.EntityExtensionsListBox.SelectedIndexChanged += new System.EventHandler(this.EntityExtensionsListBox_SelectedIndexChanged);
+            //
+            // EntityExtensionAddButton
+            //
+            this.EntityExtensionAddButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.EntityExtensionAddButton.Location = new System.Drawing.Point(6, 377);
+            this.EntityExtensionAddButton.Name = "EntityExtensionAddButton";
+            this.EntityExtensionAddButton.Size = new System.Drawing.Size(95, 23);
+            this.EntityExtensionAddButton.TabIndex = 2;
+            this.EntityExtensionAddButton.Text = "Add...";
+            this.EntityExtensionAddButton.UseVisualStyleBackColor = true;
+            this.EntityExtensionAddButton.Click += new System.EventHandler(this.EntityExtensionAddButton_Click);
+            //
+            // EntityExtensionDeleteButton
+            //
+            this.EntityExtensionDeleteButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.EntityExtensionDeleteButton.Location = new System.Drawing.Point(111, 377);
+            this.EntityExtensionDeleteButton.Name = "EntityExtensionDeleteButton";
+            this.EntityExtensionDeleteButton.Size = new System.Drawing.Size(95, 23);
+            this.EntityExtensionDeleteButton.TabIndex = 3;
+            this.EntityExtensionDeleteButton.Text = "Delete";
+            this.EntityExtensionDeleteButton.UseVisualStyleBackColor = true;
+            this.EntityExtensionDeleteButton.Click += new System.EventHandler(this.EntityExtensionDeleteButton_Click);
+            //
+            // EntityExtensionsPropertyGrid
+            //
+            this.EntityExtensionsPropertyGrid.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.EntityExtensionsPropertyGrid.Location = new System.Drawing.Point(212, 6);
+            this.EntityExtensionsPropertyGrid.Name = "EntityExtensionsPropertyGrid";
+            this.EntityExtensionsPropertyGrid.Size = new System.Drawing.Size(340, 394);
+            this.EntityExtensionsPropertyGrid.TabIndex = 4;
+            this.EntityExtensionsPropertyGrid.PropertyValueChanged += new System.Windows.Forms.PropertyValueChangedEventHandler(this.EntityExtensionsPropertyGrid_PropertyValueChanged);
+            //
             // EntityPivotTabPage
             // 
             this.EntityPivotTabPage.Controls.Add(this.EntityPivotRotationQuatBox);
@@ -849,6 +915,7 @@
         private System.Windows.Forms.TextBox EntityScaleZTextBox;
         private System.Windows.Forms.TextBox EntityLodDistTextBox;
         private System.Windows.Forms.TextBox EntityArchetypeTextBox;
+        private System.Windows.Forms.Button EntityArchetypeBrowseButton;
         private System.Windows.Forms.Label label16;
         private System.Windows.Forms.TextBox EntityPositionTextBox;
         private System.Windows.Forms.Button EntityGoToButton;
@@ -859,6 +926,10 @@
         private System.Windows.Forms.TextBox EntityNumChildrenTextBox;
         private System.Windows.Forms.Label label25;
         private System.Windows.Forms.TabPage EntityExtensionsTabPage;
+        private System.Windows.Forms.ListBox EntityExtensionsListBox;
+        private System.Windows.Forms.PropertyGrid EntityExtensionsPropertyGrid;
+        private System.Windows.Forms.Button EntityExtensionAddButton;
+        private System.Windows.Forms.Button EntityExtensionDeleteButton;
         private System.Windows.Forms.TabPage EntityPivotTabPage;
         private System.Windows.Forms.Label label95;
         private System.Windows.Forms.CheckBox EntityPivotEditCheckBox;

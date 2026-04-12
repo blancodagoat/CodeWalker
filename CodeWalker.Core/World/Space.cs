@@ -32,6 +32,8 @@ namespace CodeWalker.World
 
         private Dictionary<MetaHash, uint> ymaptimes = new();
         private Dictionary<MetaHash, MetaHash[]> ymapweathertypes = new();
+        private Dictionary<MetaHash, MetaHash> ymapDataGroups = new(); // ymap name -> data group name
+        public HashSet<MetaHash> HiddenDataGroups = new();
 
         public bool Inited = false;
 
@@ -95,6 +97,7 @@ namespace CodeWalker.World
             ymaptimes.Clear();
             ymapweathertypes.Clear();
             dataGroupDict.Clear();
+            ymapDataGroups.Clear();
 
             var manifests = GameFileCache.AllManifests;
             if (manifests == null) return;
@@ -111,6 +114,7 @@ namespace CodeWalker.World
                 var localYmapTimes = new Dictionary<MetaHash, uint>();
                 var localYmapWeatherTypes = new Dictionary<MetaHash, MetaHash[]>();
                 var localDataGroupDict = new Dictionary<MetaHash, YmfMapDataGroup>();
+                var localYmapDataGroups = new Dictionary<MetaHash, MetaHash>();
 
                 // Build interior lookup - maps child->parent interior bounds
                 if (manifest.Interiors != null)
@@ -150,6 +154,7 @@ namespace CodeWalker.World
 
                         // Always add/update - let the last one win
                         localDataGroupDict[mapgroup.DataGroup.Name] = mapgroup;
+                        localYmapDataGroups[mapgroup.Name] = mapgroup.DataGroup.Name;
                     }
                 }
 
@@ -161,9 +166,23 @@ namespace CodeWalker.World
                     foreach (var kvp in localYmapTimes) ymaptimes[kvp.Key] = kvp.Value;
                     foreach (var kvp in localYmapWeatherTypes) ymapweathertypes[kvp.Key] = kvp.Value;
                     foreach (var kvp in localDataGroupDict) dataGroupDict[kvp.Key] = kvp.Value;
+                    foreach (var kvp in localYmapDataGroups) ymapDataGroups[kvp.Key] = kvp.Value;
                 }
             });
         }
+
+        public List<MetaHash> GetDataGroupNames()
+        {
+            var names = new HashSet<MetaHash>();
+            foreach (var kvp in dataGroupDict)
+            {
+                names.Add(kvp.Key);
+            }
+            var result = new List<MetaHash>(names);
+            result.Sort((a, b) => a.ToString().CompareTo(b.ToString()));
+            return result;
+        }
+
         private void InitCacheData()
         {
             var caches = GameFileCache.AllCacheFiles;
@@ -1184,6 +1203,16 @@ namespace CodeWalker.World
         private bool IsYmapAvailable(uint ymaphash, int hour, MetaHash weather)
         {
             MetaHash ymapname = new(ymaphash);
+
+            // Check if this ymap belongs to a hidden data group
+            if (ymapDataGroups.TryGetValue(ymapname, out MetaHash dataGroupName))
+            {
+                if (HiddenDataGroups.Contains(dataGroupName))
+                {
+                    return false;
+                }
+            }
+
             uint ymaptime;
             MetaHash[] weathers;
             if ((hour >= 0) && (hour <= 23))

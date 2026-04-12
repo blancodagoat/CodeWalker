@@ -756,6 +756,7 @@ namespace CodeWalker.Rendering
         public DrawableModel DrawableModel;
         public RenderableGeometry[] Geometries;
         public AABB_s[] GeometryBounds;
+        public bool[] HiddenGeometries;
         public long GeometrySize { get; private set; }
 
         public uint SkeletonBinding;
@@ -779,6 +780,7 @@ namespace CodeWalker.Rendering
             long geomcount = dmodel.Geometries.Length;
             Geometries = new RenderableGeometry[geomcount];
             GeometryBounds = new AABB_s[geomcount];
+            HiddenGeometries = new bool[geomcount];
 
             GeometrySize = 0;
             for (int i = 0; i < geomcount; i++)
@@ -796,7 +798,7 @@ namespace CodeWalker.Rendering
                 }
                 else
                 {
-                    //GeometryBounds[i] = new AABB_s();//what to default to?
+                    GeometryBounds[i] = dgeom.AABB;
                 }
 
                 if (Owner.Key is FragDrawable)
@@ -806,6 +808,31 @@ namespace CodeWalker.Rendering
             }
 
 
+        }
+
+        public void ToggleGeometryVisibility(int index)
+        {
+            if (HiddenGeometries != null && index >= 0 && index < HiddenGeometries.Length)
+            {
+                HiddenGeometries[index] = !HiddenGeometries[index];
+            }
+        }
+
+        public void SetGeometryHidden(int index, bool hidden)
+        {
+            if (HiddenGeometries != null && index >= 0 && index < HiddenGeometries.Length)
+            {
+                HiddenGeometries[index] = hidden;
+            }
+        }
+
+        public bool IsGeometryHidden(int index)
+        {
+            if (HiddenGeometries != null && index >= 0 && index < HiddenGeometries.Length)
+            {
+                return HiddenGeometries[index];
+            }
+            return false;
         }
 
     }

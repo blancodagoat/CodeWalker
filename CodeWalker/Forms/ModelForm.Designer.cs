@@ -57,6 +57,7 @@
             this.ToolsTabControl = new System.Windows.Forms.TabControl();
             this.ToolsModelsTabPage = new System.Windows.Forms.TabPage();
             this.EnableRootMotionCheckBox = new System.Windows.Forms.CheckBox();
+            this.AnimateParticlesCheckBox = new System.Windows.Forms.CheckBox();
             this.label22 = new System.Windows.Forms.Label();
             this.ClipComboBox = new System.Windows.Forms.ComboBox();
             this.label21 = new System.Windows.Forms.Label();
@@ -109,6 +110,10 @@
             this.ToolsPanelShowButton = new System.Windows.Forms.Button();
             this.SaveFileDialog = new System.Windows.Forms.SaveFileDialog();
             this.FolderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
+            this.toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
+            this.LoadYtdButton = new System.Windows.Forms.ToolStripButton();
+            this.TextureVariantLabel = new System.Windows.Forms.ToolStripLabel();
+            this.TextureVariantComboBox = new System.Windows.Forms.ToolStripComboBox();
             this.StatusStrip.SuspendLayout();
             this.ConsolePanel.SuspendLayout();
             this.ToolsPanel.SuspendLayout();
@@ -223,6 +228,9 @@
             // 
             this.MainToolbar.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
             this.MainToolbar.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.LoadYtdButton,
+            this.TextureVariantComboBox,
+            this.toolStripSeparator4,
             this.ToolbarMaterialEditorButton,
             this.ToolbarTextureEditorButton,
             this.ToolbarLightEditorButton,
@@ -363,7 +371,36 @@
             this.SaveSharedTexturesMenuButton.Text = "Save Shared Textures...";
             this.SaveSharedTexturesMenuButton.ToolTipText = "Save only the shared textures for this model (non-embedded)";
             this.SaveSharedTexturesMenuButton.Click += new System.EventHandler(this.SaveSharedTexturesMenuButton_Click);
-            // 
+            //
+            // toolStripSeparator4
+            //
+            this.toolStripSeparator4.Name = "toolStripSeparator4";
+            this.toolStripSeparator4.Size = new System.Drawing.Size(6, 25);
+            //
+            // LoadYtdButton
+            //
+            this.LoadYtdButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.LoadYtdButton.Name = "LoadYtdButton";
+            this.LoadYtdButton.Size = new System.Drawing.Size(62, 22);
+            this.LoadYtdButton.Text = "Load YTD";
+            this.LoadYtdButton.ToolTipText = "Load external YTD texture file(s)";
+            this.LoadYtdButton.Click += new System.EventHandler(this.LoadYtdButton_Click);
+            //
+            // TextureVariantLabel
+            //
+            this.TextureVariantLabel.Name = "TextureVariantLabel";
+            this.TextureVariantLabel.Size = new System.Drawing.Size(49, 22);
+            this.TextureVariantLabel.Text = "Texture:";
+            this.TextureVariantLabel.Visible = false;
+            //
+            // TextureVariantComboBox
+            //
+            this.TextureVariantComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.TextureVariantComboBox.Name = "TextureVariantComboBox";
+            this.TextureVariantComboBox.Size = new System.Drawing.Size(160, 25);
+            this.TextureVariantComboBox.Visible = false;
+            this.TextureVariantComboBox.SelectedIndexChanged += new System.EventHandler(this.TextureVariantComboBox_SelectedIndexChanged);
+            //
             // ToolsTabControl
             // 
             this.ToolsTabControl.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
@@ -382,6 +419,7 @@
             // ToolsModelsTabPage
             // 
             this.ToolsModelsTabPage.Controls.Add(this.EnableRootMotionCheckBox);
+            this.ToolsModelsTabPage.Controls.Add(this.AnimateParticlesCheckBox);
             this.ToolsModelsTabPage.Controls.Add(this.label22);
             this.ToolsModelsTabPage.Controls.Add(this.ClipComboBox);
             this.ToolsModelsTabPage.Controls.Add(this.label21);
@@ -406,7 +444,19 @@
             this.EnableRootMotionCheckBox.Text = "Enable root motion";
             this.EnableRootMotionCheckBox.UseVisualStyleBackColor = true;
             this.EnableRootMotionCheckBox.CheckedChanged += new System.EventHandler(this.EnableRootMotionCheckBox_CheckedChanged);
-            // 
+            //
+            // AnimateParticlesCheckBox
+            //
+            this.AnimateParticlesCheckBox.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.AnimateParticlesCheckBox.AutoSize = true;
+            this.AnimateParticlesCheckBox.Location = new System.Drawing.Point(50, 410);
+            this.AnimateParticlesCheckBox.Name = "AnimateParticlesCheckBox";
+            this.AnimateParticlesCheckBox.Size = new System.Drawing.Size(112, 17);
+            this.AnimateParticlesCheckBox.TabIndex = 38;
+            this.AnimateParticlesCheckBox.Text = "Animate particles";
+            this.AnimateParticlesCheckBox.UseVisualStyleBackColor = true;
+            this.AnimateParticlesCheckBox.CheckedChanged += new System.EventHandler(this.AnimateParticlesCheckBox_CheckedChanged);
+            //
             // label22
             // 
             this.label22.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
@@ -1160,5 +1210,10 @@
         private System.Windows.Forms.NumericUpDown SnapAngleUpDown;
         private System.Windows.Forms.Label label33;
         private System.Windows.Forms.CheckBox OptionsShowOutlinesCheckBox;
+        private System.Windows.Forms.CheckBox AnimateParticlesCheckBox;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator4;
+        private System.Windows.Forms.ToolStripButton LoadYtdButton;
+        private System.Windows.Forms.ToolStripLabel TextureVariantLabel;
+        private System.Windows.Forms.ToolStripComboBox TextureVariantComboBox;
     }
 }

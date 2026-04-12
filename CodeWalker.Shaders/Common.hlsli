@@ -305,6 +305,44 @@ float3 GlobalLighting(float3 diff, float3 norm, float4 vc0, float lf, uniform Sh
 }
 
 
+//RenderMode: 0=default, 1=normals, 2=tangents, 3=colours, 4=texcoords, 5=diffuse, 6=normalmap, 7=spec, 8=direct
+//Returns true and writes rgb debug colour into outRgb when a vertex debug mode is active.
+//Unavailable channels (e.g. tangent on billboards) should be passed as float3/float4(0,0,0,0).
+bool GetVertexDebugColour(uint renderMode, uint renderModeIndex,
+                          float3 normal, float3 tangent,
+                          float4 colour0, float4 colour1,
+                          float2 texcoord0, float2 texcoord1, float2 texcoord2,
+                          out float3 outRgb)
+{
+    outRgb = float3(0, 0, 0);
+    if (renderMode == 1) //normals
+    {
+        outRgb = normalize(normal) * 0.5 + 0.5;
+        return true;
+    }
+    if (renderMode == 2) //tangents
+    {
+        float3 t = tangent;
+        if (dot(t, t) > 0.00001) t = normalize(t);
+        outRgb = t * 0.5 + 0.5;
+        return true;
+    }
+    if (renderMode == 3) //vertex colours
+    {
+        outRgb = (renderModeIndex == 2) ? colour1.rgb : colour0.rgb;
+        return true;
+    }
+    if (renderMode == 4) //texcoords
+    {
+        if (renderModeIndex == 2) outRgb = float3(texcoord1, 0);
+        else if (renderModeIndex == 3) outRgb = float3(texcoord2, 0);
+        else outRgb = float3(texcoord0, 0);
+        return true;
+    }
+    return false;
+}
+
+
 
 
 

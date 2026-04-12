@@ -18,12 +18,22 @@ PS_OUTPUT main(VS_OUTPUT input)
     }
 
     float3 norm = input.Normal;
-    
-    
+
+
     float3 spec = 0;
-    
+
     c.a = saturate(c.a);
-    
+
+    float3 dbgRgb;
+    if (GetVertexDebugColour(RenderMode, RenderModeIndex,
+                             norm, float3(0, 0, 0),
+                             input.Colour, input.Colour1,
+                             input.Texcoord, input.Texcoord1, input.Texcoord2,
+                             dbgRgb))
+    {
+        c = float4(dbgRgb, 1);
+    }
+
     PS_OUTPUT output;
     output.Diffuse = c;
     output.Normal = float4(saturate(norm * 0.5 + 0.5), c.a);

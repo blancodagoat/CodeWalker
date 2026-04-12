@@ -49,6 +49,9 @@ struct VS_OUTPUT
     float3 Normal   : NORMAL;
     float2 Texcoord : TEXCOORD0;
     float4 Colour   : COLOR0;
+    float2 Texcoord1 : TEXCOORD1;
+    float2 Texcoord2 : TEXCOORD2;
+    float4 Colour1  : COLOR1;
 };
 
 
@@ -91,5 +94,8 @@ VS_OUTPUT main(VS_INPUT input)
     output.Normal = bnorm;
     output.Texcoord = input.Texcoord1;
     output.Colour = input.Colour0;// float4(input.Texcoord2, 0, 1);// input.Colour1;
+    output.Texcoord1 = input.Texcoord0;
+    output.Texcoord2 = input.Texcoord2;
+    output.Colour1 = input.Colour1;
     return output;
 }

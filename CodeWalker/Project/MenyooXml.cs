@@ -1,6 +1,8 @@
-﻿using SharpDX;
+﻿using CodeWalker.GameFiles;
+using SharpDX;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -71,6 +73,100 @@ namespace CodeWalker.Project
         }
 
 
+        public static string ExportToXml(YmapEntityDef[] entities)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            sb.AppendLine("<SpoonerPlacements>");
+            sb.AppendLine("  <ClearDatabase>true</ClearDatabase>");
+            sb.AppendLine("  <ClearWorld>0</ClearWorld>");
+
+            foreach (var ent in entities)
+            {
+                if (ent == null) continue;
+
+                var pos = ent.Position;
+                var rot = ent.Orientation;
+
+                var euler = QuaternionToEuler(rot);
+                float yaw = euler.X;
+                float pitch = euler.Y;
+                float roll = euler.Z;
+
+                uint hash = ent._CEntityDef.archetypeName;
+                bool frozen = (ent._CEntityDef.flags & 32u) != 0;
+                bool dynamic = !frozen;
+                float lodDist = ent._CEntityDef.lodDist;
+
+                sb.AppendLine("  <Placement>");
+                sb.AppendLine("    <ModelHash>0x" + hash.ToString("X8") + "</ModelHash>");
+                sb.AppendLine("    <Type>3</Type>");
+                sb.AppendLine("    <Dynamic>" + (dynamic ? "true" : "false") + "</Dynamic>");
+                sb.AppendLine("    <FrozenPos>" + (frozen ? "true" : "false") + "</FrozenPos>");
+                sb.AppendLine("    <HashName>" + ent.Name + "</HashName>");
+                sb.AppendLine("    <InitialHandle>0</InitialHandle>");
+                sb.AppendLine("    <ObjectProperties>");
+                if (ent._CEntityDef.tintValue != 0)
+                {
+                    sb.AppendLine("      <TextureVariation>" + ent._CEntityDef.tintValue.ToString() + "</TextureVariation>");
+                }
+                sb.AppendLine("    </ObjectProperties>");
+                sb.AppendLine("    <PositionRotation>");
+                sb.AppendLine("      <X>" + pos.X.ToString(CultureInfo.InvariantCulture) + "</X>");
+                sb.AppendLine("      <Y>" + pos.Y.ToString(CultureInfo.InvariantCulture) + "</Y>");
+                sb.AppendLine("      <Z>" + pos.Z.ToString(CultureInfo.InvariantCulture) + "</Z>");
+                sb.AppendLine("      <Pitch>" + pitch.ToString(CultureInfo.InvariantCulture) + "</Pitch>");
+                sb.AppendLine("      <Roll>" + roll.ToString(CultureInfo.InvariantCulture) + "</Roll>");
+                sb.AppendLine("      <Yaw>" + yaw.ToString(CultureInfo.InvariantCulture) + "</Yaw>");
+                sb.AppendLine("    </PositionRotation>");
+                sb.AppendLine("    <OpacityLevel>255</OpacityLevel>");
+                sb.AppendLine("    <LodDistance>" + lodDist.ToString(CultureInfo.InvariantCulture) + "</LodDistance>");
+                sb.AppendLine("    <IsVisible>true</IsVisible>");
+                sb.AppendLine("    <MaxHealth>0</MaxHealth>");
+                sb.AppendLine("    <Health>0</Health>");
+                sb.AppendLine("    <HasGravity>true</HasGravity>");
+                sb.AppendLine("    <IsOnFire>false</IsOnFire>");
+                sb.AppendLine("    <IsInvincible>false</IsInvincible>");
+                sb.AppendLine("    <IsBulletProof>false</IsBulletProof>");
+                sb.AppendLine("    <IsCollisionProof>false</IsCollisionProof>");
+                sb.AppendLine("    <IsExplosionProof>false</IsExplosionProof>");
+                sb.AppendLine("    <IsFireProof>false</IsFireProof>");
+                sb.AppendLine("    <IsMeleeProof>false</IsMeleeProof>");
+                sb.AppendLine("    <IsOnlyDamagedByPlayer>false</IsOnlyDamagedByPlayer>");
+                sb.AppendLine("    <Attachment isAttached=\"false\" />");
+                sb.AppendLine("  </Placement>");
+            }
+
+            sb.AppendLine("</SpoonerPlacements>");
+            return sb.ToString();
+        }
+
+        private static Vector3 QuaternionToEuler(Quaternion q)
+        {
+            float qx = q.X, qy = q.Y, qz = q.Z, qw = q.W;
+
+            float sinr_cosp = 2.0f * (qw * qx + qy * qz);
+            float cosr_cosp = 1.0f - 2.0f * (qx * qx + qy * qy);
+            float ex_roll = (float)Math.Atan2(sinr_cosp, cosr_cosp);
+
+            float sinp = 2.0f * (qw * qy - qz * qx);
+            float ex_pitch;
+            if (Math.Abs(sinp) >= 1)
+                ex_pitch = (float)Math.Sign(sinp) * (float)(Math.PI / 2.0);
+            else
+                ex_pitch = (float)Math.Asin(sinp);
+
+            float siny_cosp = 2.0f * (qw * qz + qx * qy);
+            float cosy_cosp = 1.0f - 2.0f * (qy * qy + qz * qz);
+            float ex_yaw = (float)Math.Atan2(siny_cosp, cosy_cosp);
+
+            float deg = -(180.0f / (float)Math.PI);
+            float yaw_deg = ex_roll * deg;
+            float pitch_deg = ex_pitch * deg;
+            float roll_deg = ex_yaw * deg;
+
+            return new Vector3(yaw_deg, pitch_deg, roll_deg);
+        }
 
 
     }

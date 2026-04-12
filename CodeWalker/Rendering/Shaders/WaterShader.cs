@@ -48,11 +48,12 @@ namespace CodeWalker.Rendering
         public uint RenderSamplerCoord; //which texcoord to use in single texture mode
         public uint EnableWaterbumps;//if the waterbump textures are ready..
         public uint EnableFogtex; //if the fog texture is ready
-        public uint ScnPad1;
+        public uint EnableRefraction; //if the scene refraction copy is bound
         public uint ScnPad2;
         public Vector4 gFlowParams;
         public Vector4 CameraPos;
         public Vector4 WaterFogParams; //xy = base location, zw = inverse size
+        public Vector4 RefractionParams; //x,y = inv screen size, z = distort strength, w = tint amount
     }
     public struct WaterShaderPSGeomVars
     {
@@ -114,6 +115,13 @@ namespace CodeWalker.Rendering
         public RenderableTexture waterbump { get; set; }
         public RenderableTexture waterbump2 { get; set; }
         public RenderableTexture waterfog { get; set; }
+
+        //screen-space refraction inputs (set each frame by ShaderManager)
+        public ShaderResourceView RefractionSRV { get; set; }
+        public int RefractionWidth { get; set; }
+        public int RefractionHeight { get; set; }
+        public float RefractionStrength { get; set; } = 0.025f;
+        public float RefractionTintAmount { get; set; } = 0.35f;
 
 
         //check dt1_21_reflproxy and dt1_05_reflproxy
@@ -294,6 +302,8 @@ namespace CodeWalker.Rendering
             VSSceneVars.Update(context);
             VSSceneVars.SetVSCBuffer(context, 0);
 
+            bool userefraction = (RefractionSRV != null) && (RefractionWidth > 0) && (RefractionHeight > 0);
+
             PSSceneVars.Vars.GlobalLights = lights.Params;
             PSSceneVars.Vars.EnableShadows = (shadowmap != null) ? 1u : 0u;
             PSSceneVars.Vars.RenderMode = rendermode;
@@ -301,9 +311,13 @@ namespace CodeWalker.Rendering
             PSSceneVars.Vars.RenderSamplerCoord = (uint)RenderTextureSamplerCoord;
             PSSceneVars.Vars.EnableWaterbumps = usewaterbumps ? 1u : 0u;
             PSSceneVars.Vars.EnableFogtex = usefogtex ? 1u : 0u;
+            PSSceneVars.Vars.EnableRefraction = userefraction ? 1u : 0u;
             PSSceneVars.Vars.gFlowParams = new Vector4(gFlowX, gFlowY, gFlowZ, gFlowW);
             PSSceneVars.Vars.CameraPos = new Vector4(camera.Position, 0.0f);
             PSSceneVars.Vars.WaterFogParams = new Vector4(fogtexMin, fogtexInv.X, fogtexInv.Y);
+            float invW = (RefractionWidth > 0) ? (1.0f / RefractionWidth) : 0.0f;
+            float invH = (RefractionHeight > 0) ? (1.0f / RefractionHeight) : 0.0f;
+            PSSceneVars.Vars.RefractionParams = new Vector4(invW, invH, RefractionStrength, RefractionTintAmount);
             PSSceneVars.Update(context);
             PSSceneVars.SetPSCBuffer(context, 0);
 
@@ -319,6 +333,10 @@ namespace CodeWalker.Rendering
             if (usefogtex)
             {
                 context.PixelShader.SetShaderResource(6, waterfog.ShaderResourceView);
+            }
+            if (userefraction)
+            {
+                context.PixelShader.SetShaderResource(7, RefractionSRV);
             }
 
         }
@@ -528,6 +546,8 @@ namespace CodeWalker.Rendering
             context.PixelShader.SetShaderResource(3, null);
             context.PixelShader.SetShaderResource(4, null);
             context.PixelShader.SetShaderResource(5, null);
+            context.PixelShader.SetShaderResource(6, null);
+            context.PixelShader.SetShaderResource(7, null);
             context.VertexShader.SetShaderResource(0, null);
             context.VertexShader.SetShaderResource(1, null);
             context.VertexShader.SetShaderResource(2, null);

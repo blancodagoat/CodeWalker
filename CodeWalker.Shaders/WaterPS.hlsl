@@ -3,7 +3,8 @@
 
 float4 main(VS_OUTPUT input) : SV_TARGET
 {
-    float4 c = float4(0.1, 0.18, 0.25, 0.8);
+    float4 baseWater = float4(0.1, 0.18, 0.25, 0.8);
+    float4 c = baseWater;
     //if (RenderMode == 0) c = float4(1, 1, 1, 1);
 
     //c.a *= input.Colour0.a;
@@ -68,6 +69,20 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
         float3 tc = c.rgb;
         c.rgb = tc;// *r0.z; //diffuse factors...
+
+        // screen-space refraction: sample the pre-water scene colour distorted by the water normal
+        if (EnableRefraction && (ShaderMode == 0) && (EnableFoamMap == 0))
+        {
+            float2 screenUV = input.Position.xy * RefractionParams.xy;
+            float2 distort = norm.xy * RefractionParams.z;
+            float2 refrUV = saturate(screenUV + distort);
+            float3 refrCol = SceneRefraction.Sample(TextureSS, refrUV).rgb;
+            // tint refracted colour by water base colour to retain water feel
+            float3 waterTint = baseWater.rgb;
+            c.rgb = lerp(refrCol, refrCol * waterTint * 2.0, RefractionParams.w);
+            // make water more opaque when refraction is active, since colour now contains scene
+            c.a = max(c.a, 0.85);
+        }
 
         float3 incident = normalize(input.CamRelPos);
         float3 refl = normalize(reflect(incident, norm));

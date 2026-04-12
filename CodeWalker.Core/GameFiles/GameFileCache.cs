@@ -83,6 +83,33 @@ namespace CodeWalker.GameFiles
 
         public Dictionary<string, RpfFile> ActiveMapRpfFiles { get; set; } = new();
 
+        /// <summary>
+        /// When true the loader will scan every DLC RPF for its content.xml via
+        /// <see cref="ContentXmlParser"/> and build a list of <see cref="DlcContentPack"/>
+        /// entries. This is the first step toward total-conversion support where RPFs are
+        /// loaded / remapped based on .meta + content.xml rather than dlclist.xml and the
+        /// directory scan. The existing DlcSetupFiles / DlcPatchedPaths pipeline is left
+        /// untouched so nothing here breaks the default GTA V loading path.
+        /// </summary>
+        public bool UseMetaFileRpfLoading { get; set; } = false;
+
+        /// <summary>Parsed content.xml files in discovered load order. Only populated when
+        /// <see cref="UseMetaFileRpfLoading"/> is enabled.</summary>
+        public List<DlcContentPack> MetaContentPacks { get; private set; } = new();
+
+        /// <summary>Virtual-path -> physical-path map built from the mount points declared in
+        /// content.xml files. Only populated when <see cref="UseMetaFileRpfLoading"/> is
+        /// enabled.</summary>
+        public Dictionary<string, string> MetaMountPoints { get; private set; } = new();
+
+        /// <summary>Flat list of files enabled across all content packs, in load order. Later
+        /// entries override earlier ones. Populated from change set filesToEnable / add ops.</summary>
+        public List<string> MetaEnabledFiles { get; private set; } = new();
+
+        /// <summary>Flat set of files that change sets have asked to be removed. Populated
+        /// from filesToDisable / remove ops.</summary>
+        public HashSet<string> MetaDisabledFiles { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Dictionary<uint, World.TimecycleMod> TimeCycleModsDict = new();
 
         public Dictionary<MetaHash, VehicleInitData> VehiclesInitDict { get; set; } = new();
@@ -312,7 +339,19 @@ namespace CodeWalker.GameFiles
         private async Task InitDlcAsync(IProgress<string> status, CancellationToken ct)
         {
             await PhaseAsync(status, ct, "Building DLC List...", InitDlcList);
+
+            if (UseMetaFileRpfLoading)
+            {
+                await PhaseAsync(status, ct, "Parsing DLC content.xml files...", InitMetaContentPacks);
+            }
+
             await PhaseAsync(status, ct, "Building active RPF dictionary...", InitActiveMapRpfFiles);
+
+            if (UseMetaFileRpfLoading)
+            {
+                await PhaseAsync(status, ct, "Applying .meta content overrides...", ApplyMetaOverridesToActiveMapRpfFiles);
+            }
+
             await PhaseAsync(status, ct, "Building map dictionaries...", InitMapDicts);
             await PhaseAsync(status, ct, "Loading manifests...", InitManifestDicts);
             await PhaseAsync(status, ct, "Loading global texture list...", InitGtxds);
@@ -921,6 +960,268 @@ namespace CodeWalker.GameFiles
 
             return processed.ToString();
         }
+        #region Meta content.xml loading
+
+        /// <summary>
+        /// Scans every DLC RPF, attempts to locate and parse its content.xml via
+        /// <see cref="ContentXmlParser"/>, and builds the <see cref="MetaContentPacks"/>,
+        /// <see cref="MetaMountPoints"/>, <see cref="MetaEnabledFiles"/> and
+        /// <see cref="MetaDisabledFiles"/> collections.
+        /// </summary>
+        private void InitMetaContentPacks()
+        {
+            MetaContentPacks.Clear();
+            MetaMountPoints.Clear();
+            MetaEnabledFiles.Clear();
+            MetaDisabledFiles.Clear();
+
+            if (DlcRpfs == null) return;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int orderCounter = 0;
+
+            if (DlcSetupFiles != null)
+            {
+                foreach (var sf in DlcSetupFiles)
+                {
+                    if (sf == null || sf.DlcFile == null) continue;
+                    var pack = TryLoadContentPack(sf.DlcFile, sf);
+                    if (pack == null) continue;
+                    pack.LoadOrder = orderCounter++;
+                    MetaContentPacks.Add(pack);
+                    seen.Add(sf.DlcFile.Path);
+                }
+            }
+
+            foreach (var rpf in DlcRpfs)
+            {
+                if (rpf == null) continue;
+                if (rpf.NameLower != "dlc.rpf") continue;
+                if (seen.Contains(rpf.Path)) continue;
+
+                var pack = TryLoadContentPack(rpf, null);
+                if (pack == null) continue;
+                pack.LoadOrder = orderCounter++;
+                MetaContentPacks.Add(pack);
+                seen.Add(rpf.Path);
+            }
+
+            foreach (var pack in MetaContentPacks)
+            {
+                if (pack.MountPoints != null)
+                {
+                    foreach (var mp in pack.MountPoints)
+                    {
+                        if (string.IsNullOrEmpty(mp.VirtualPath)) continue;
+                        MetaMountPoints[mp.VirtualPath.ToLowerInvariant()] = mp.PhysicalPath ?? string.Empty;
+                    }
+                }
+
+                if (pack.ChangeSets != null)
+                {
+                    foreach (var cs in pack.ChangeSets)
+                    {
+                        if (cs.FilesToEnable != null)
+                        {
+                            foreach (var f in cs.FilesToEnable)
+                            {
+                                if (string.IsNullOrWhiteSpace(f)) continue;
+                                MetaEnabledFiles.Add(f);
+                                MetaDisabledFiles.Remove(f);
+                            }
+                        }
+
+                        if (cs.FilesToDisable != null)
+                        {
+                            foreach (var f in cs.FilesToDisable)
+                            {
+                                if (string.IsNullOrWhiteSpace(f)) continue;
+                                MetaDisabledFiles.Add(f);
+                            }
+                        }
+                    }
+                }
+            }
+
+            UpdateStatus?.Invoke("Loaded " + MetaContentPacks.Count + " content.xml packs (" +
+                         MetaMountPoints.Count + " mount points, " +
+                         MetaEnabledFiles.Count + " enables, " +
+                         MetaDisabledFiles.Count + " disables)");
+        }
+
+        private DlcContentPack? TryLoadContentPack(RpfFile dlcrpf, DlcSetupFile? setupfile)
+        {
+            if (dlcrpf == null) return null;
+
+            string datFile = "content.xml";
+            if (setupfile != null && !string.IsNullOrEmpty(setupfile.datFile))
+            {
+                datFile = setupfile.datFile;
+            }
+
+            string contentPath = dlcrpf.Path + "\\" + datFile;
+            contentPath = GetDlcPatchedPath(contentPath);
+
+            byte[]? data = null;
+            try
+            {
+                data = RpfMan?.GetFileData(contentPath);
+            }
+            catch (Exception ex)
+            {
+                ErrorLog?.Invoke("InitMetaContentPacks: failed to read " + contentPath + ": " + ex.Message);
+                return null;
+            }
+
+            if (data == null || data.Length == 0) return null;
+
+            DlcContentPack? pack;
+            try
+            {
+                pack = ContentXmlParser.Parse(data);
+            }
+            catch (Exception ex)
+            {
+                ErrorLog?.Invoke("InitMetaContentPacks: failed to parse " + contentPath + ": " + ex.Message);
+                return null;
+            }
+
+            if (pack == null) return null;
+
+            pack.Name = GetDlcNameFromPath(dlcrpf.Path);
+            pack.SourceRpfPath = dlcrpf.Path;
+            return pack;
+        }
+
+        /// <summary>
+        /// Apply the parsed content.xml override data on top of the existing
+        /// <see cref="ActiveMapRpfFiles"/> dictionary.
+        /// </summary>
+        private void ApplyMetaOverridesToActiveMapRpfFiles()
+        {
+            if (ActiveMapRpfFiles == null) return;
+
+            int removed = 0;
+            int mounted = 0;
+            int enabled = 0;
+
+            if (MetaDisabledFiles != null && MetaDisabledFiles.Count > 0)
+            {
+                var disableKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var d in MetaDisabledFiles)
+                {
+                    if (string.IsNullOrWhiteSpace(d)) continue;
+                    disableKeys.Add(NormaliseMetaPath(d));
+                }
+
+                var toRemove = new List<string>();
+                foreach (var kvp in ActiveMapRpfFiles)
+                {
+                    var vkey = NormaliseMetaPath(kvp.Key);
+                    var ppath = kvp.Value != null ? NormaliseMetaPath(kvp.Value.Path) : null;
+
+                    foreach (var dk in disableKeys)
+                    {
+                        if (vkey == dk || (ppath != null && (ppath == dk || ppath.EndsWith("/" + dk, StringComparison.OrdinalIgnoreCase))))
+                        {
+                            toRemove.Add(kvp.Key);
+                            break;
+                        }
+                    }
+                }
+
+                foreach (var k in toRemove)
+                {
+                    ActiveMapRpfFiles.Remove(k);
+                    removed++;
+                }
+            }
+
+            if (MetaMountPoints != null && MetaMountPoints.Count > 0)
+            {
+                foreach (var kvp in MetaMountPoints)
+                {
+                    var vpath = NormaliseMetaPath(kvp.Key);
+                    var ppath = NormaliseMetaPath(kvp.Value);
+                    if (string.IsNullOrEmpty(vpath) || string.IsNullOrEmpty(ppath)) continue;
+
+                    var rpf = ResolveMetaRpf(ppath);
+                    if (rpf == null) continue;
+
+                    ActiveMapRpfFiles[vpath] = rpf;
+                    mounted++;
+                }
+            }
+
+            if (MetaEnabledFiles != null && MetaEnabledFiles.Count > 0)
+            {
+                foreach (var f in MetaEnabledFiles)
+                {
+                    if (string.IsNullOrWhiteSpace(f)) continue;
+                    var fpath = NormaliseMetaPath(f);
+                    if (!fpath.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (ActiveMapRpfFiles.ContainsKey(fpath)) continue;
+
+                    var rpf = ResolveMetaRpf(fpath);
+                    if (rpf == null) continue;
+
+                    ActiveMapRpfFiles[fpath] = rpf;
+                    enabled++;
+                }
+            }
+
+            UpdateStatus?.Invoke(".meta overrides applied (" + removed + " removed, " +
+                         mounted + " mounted, " + enabled + " enabled)");
+        }
+
+        private static string NormaliseMetaPath(string p)
+        {
+            if (string.IsNullOrEmpty(p)) return string.Empty;
+            var s = p.Replace('\\', '/').Trim().ToLowerInvariant();
+
+            int colon = s.IndexOf(':');
+            if (colon > 0 && colon < s.Length - 1)
+            {
+                var before = s.Substring(0, colon);
+                if (before.IndexOf('/') < 0)
+                {
+                    s = s.Substring(colon + 1);
+                    if (s.StartsWith("/")) s = s.Substring(1);
+                }
+            }
+
+            while (s.StartsWith("/")) s = s.Substring(1);
+            return s;
+        }
+
+        private RpfFile? ResolveMetaRpf(string normalisedPath)
+        {
+            if (RpfMan == null || string.IsNullOrEmpty(normalisedPath)) return null;
+
+            var winPath = normalisedPath.Replace('/', '\\');
+            var direct = RpfMan.FindRpfFile(winPath);
+            if (direct != null) return direct;
+            direct = RpfMan.FindRpfFile(normalisedPath);
+            if (direct != null) return direct;
+
+            if (DlcRpfs != null)
+            {
+                foreach (var rpf in DlcRpfs)
+                {
+                    if (rpf == null) continue;
+                    var rp = rpf.Path.Replace('\\', '/').ToLowerInvariant();
+                    if (rp == normalisedPath || rp.EndsWith("/" + normalisedPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return rpf;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        #endregion
+
         private string GetDlcNameFromPath(string path)
         {
             if (string.IsNullOrEmpty(path)) return path;

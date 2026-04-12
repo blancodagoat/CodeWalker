@@ -47,6 +47,9 @@ namespace CodeWalker.Project
         private YmapOccludeModel CurrentOccludeModel;
         private YmapOccludeModelTriangle CurrentOccludeModelTri;
         private YmapGrassInstanceBatch CurrentGrassBatch;
+        private YmapDistantLODLights CurrentDistantLodLights;
+        private YmapTimeCycleModifier CurrentTimeCycleModifier;
+        private WaterQuad CurrentWaterQuad;
 
         private YtypFile CurrentYtypFile;
         private Archetype CurrentArchetype;
@@ -443,6 +446,27 @@ namespace CodeWalker.Project
                 (panel) => { panel.SetBatch(CurrentGrassBatch); }, //updateFunc
                 (panel) => { return panel.CurrentBatch == CurrentGrassBatch; }); //findFunc
         }
+        public void ShowEditYmapTimeCycleModPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditYmapTimeCycleModPanel(this); }, //createFunc
+                (panel) => { panel.SetTimeCycleModifier(CurrentTimeCycleModifier); }, //updateFunc
+                (panel) => { return panel.CurrentTimeCycleModifier == CurrentTimeCycleModifier; }); //findFunc
+        }
+        public void ShowEditWaterQuadPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditWaterQuadPanel(this); }, //createFunc
+                (panel) => { panel.SetWaterQuad(CurrentWaterQuad); }, //updateFunc
+                (panel) => { return panel.CurrentWaterQuad == CurrentWaterQuad; }); //findFunc
+        }
+        public void ShowEditYmapDistantLodLightsPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditYmapDistantLodLightsPanel(this); }, //createFunc
+                (panel) => { panel.SetDistantLodLights(CurrentDistantLodLights); }, //updateFunc
+                (panel) => { return panel.CurrentDistantLodLights == CurrentDistantLodLights; }); //findFunc
+        }
         public void ShowEditYtypPanel(bool promote)
         {
             ShowPanel(promote,
@@ -454,6 +478,13 @@ namespace CodeWalker.Project
         {
             ShowPanel(promote,
                 () => { return new EditYtypArchetypePanel(this); }, //createFunc
+                (panel) => { panel.SetArchetype(CurrentArchetype); }, //updateFunc
+                (panel) => { return panel.CurrentArchetype == CurrentArchetype; }); //findFunc
+        }
+        public void ShowEditArchetypeExtensionsPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditYtypArchetypeExtensionsPanel(this); }, //createFunc
                 (panel) => { panel.SetArchetype(CurrentArchetype); }, //updateFunc
                 (panel) => { return panel.CurrentArchetype == CurrentArchetype; }); //findFunc
         }
@@ -583,6 +614,21 @@ namespace CodeWalker.Project
                 (panel) => { panel.SetFile(CurrentAudioFile); }, //updateFunc
                 (panel) => { return panel.CurrentFile == CurrentAudioFile; }); //findFunc
         }
+        public void ShowEditAudioRelPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditAudioRelPanel(this); }, //createFunc
+                (panel) => { panel.SetFile(CurrentAudioFile); }, //updateFunc
+                (panel) => { return panel.CurrentFile == CurrentAudioFile; }); //findFunc
+        }
+        public void ShowEditGlobalTimecyclePanel(bool promote)
+        {
+            //Global time.xml / weather.xml editor. Singleton: any loaded instance matches.
+            ShowPanel(promote,
+                () => { return new EditGlobalTimecyclePanel(this); }, //createFunc
+                (panel) => { /* no per-call state to push */ }, //updateFunc
+                (panel) => { return true; }); //findFunc
+        }
         public void ShowEditAudioAmbientZonePanel(bool promote)
         {
             ShowPanel(promote,
@@ -706,6 +752,18 @@ namespace CodeWalker.Project
             {
                 ShowEditYmapGrassBatchPanel(promote);
             }
+            else if (CurrentDistantLodLights != null)
+            {
+                ShowEditYmapDistantLodLightsPanel(promote);
+            }
+            else if (CurrentTimeCycleModifier != null)
+            {
+                ShowEditYmapTimeCycleModPanel(promote);
+            }
+            else if (CurrentWaterQuad != null)
+            {
+                ShowEditWaterQuadPanel(promote);
+            }
             else if (CurrentYmapFile != null)
             {
                 ShowEditYmapPanel(promote);
@@ -785,6 +843,7 @@ namespace CodeWalker.Project
             else if (CurrentAudioFile != null)
             {
                 ShowEditAudioFilePanel(promote);
+                ShowEditAudioRelPanel(false);
             }
 
         }
@@ -2142,6 +2201,12 @@ namespace CodeWalker.Project
 
             YmapEntityDef ent = new YmapEntityDef(CurrentYmapFile, 0, ref cent);
 
+            if (copy?.Extensions != null)
+            {
+                ent.Extensions = new MetaWrapper[copy.Extensions.Length];
+                Array.Copy(copy.Extensions, ent.Extensions, copy.Extensions.Length);
+            }
+
             ent.SetArchetype(GameFileCache.GetArchetype(cent.archetypeName));
 
             if (WorldForm != null)
@@ -3279,7 +3344,130 @@ namespace CodeWalker.Project
 
         }
 
+        private void ExportMenyooXml()
+        {
+            if (CurrentYmapFile == null || CurrentYmapFile.AllEntities == null || CurrentYmapFile.AllEntities.Length == 0)
+            {
+                MessageBox.Show("No entities to export. Please select a ymap with entities first.");
+                return;
+            }
 
+            var savepath = ShowSaveDialog("XML Files|*.xml", CurrentYmapFile.Name + ".xml");
+            if (string.IsNullOrEmpty(savepath)) return;
+
+            try
+            {
+                string xml = MenyooXml.ExportToXml(CurrentYmapFile.AllEntities);
+                File.WriteAllText(savepath, xml);
+                MessageBox.Show(CurrentYmapFile.AllEntities.Length.ToString() + " entities exported to Menyoo XML.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error exporting Menyoo XML!\n" + ex.ToString());
+            }
+        }
+
+        private void ImportFiveMJson()
+        {
+            if (CurrentProjectFile == null)
+            {
+                NewProject();
+            }
+
+            var jsonpath = ShowOpenDialog("JSON Files|*.json", string.Empty);
+            if (string.IsNullOrEmpty(jsonpath)) return;
+
+            List<FiveMPlacement> placements;
+            try
+            {
+                placements = FiveMJson.LoadFromFile(jsonpath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading FiveM JSON file!\n" + ex.ToString());
+                return;
+            }
+
+            if (placements == null || placements.Count == 0)
+            {
+                MessageBox.Show("No placements found in JSON file.");
+                return;
+            }
+
+            var finf = new FileInfo(jsonpath);
+            string fname = Path.GetFileNameWithoutExtension(finf.Name) + ".ymap";
+
+            lock (ProjectSyncRoot)
+            {
+                YmapFile ymap = CurrentProjectFile.AddYmapFile(fname);
+                if (ymap != null)
+                {
+                    ymap.Loaded = true;
+                    ymap.HasChanged = true;
+                    ymap._CMapData.contentFlags = 65;
+                }
+                CurrentYmapFile = ymap;
+            }
+
+            CurrentProjectFile.HasChanged = true;
+
+            int entcount = 0;
+
+            foreach (var placement in placements)
+            {
+                YmapEntityDef ent = FiveMJson.ToYmapEntity(placement);
+                ent.Ymap = CurrentYmapFile;
+                ent.SetArchetype(GameFileCache.GetArchetype(ent._CEntityDef.archetypeName));
+
+                if (WorldForm != null)
+                {
+                    lock (WorldForm.RenderSyncRoot)
+                    {
+                        CurrentYmapFile.AddEntity(ent);
+                    }
+                }
+                else
+                {
+                    CurrentYmapFile.AddEntity(ent);
+                }
+
+                entcount++;
+            }
+
+            lock (ProjectSyncRoot)
+            {
+                CurrentYmapFile.CalcFlags();
+                CurrentYmapFile.CalcExtents();
+            }
+
+            LoadProjectTree();
+            ShowProjectItem(CurrentYmapFile, false);
+
+            MessageBox.Show(entcount.ToString() + " entities imported from FiveM JSON.");
+        }
+
+        private void ExportFiveMJson()
+        {
+            if (CurrentYmapFile == null || CurrentYmapFile.AllEntities == null || CurrentYmapFile.AllEntities.Length == 0)
+            {
+                MessageBox.Show("No entities to export. Please select a ymap with entities first.");
+                return;
+            }
+
+            var savepath = ShowSaveDialog("JSON Files|*.json", CurrentYmapFile.Name + ".json");
+            if (string.IsNullOrEmpty(savepath)) return;
+
+            try
+            {
+                string json = FiveMJson.ExportToJson(CurrentYmapFile.AllEntities);
+                File.WriteAllText(savepath, json);
+                MessageBox.Show(CurrentYmapFile.AllEntities.Length.ToString() + " entities exported to FiveM JSON.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error exporting FiveM JSON!\n" + ex.ToString());
+            }
+        }
 
 
 
@@ -3588,6 +3776,12 @@ namespace CodeWalker.Project
             var createindex = mloArch.entities.Length;
             var ment = new MCEntityDef(ref cent, mloArch);
             var outEnt = new YmapEntityDef(mloInstance.Owner, ment, createindex);
+
+            if (copy?.Extensions != null)
+            {
+                outEnt.Extensions = new MetaWrapper[copy.Extensions.Length];
+                Array.Copy(copy.Extensions, outEnt.Extensions, copy.Extensions.Length);
+            }
 
             try
             {
@@ -4718,12 +4912,67 @@ namespace CodeWalker.Project
                 ynd.HasChanged = true;
                 CurrentProjectFile.HasChanged = true;
                 ProjectExplorer?.AddYndFileTreeNode(ynd);
+
+                // The newly-added ynd may be a fresh instance that has just
+                // replaced a vanilla copy in the space grid. Re-resolve the
+                // ynd's own links and any sibling ynds whose links cross into
+                // its area, so cross-file path-node references stay live.
+                ResyncYndCrossFileLinks(ynd);
             }
             CurrentYndFile = ynd;
             RefreshUI();
             if (CurrentPathNode != null)
             {
                 ProjectExplorer?.TrySelectPathNodeTreeNode(CurrentPathNode);
+            }
+        }
+
+        /// <summary>
+        /// Re-resolves cross-file YndLink targets after <paramref name="ynd"/>
+        /// becomes the live owner of its area cell. Walks the ynd itself plus
+        /// every sibling ynd in the project (and in the loaded space) that has
+        /// inbound links pointing at this area, refreshing their Node2/TargetYnd
+        /// caches via the space node grid. Safe to call multiple times.
+        /// </summary>
+        private void ResyncYndCrossFileLinks(YndFile ynd)
+        {
+            if (ynd == null) return;
+            if (WorldForm == null) return;
+            var grid = WorldForm.Space?.NodeGrid;
+            if (grid == null) return;
+
+            // Make sure the grid points at this physical YndFile instance for
+            // its area cell -- otherwise resolution would still hit the vanilla
+            // copy.
+            WorldForm.Space.PatchYndFile(ynd);
+
+            // Resolve the ynd's own outbound links (cross-area + same-area).
+            ynd.ResolveAllLinks(grid);
+
+            // Resolve inbound links from any other ynd that mentions this area.
+            int targetArea = ynd.AreaID;
+            var visited = new HashSet<YndFile> { ynd };
+
+            if (CurrentProjectFile?.YndFiles != null)
+            {
+                foreach (var other in CurrentProjectFile.YndFiles)
+                {
+                    if (other == null || visited.Contains(other)) continue;
+                    if (other.HasInboundLinksFromArea(targetArea))
+                    {
+                        other.ResolveAllLinks(grid);
+                        visited.Add(other);
+                    }
+                }
+            }
+
+            // Also walk the space-loaded ynds (vanilla + project) so the
+            // in-memory link graph stays consistent for rendering / picking.
+            foreach (var dep in WorldForm.Space.GetYndFilesThatDependOnYndFile(ynd))
+            {
+                if (dep == null || visited.Contains(dep)) continue;
+                dep.ResolveAllLinks(grid);
+                visited.Add(dep);
             }
         }
         public void RemoveYndFromProject()
@@ -4740,6 +4989,93 @@ namespace CodeWalker.Project
             if (ynd == null) return false;
             if (CurrentProjectFile == null) return false;
             return CurrentProjectFile.ContainsYnd(ynd);
+        }
+
+        /// <summary>
+        /// Finds the YndFile responsible for the given GTA V path-node area ID.
+        /// Searches the Space node-grid first (includes loaded vanilla + project ynds),
+        /// and if nothing is found optionally prompts the user and creates a fresh
+        /// YND file in the current project for that area.
+        /// </summary>
+        public YndFile FindOrCreateYndForArea(int areaID, bool promptUser = true)
+        {
+            if (WorldForm == null) return null;
+            if ((areaID < 0) || (areaID >= 32 * 32)) return null;
+
+            // 1) Look in the space grid first (covers vanilla + project ynds).
+            var cell = WorldForm.Space.NodeGrid.GetCell(areaID);
+            if ((cell != null) && (cell.Ynd != null))
+            {
+                return cell.Ynd;
+            }
+
+            // 2) Search project ynds directly in case grid isn't primed yet.
+            if (CurrentProjectFile != null)
+            {
+                foreach (var ynd in CurrentProjectFile.YndFiles)
+                {
+                    if (ynd == null) continue;
+                    if (ynd.AreaID == areaID)
+                    {
+                        WorldForm.Space.NodeGrid.UpdateYnd(ynd);
+                        return ynd;
+                    }
+                }
+            }
+
+            // 3) Missing -- optionally prompt & create a new one in the project.
+            if (promptUser)
+            {
+                var msg = "The path node has moved into area " + areaID + ", but no .ynd file exists for that area.\n\n" +
+                          "Create a new nodes" + areaID + ".ynd in the current project and migrate the node there?";
+                var result = MessageBox.Show(msg, "Create YND for new area?", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result != DialogResult.Yes)
+                {
+                    return null;
+                }
+            }
+
+            if (CurrentProjectFile == null)
+            {
+                NewProject();
+            }
+            if (CurrentProjectFile == null) return null;
+
+            YndFile newYnd;
+            lock (projectsyncroot)
+            {
+                var fname = "nodes" + areaID + ".ynd";
+                // Guard against project duplicates -- fall back to a suffixed name.
+                if (CurrentProjectFile.ContainsYnd(fname))
+                {
+                    int testi = 1;
+                    string alt;
+                    do
+                    {
+                        alt = "nodes" + areaID + "_" + testi + ".ynd";
+                        testi++;
+                    } while (CurrentProjectFile.ContainsYnd(alt));
+                    fname = alt;
+                }
+
+                newYnd = CurrentProjectFile.AddYndFile(fname);
+                if (newYnd == null) return null;
+
+                newYnd.Loaded = true;
+                newYnd.HasChanged = true;
+                newYnd.NodeDictionary = new NodeDictionary();
+                newYnd.AreaID = areaID; // sets CellX/CellY and BBs
+                JenkIndex.Ensure(Path.GetFileNameWithoutExtension(fname));
+            }
+
+            CurrentProjectFile.HasChanged = true;
+
+            // Register with the space grid so future lookups + SetYndNodePosition work.
+            WorldForm.Space.NodeGrid.UpdateYnd(newYnd);
+
+            LoadProjectTree();
+
+            return newYnd;
         }
 
         public YndNode NewPathNode(YndNode copy = null, bool copyPosition = false, bool selectNew = true)
@@ -4817,6 +5153,7 @@ namespace CodeWalker.Project
             if (WorldForm != null)
             {
                 WorldForm.UpdatePathYndGraphics(CurrentYndFile, false);
+                WorldForm.PushUndoStep(new AddPathNodeUndoStep(n, CurrentYndFile));
             }
 
             return n;
@@ -4832,6 +5169,32 @@ namespace CodeWalker.Project
             //{
             //    return true;
             //}
+
+            // Before removing the node, find every sibling YND in the project
+            // (or in the loaded space) that links INTO this area. Any such
+            // file must be added to the project so that the cleaned-up link
+            // state actually persists to disk.
+            var inboundFiles = new List<YndFile>();
+            if (WorldForm?.Space != null)
+            {
+                int targetArea = CurrentPathNode.AreaID;
+                var grid = WorldForm.Space.NodeGrid;
+
+                // Make sure cached Node2 references are fresh before we go
+                // hunting -- otherwise we might miss links that point at the
+                // node we're about to delete.
+                CurrentYndFile.ResolveAllLinks(grid);
+
+                foreach (var dep in WorldForm.Space.GetYndFilesThatDependOnYndFile(CurrentYndFile))
+                {
+                    if (dep == null || dep == CurrentYndFile) continue;
+                    if (dep.HasInboundLinksFromArea(targetArea))
+                    {
+                        dep.ResolveAllLinks(grid);
+                        inboundFiles.Add(dep);
+                    }
+                }
+            }
 
             bool res = false;
             YndFile[] affectedFiles = new YndFile[0];
@@ -4855,6 +5218,7 @@ namespace CodeWalker.Project
             }
 
             var delnode = CurrentPathNode;
+            var delynd = CurrentYndFile;
 
             ProjectExplorer?.RemovePathNodeTreeNode(CurrentPathNode);
             SetYndHasChanged(CurrentYndFile, true);
@@ -4868,13 +5232,23 @@ namespace CodeWalker.Project
                 WorldForm.UpdatePathYndGraphics(CurrentYndFile, false);
                 AddYndToProject(CurrentYndFile);
 
-                foreach (var affectedFile in affectedFiles)
+                // Combine the engine-reported affected files with the inbound
+                // files we found before the delete, deduped.
+                var allAffected = new HashSet<YndFile>();
+                if (affectedFiles != null)
+                {
+                    foreach (var f in affectedFiles) if (f != null) allAffected.Add(f);
+                }
+                foreach (var f in inboundFiles) if (f != null) allAffected.Add(f);
+
+                foreach (var affectedFile in allAffected)
                 {
                     WorldForm.UpdatePathYndGraphics(affectedFile, false);
                     AddYndToProject(affectedFile);
                     SetYndHasChanged(affectedFile, true, true);
                 }
 
+                WorldForm.PushUndoStep(new DeletePathNodeUndoStep(delnode, delynd));
                 WorldForm.SelectItem(null);
             }
 
@@ -5490,6 +5864,7 @@ namespace CodeWalker.Project
             if (WorldForm != null)
             {
                 WorldForm.UpdateScenarioGraphics(CurrentScenario, false);
+                WorldForm.PushUndoStep(new AddScenarioNodeUndoStep(n, CurrentScenario));
             }
             else
             {
@@ -5529,6 +5904,7 @@ namespace CodeWalker.Project
             }
 
             var delnode = CurrentScenarioNode;
+            var delymt = CurrentScenario;
 
             ProjectExplorer?.RemoveScenarioNodeTreeNode(CurrentScenarioNode);
             ProjectExplorer?.SetScenarioHasChanged(CurrentScenario, true);
@@ -5540,6 +5916,7 @@ namespace CodeWalker.Project
             if (WorldForm != null)
             {
                 WorldForm.UpdateScenarioGraphics(CurrentScenario, false);
+                WorldForm.PushUndoStep(new DeleteScenarioNodeUndoStep(delnode, delymt));
                 WorldForm.SelectItem(null);
             }
 
@@ -8999,29 +9376,25 @@ namespace CodeWalker.Project
         }
         private void RefreshEntityUI()
         {
-            //bool enable = (CurrentEntity != null);
-            //bool isinproj = false;
+            bool isinproj = false;
 
-            //if (CurrentEntity != null)
-            //{
-            //    isinproj = YmapExistsInProject(CurrentEntity.Ymap);
-            //}
+            if (CurrentEntity != null)
+            {
+                isinproj = YmapExistsInProject(CurrentEntity.Ymap);
+            }
 
-            //EntityAddToProjectButton.Enabled = !isinproj;
-            //EntityDeleteButton.Enabled = isinproj;
+            EditDeleteMenu.Enabled = isinproj;
         }
         private void RefreshCarGenUI()
         {
-            //bool enable = (CurrentCarGen != null);
-            //bool isinproj = false;
+            bool isinproj = false;
 
-            //if (CurrentCarGen != null)
-            //{
-            //    isinproj = YmapExistsInProject(CurrentCarGen.Ymap);
-            //}
+            if (CurrentCarGen != null)
+            {
+                isinproj = YmapExistsInProject(CurrentCarGen.Ymap);
+            }
 
-            //CarAddToProjectButton.Enabled = !isinproj;
-            //CarDeleteButton.Enabled = isinproj;
+            if (isinproj) EditDeleteMenu.Enabled = true;
         }
         private void RefreshYtypUI()
         {
@@ -9808,9 +10181,32 @@ namespace CodeWalker.Project
         {
             ImportMenyooXml();
         }
+        private void ToolsExportMenyooXmlMenu_Click(object sender, EventArgs e)
+        {
+            ExportMenyooXml();
+        }
+        private void ToolsImportFiveMJsonMenu_Click(object sender, EventArgs e)
+        {
+            ImportFiveMJson();
+        }
+        private void ToolsExportFiveMJsonMenu_Click(object sender, EventArgs e)
+        {
+            ExportFiveMJson();
+        }
         private void ToolsDeleteGrassMenu_Click(object sender, EventArgs e)
         {
             ShowDeleteGrassPanel(true);
+        }
+        private void ToolsGlobalTimecycleMenu_Click(object sender, EventArgs e)
+        {
+            ShowEditGlobalTimecyclePanel(false);
+        }
+        private void EditDeleteMenu_Click(object sender, EventArgs e)
+        {
+            if (WorldForm != null)
+            {
+                DeleteObject(WorldForm.CurrentMapSelection);
+            }
         }
         private void OptionsRenderGtavMapMenu_Click(object sender, EventArgs e)
         {

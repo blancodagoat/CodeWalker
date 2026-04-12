@@ -61,6 +61,8 @@ namespace CodeWalker
         string[] ymaplist;
 
         Vector3 prevworldpos = FloatUtil.ParseVector3String(Settings.Default.StartPosition);
+        CameraState savedWorldCameraState;
+        CameraState savedModelCameraState;
 
 
         public GameFileCache GameFileCache { get { return gameFileCache; } }
@@ -122,6 +124,7 @@ namespace CodeWalker
 
         bool worldymaptimefilter = true;
         bool worldymapweatherfilter = true;
+        List<MetaHash> dataGroupHashes = new();
         bool hidenorthyankton = false;
         bool hidecayoperico = false;
         static readonly HashSet<string> cayoPericoFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -2334,6 +2337,7 @@ namespace CodeWalker
         List<YmtFile> renderscenariolist = new();
 
         bool renderpopzones = false;
+        bool renderpopzonenames = false;
         bool renderheightmaps = false;
         bool renderwatermaps = false;
 
@@ -2660,6 +2664,8 @@ namespace CodeWalker
 
             Renderer.RenderSelectionGeometry(SelectionMode);
 
+            Renderer.RenderGridLines();
+
             Renderer.RenderFinalPass();
 
             RenderMarkers();
@@ -2667,6 +2673,11 @@ namespace CodeWalker
             RenderWidgets();
 
             Renderer.EndRender();
+
+            if (renderpopzonenames && renderpopzones && popzones.Inited)
+            {
+                RenderPopZoneNames();
+            }
 
             Monitor.Exit(Renderer.RenderSyncRoot);
 
@@ -3166,6 +3177,53 @@ namespace CodeWalker
             }
 
             Renderer.RenderPopZones(popzones);
+        }
+
+        private void RenderPopZoneNames()
+        {
+            try
+            {
+                using (var g = System.Drawing.Graphics.FromHwnd(this.Handle))
+                {
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                    var font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold);
+                    var brush = System.Drawing.Brushes.White;
+                    var shadowBrush = System.Drawing.Brushes.Black;
+                    var sf = new System.Drawing.StringFormat();
+                    sf.Alignment = System.Drawing.StringAlignment.Center;
+                    sf.LineAlignment = System.Drawing.StringAlignment.Center;
+
+                    foreach (var group in popzones.Groups.Values)
+                    {
+                        string displayName = group.Name;
+                        if (string.IsNullOrEmpty(displayName)) displayName = group.NameLabel;
+                        if (string.IsNullOrEmpty(displayName)) continue;
+
+                        Vector3 camRel = group.Center - camera.Position;
+                        float dist = camRel.Length();
+                        if (dist > 2000.0f) continue;
+
+                        Vector3 screenPos = camera.ViewProjMatrix.MultiplyW(camRel);
+                        if (screenPos.Z <= 0.0f) continue;
+
+                        float spx = ((screenPos.X * 0.5f) + 0.5f) * camera.Width;
+                        float spy = ((screenPos.Y * -0.5f) + 0.5f) * camera.Height;
+
+                        if (spx < -100 || spx > camera.Width + 100) continue;
+                        if (spy < -50 || spy > camera.Height + 50) continue;
+
+                        g.DrawString(displayName, font, shadowBrush, spx + 1, spy + 1, sf);
+                        g.DrawString(displayName, font, brush, spx, spy, sf);
+                    }
+
+                    font.Dispose();
+                    sf.Dispose();
+                }
+            }
+            catch
+            {
+                // Silently ignore GDI+ errors (e.g., if form is being disposed)
+            }
         }
 
         private void RenderWorldHeightmaps()
@@ -4385,11 +4443,12 @@ namespace CodeWalker
         }
 
 
-        private MapBox GetExtensionBox(Vector3 camrel, MetaWrapper ext)
+        private MapBox GetExtensionBox(Vector3 camrel, MetaWrapper ext, DrawableBase drawable = null)
         {
             MapBox b = new();
             Vector3 pos = Vector3.Zero;
             float size = 0.5f;
+            int boneTag = 0;
             if (ext is MCExtensionDefLightEffect)
             {
                 var le = ext as MCExtensionDefLightEffect;
@@ -4418,6 +4477,7 @@ namespace CodeWalker
             {
                 var pe = ext as MCExtensionDefParticleEffect;
                 pos = pe.Data.offsetPosition;
+                boneTag = pe.Data.boneTag;
             }
             else if (ext is MCExtensionDefAudioCollisionSettings)
             {
@@ -4438,6 +4498,7 @@ namespace CodeWalker
             {
                 var ee = ext as MCExtensionDefExplosionEffect;
                 pos = ee.Data.offsetPosition;
+                boneTag = ee.Data.boneTag;
             }
             else if (ext is MCExtensionDefLadder)
             {
@@ -4463,6 +4524,7 @@ namespace CodeWalker
             {
                 var wd = ext as MCExtensionDefWindDisturbance;
                 pos = wd.Data.offsetPosition;
+                boneTag = wd.Data.boneTag;
             }
             else if (ext is MCExtensionDefProcObject)
             {
@@ -4470,6 +4532,15 @@ namespace CodeWalker
                 pos = po.Data.offsetPosition;
             }
 
+
+            if ((boneTag != 0) && (drawable?.Skeleton != null))
+            {
+                var bonesMap = drawable.Skeleton.BonesMap;
+                if ((bonesMap != null) && bonesMap.TryGetValue((ushort)boneTag, out Bone bone) && (bone != null))
+                {
+                    pos = bone.AnimTransform.Multiply(pos);
+                }
+            }
 
             b.BBMin = pos - size;
             b.BBMax = pos + size;
@@ -4901,7 +4972,7 @@ namespace CodeWalker
                         for (int i = 0; i < entity.Extensions.Length; i++)
                         {
                             var extension = entity.Extensions[i];
-                            MapBox mb = GetExtensionBox(camrel, extension);
+                            MapBox mb = GetExtensionBox(camrel, extension, drawable);
                             mb.Orientation = orientation;
                             mb.Scale = Vector3.One;// scale;
                             mb.BBMin *= scale;
@@ -4930,7 +5001,7 @@ namespace CodeWalker
                         for (int i = 0; i < arche.Extensions.Length; i++)
                         {
                             var extension = arche.Extensions[i];
-                            MapBox mb = GetExtensionBox(camrel, extension);
+                            MapBox mb = GetExtensionBox(camrel, extension, drawable);
                             mb.Orientation = orientation;
                             mb.Scale = Vector3.One;// scale;
                             mb.BBMin *= scale;
@@ -6782,6 +6853,8 @@ namespace CodeWalker
 #endif
             UpdateStatus("World loaded");
 
+            PopulateDataGroupsList();
+
         }
 
 
@@ -7481,6 +7554,13 @@ namespace CodeWalker
                 UndoSteps.Push(s);
                 UpdateUndoUI();
             }
+        }
+        public void PushUndoStep(UndoStep s)
+        {
+            if (s == null) return;
+            RedoSteps.Clear();
+            UndoSteps.Push(s);
+            UpdateUndoUI();
         }
         private void Undo()
         {
@@ -8334,8 +8414,12 @@ namespace CodeWalker
                     mode = MapSelectionMode.Occlusion;
                     ToolbarSelectOcclusionButton.Checked = true;
                     break;
+                case "Geometry":
+                    mode = MapSelectionMode.Geometry;
+                    break;
 
             }
+            SelectByGeometry = (mode == MapSelectionMode.Geometry);
             SelectionMode = mode;
             SelectionModeStr = modestr;
             Renderer.SelectionMode = mode;
@@ -9151,13 +9235,29 @@ namespace CodeWalker
             {
                 if (prevmodel) //only change location if the last mode was model mode
                 {
-                    camera.FollowEntity.Position = prevworldpos;
+                    savedModelCameraState = camera.SaveState();
+                    if (savedWorldCameraState.IsValid)
+                    {
+                        camera.RestoreState(savedWorldCameraState);
+                    }
+                    else
+                    {
+                        camera.FollowEntity.Position = prevworldpos;
+                    }
                 }
             }
             else
             {
+                savedWorldCameraState = camera.SaveState();
                 prevworldpos = camera.FollowEntity.Position;
-                camera.FollowEntity.Position = new Vector3(0.0f, 0.0f, 0.0f);
+                if (savedModelCameraState.IsValid)
+                {
+                    camera.RestoreState(savedModelCameraState);
+                }
+                else
+                {
+                    camera.FollowEntity.Position = new Vector3(0.0f, 0.0f, 0.0f);
+                }
             }
         }
 
@@ -9446,6 +9546,54 @@ namespace CodeWalker
         private void PopZonesCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             renderpopzones = PopZonesCheckBox.Checked;
+        }
+
+        private void PopZoneNamesCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            renderpopzonenames = PopZoneNamesCheckBox.Checked;
+        }
+
+        private void ShowGridCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            Renderer.RenderGrid = ShowGridCheckBox.Checked;
+        }
+
+        private void DataGroupsCheckedListBox_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= dataGroupHashes.Count) return;
+            var hash = dataGroupHashes[e.Index];
+            if (e.NewValue == CheckState.Checked)
+            {
+                space.HiddenDataGroups.Remove(hash);
+            }
+            else
+            {
+                space.HiddenDataGroups.Add(hash);
+            }
+        }
+
+        private void PopulateDataGroupsList()
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(() => { PopulateDataGroupsList(); }));
+                }
+                else
+                {
+                    DataGroupsCheckedListBox.Items.Clear();
+                    dataGroupHashes.Clear();
+                    space.HiddenDataGroups.Clear();
+                    var groups = space.GetDataGroupNames();
+                    foreach (var g in groups)
+                    {
+                        DataGroupsCheckedListBox.Items.Add(g.ToString(), true);
+                        dataGroupHashes.Add(g);
+                    }
+                }
+            }
+            catch { }
         }
 
         private void SkeletonsCheckBox_CheckedChanged(object sender, EventArgs e)

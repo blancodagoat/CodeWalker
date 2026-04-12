@@ -90,6 +90,7 @@ namespace CodeWalker.World
             {
                 var hash = JenkHash.GenHash(group.NameLabel.ToLowerInvariant());
                 group.Name = GlobalText.TryGetString(hash);
+                group.UpdateCenter();
             }
 
 
@@ -162,6 +163,19 @@ namespace CodeWalker.World
         public string NameLabel { get; set; }
         public string Name { get; set; } //lookup from gxt2 with label..?
         public List<PopZoneBox> Boxes { get; set; } = [];
+        public Vector3 Center { get; set; } //average center of all bounding boxes
+
+        public void UpdateCenter()
+        {
+            if (Boxes.Count == 0) { Center = Vector3.Zero; return; }
+            Vector3 sum = Vector3.Zero;
+            foreach (var box in Boxes)
+            {
+                var c = (box.Box.Minimum + box.Box.Maximum) * 0.5f;
+                sum += c;
+            }
+            Center = sum / (float)Boxes.Count;
+        }
 
         public override string ToString()
         {

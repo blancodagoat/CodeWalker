@@ -20,6 +20,17 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     float3 norm = input.Normal;
     float lf = saturate(dot(normalize(norm), GlobalLights.LightDir.xyz));
 
+    float3 dbgRgb;
+    if (GetVertexDebugColour(RenderMode, RenderModeIndex,
+                             norm, float3(0, 0, 0),
+                             input.Colour, input.Colour1,
+                             input.Texcoord, input.Texcoord1, input.Texcoord2,
+                             dbgRgb))
+    {
+        c = float4(dbgRgb, 1);
+        return c;
+    }
+
     c.rgb = GlobalLighting(c.rgb, norm, input.Colour, lf, GlobalLights);
     c.a = saturate(c.a);
 

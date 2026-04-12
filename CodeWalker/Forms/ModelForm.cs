@@ -69,6 +69,7 @@ namespace CodeWalker.Forms
             }
         }
         public string FilePath { get; set; }
+        public RpfFileEntry SourceFileEntry { get; set; }
 
         YdrFile Ydr = null;
         YddFile Ydd = null;
@@ -123,6 +124,15 @@ namespace CodeWalker.Forms
         MetaHash ModelHash;
         Archetype ModelArchetype = null;
         bool EnableRootMotion = false;
+
+        YptParticleSimulator ParticleSim = null;
+        bool AnimateParticles = false;
+        float lastFrameElapsed = 0.0f;
+
+        private TextureDictionary ExternalTexDict;
+        private Texture ExternalDiffuseOverride;
+        private Dictionary<string, TextureDictionary> ExternalTexVariants;
+        private string ActiveTexVariantName;
 
 
 
@@ -265,6 +275,7 @@ namespace CodeWalker.Forms
         {
             float elapsed = (float)frametimer.Elapsed.TotalSeconds;
             frametimer.Restart();
+            lastFrameElapsed = elapsed;
 
             if (pauserendering) return;
 
@@ -682,7 +693,7 @@ namespace CodeWalker.Forms
                 {
                     ModelArchetype ??= TryGetArchetype(ModelHash);
 
-                    Renderer.RenderDrawable(Ydr.Drawable, ModelArchetype, null, ModelHash, null, null, AnimClip);
+                    Renderer.RenderDrawable(Ydr.Drawable, ModelArchetype, null, ModelHash, ExternalTexDict, ExternalDiffuseOverride, AnimClip);
                 }
             }
             else if (Ydd != null)
@@ -696,7 +707,7 @@ namespace CodeWalker.Forms
                         {
                             var arch = TryGetArchetype(kvp.Key);
 
-                            Renderer.RenderDrawable(kvp.Value, arch, null, Ydd.RpfFileEntry.ShortNameHash, null, null, AnimClip);
+                            Renderer.RenderDrawable(kvp.Value, arch, null, Ydd.RpfFileEntry.ShortNameHash, ExternalTexDict, ExternalDiffuseOverride, AnimClip);
                         }
                     }
                 }
@@ -705,13 +716,27 @@ namespace CodeWalker.Forms
             {
                 if ((Ypt.Loaded) && (Ypt.DrawableDict != null))
                 {
-                    foreach (var kvp in Ypt.DrawableDict)
+                    if (AnimateParticles && ParticleSim != null)
                     {
-                        if (!DrawableDrawFlags.ContainsKey(kvp.Value))//only render if it's checked...
-                        {
-                            ModelArchetype ??= TryGetArchetype(kvp.Key);
+                        // Tick the simulation using the last frame time (captured in RenderScene).
+                        ParticleSim.Update(lastFrameElapsed);
 
-                            Renderer.RenderDrawable(kvp.Value, ModelArchetype, null, kvp.Key, null, null, AnimClip);
+                        // Emit each live particle as an ephemeral per-instance draw.
+                        ParticleSim.EnqueueDraws((drawable, ent) =>
+                        {
+                            Renderer.RenderDrawable(drawable, null, ent, 0, null, null, null);
+                        });
+                    }
+                    else
+                    {
+                        foreach (var kvp in Ypt.DrawableDict)
+                        {
+                            if (!DrawableDrawFlags.ContainsKey(kvp.Value))//only render if it's checked...
+                            {
+                                ModelArchetype ??= TryGetArchetype(kvp.Key);
+
+                                Renderer.RenderDrawable(kvp.Value, ModelArchetype, null, kvp.Key, null, null, AnimClip);
+                            }
                         }
                     }
                 }
@@ -759,9 +784,16 @@ namespace CodeWalker.Forms
         {
             if (ydr == null) return;
 
+            ExternalTexDict = null;
+            ExternalDiffuseOverride = null;
+            ExternalTexVariants = null;
+            ActiveTexVariantName = null;
+
             FileName = ydr.Name;
             Ydr = ydr;
             rpfFileEntry = Ydr.RpfFileEntry;
+
+            AutoDetectYtdFiles(FilePath);
             ModelHash = Ydr.RpfFileEntry?.ShortNameHash ?? 0;
             if (ModelHash != 0)
             {
@@ -794,9 +826,16 @@ namespace CodeWalker.Forms
         {
             if (ydd == null) return;
 
+            ExternalTexDict = null;
+            ExternalDiffuseOverride = null;
+            ExternalTexVariants = null;
+            ActiveTexVariantName = null;
+
             FileName = ydd.Name;
             Ydd = ydd;
             rpfFileEntry = Ydd.RpfFileEntry;
+
+            AutoDetectYtdFiles(FilePath);
 
             if (Ydd.Drawables != null)
             {
@@ -903,7 +942,20 @@ namespace CodeWalker.Forms
 
             UpdateModelsUI(ypt.DrawableDict);
 
+            // Build a runtime particle simulator for this YPT. Cheap (no GPU work) and
+            // used only when the user toggles "Animate particles" on.
+            ParticleSim = new YptParticleSimulator(ypt);
+
             DetailsPropertyGrid.SelectedObject = ypt;//.PtfxList;
+        }
+
+        private void AnimateParticlesCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            AnimateParticles = AnimateParticlesCheckBox.Checked;
+            if (AnimateParticles)
+            {
+                ParticleSim?.Reset();
+            }
         }
         public void LoadNavmesh(YnvFile ynv)
         {
@@ -935,6 +987,358 @@ namespace CodeWalker.Forms
         }
 
 
+        private void AutoDetectYtdFiles(string modelFilePath)
+        {
+            ExternalTexDict = null;
+            ExternalDiffuseOverride = null;
+            ExternalTexVariants = null;
+            ActiveTexVariantName = null;
+
+            if (SourceFileEntry?.Parent != null)
+            {
+                AutoDetectYtdFilesFromRpf(SourceFileEntry);
+                if (ExternalTexVariants != null && ExternalTexVariants.Count > 0)
+                    return;
+            }
+
+            if (string.IsNullOrEmpty(modelFilePath) || !File.Exists(modelFilePath))
+                return;
+
+            try
+            {
+                var dir = Path.GetDirectoryName(modelFilePath);
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                    return;
+
+                var modelName = Path.GetFileNameWithoutExtension(modelFilePath).ToLowerInvariant();
+
+                // Extract component prefix and drawable ID
+                // e.g., "jbib_000_u" -> component="jbib", drawableId="000"
+                var parts = modelName.Split('_');
+                string component = null;
+                string drawableId = null;
+
+                // Find the first numeric part as the drawable ID
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    if (parts[i].All(char.IsDigit) && parts[i].Length > 0)
+                    {
+                        component = string.Join("_", parts.Take(i));
+                        drawableId = parts[i];
+                        break;
+                    }
+                }
+
+                var ytdFiles = new List<string>();
+
+                if (component != null && drawableId != null)
+                {
+                    // Look for {component}_diff_{drawableId}_*.ytd pattern
+                    var pattern = component + "_diff_" + drawableId + "_*";
+                    var matches = Directory.GetFiles(dir, pattern + ".ytd", SearchOption.TopDirectoryOnly);
+                    ytdFiles.AddRange(matches);
+
+                    // Also look for {component}_{drawableId}.ytd (exact name match)
+                    var exactMatch = Path.Combine(dir, component + "_" + drawableId + ".ytd");
+                    if (File.Exists(exactMatch) && !ytdFiles.Contains(exactMatch))
+                        ytdFiles.Add(exactMatch);
+                }
+
+                // Fallback: if no specific matches found, load any .ytd in same directory sharing the component prefix
+                if (ytdFiles.Count == 0 && component != null)
+                {
+                    var allYtd = Directory.GetFiles(dir, component + "*.ytd", SearchOption.TopDirectoryOnly);
+                    ytdFiles.AddRange(allYtd);
+                }
+
+                // Final fallback: load ALL .ytd files in the same folder
+                if (ytdFiles.Count == 0)
+                {
+                    var allYtd = Directory.GetFiles(dir, "*.ytd", SearchOption.TopDirectoryOnly);
+                    ytdFiles.AddRange(allYtd);
+                }
+
+                if (ytdFiles.Count == 0)
+                    return;
+
+                ExternalTexVariants = new Dictionary<string, TextureDictionary>();
+
+                foreach (var ytdPath in ytdFiles)
+                {
+                    try
+                    {
+                        var data = File.ReadAllBytes(ytdPath);
+                        var ytd = new YtdFile();
+                        ytd.Load(data);
+                        if (ytd.TextureDict != null)
+                        {
+                            var variantName = Path.GetFileNameWithoutExtension(ytdPath);
+                            ExternalTexVariants[variantName] = ytd.TextureDict;
+                        }
+                    }
+                    catch
+                    {
+                        // Skip corrupt/unreadable YTD files
+                    }
+                }
+
+                if (ExternalTexVariants.Count > 0)
+                {
+                    // Set first variant as active
+                    var first = ExternalTexVariants.First();
+                    ActiveTexVariantName = first.Key;
+                    ExternalTexDict = first.Value;
+                    UpdateDiffuseOverride();
+
+                    UpdateTextureVariantComboBox();
+                }
+            }
+            catch
+            {
+                // Don't crash on auto-detect failure
+            }
+        }
+
+        private void AutoDetectYtdFilesFromRpf(RpfFileEntry entry)
+        {
+            try
+            {
+                var parentDir = entry.Parent;
+                if (parentDir?.Files == null) return;
+
+                var modelName = Path.GetFileNameWithoutExtension(entry.NameLower);
+                var parts = modelName.Split('_');
+                string component = null;
+                string drawableId = null;
+
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    if (parts[i].Length > 0 && parts[i].All(char.IsDigit))
+                    {
+                        component = string.Join("_", parts.Take(i));
+                        drawableId = parts[i];
+                        break;
+                    }
+                }
+
+                var ytdEntries = new List<RpfFileEntry>();
+                string diffPrefix = (component != null && drawableId != null)
+                    ? (component + "_diff_" + drawableId + "_").ToLowerInvariant()
+                    : null;
+
+                foreach (var f in parentDir.Files)
+                {
+                    if (f.NameLower == null || !f.NameLower.EndsWith(".ytd")) continue;
+                    if (diffPrefix != null && f.NameLower.StartsWith(diffPrefix))
+                    {
+                        ytdEntries.Add(f);
+                    }
+                }
+
+                if (ytdEntries.Count == 0 && component != null)
+                {
+                    var compPrefix = component.ToLowerInvariant();
+                    foreach (var f in parentDir.Files)
+                    {
+                        if (f.NameLower != null && f.NameLower.EndsWith(".ytd") && f.NameLower.StartsWith(compPrefix))
+                            ytdEntries.Add(f);
+                    }
+                }
+
+                if (ytdEntries.Count == 0) return;
+
+                ExternalTexVariants = new Dictionary<string, TextureDictionary>();
+
+                foreach (var ytdEntry in ytdEntries)
+                {
+                    try
+                    {
+                        byte[] data = null;
+                        if (ytdEntry.File != null)
+                        {
+                            data = ytdEntry.File.ExtractFile(ytdEntry);
+                        }
+                        if (data == null) continue;
+                        var ytd = RpfFile.GetFile<YtdFile>(ytdEntry, data);
+                        if (ytd?.TextureDict != null)
+                        {
+                            var variantName = Path.GetFileNameWithoutExtension(ytdEntry.NameLower);
+                            ExternalTexVariants[variantName] = ytd.TextureDict;
+                        }
+                    }
+                    catch { }
+                }
+
+                if (ExternalTexVariants.Count > 0)
+                {
+                    var first = ExternalTexVariants.First();
+                    ActiveTexVariantName = first.Key;
+                    ExternalTexDict = first.Value;
+                    UpdateTextureVariantComboBox();
+                }
+            }
+            catch { }
+        }
+
+        private void LoadExternalYtdFiles(string[] filePaths)
+        {
+            if (filePaths == null || filePaths.Length == 0) return;
+
+            if (ExternalTexVariants == null)
+                ExternalTexVariants = new Dictionary<string, TextureDictionary>();
+
+            foreach (var ytdPath in filePaths)
+            {
+                try
+                {
+                    var data = File.ReadAllBytes(ytdPath);
+                    var ytd = new YtdFile();
+                    ytd.Load(data);
+                    if (ytd.TextureDict != null)
+                    {
+                        var variantName = Path.GetFileNameWithoutExtension(ytdPath);
+                        ExternalTexVariants[variantName] = ytd.TextureDict;
+                    }
+                }
+                catch
+                {
+                    // Skip corrupt/unreadable YTD files
+                }
+            }
+
+            if (ExternalTexVariants.Count > 0 && ExternalTexDict == null)
+            {
+                var first = ExternalTexVariants.First();
+                ActiveTexVariantName = first.Key;
+                ExternalTexDict = first.Value;
+            }
+
+            UpdateTextureVariantComboBox();
+        }
+
+        private void LoadYtdEntriesFromRpf(List<RpfFileEntry> entries)
+        {
+            if (ExternalTexVariants == null)
+                ExternalTexVariants = new Dictionary<string, TextureDictionary>();
+
+            foreach (var ytdEntry in entries)
+            {
+                try
+                {
+                    byte[] data = ytdEntry.File?.ExtractFile(ytdEntry);
+                    if (data == null) continue;
+                    var ytd = RpfFile.GetFile<YtdFile>(ytdEntry, data);
+                    if (ytd?.TextureDict != null)
+                    {
+                        var variantName = Path.GetFileNameWithoutExtension(ytdEntry.NameLower);
+                        ExternalTexVariants[variantName] = ytd.TextureDict;
+                    }
+                }
+                catch { }
+            }
+
+            if (ExternalTexVariants.Count > 0)
+            {
+                var first = ExternalTexVariants.First();
+                ActiveTexVariantName = first.Key;
+                ExternalTexDict = first.Value;
+                UpdateTextureVariantComboBox();
+            }
+        }
+
+        private void UpdateTextureVariantComboBox()
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(UpdateTextureVariantComboBox));
+                return;
+            }
+
+            TextureVariantComboBox.Items.Clear();
+            if (ExternalTexVariants != null && ExternalTexVariants.Count > 0)
+            {
+                foreach (var kvp in ExternalTexVariants)
+                {
+                    TextureVariantComboBox.Items.Add(kvp.Key);
+                }
+                TextureVariantComboBox.SelectedItem = ActiveTexVariantName;
+                TextureVariantComboBox.Visible = true;
+                TextureVariantLabel.Visible = true;
+            }
+            else
+            {
+                TextureVariantComboBox.Visible = false;
+                TextureVariantLabel.Visible = false;
+            }
+        }
+
+        private void TextureVariantComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var selected = TextureVariantComboBox.SelectedItem as string;
+            if (selected != null && ExternalTexVariants != null && ExternalTexVariants.ContainsKey(selected))
+            {
+                ActiveTexVariantName = selected;
+                ExternalTexDict = ExternalTexVariants[selected];
+                UpdateDiffuseOverride();
+            }
+        }
+
+        private void UpdateDiffuseOverride()
+        {
+            ExternalDiffuseOverride = null;
+            if (ExternalTexDict?.Textures?.data_items == null) return;
+            foreach (var tex in ExternalTexDict.Textures.data_items)
+            {
+                if (tex != null)
+                {
+                    ExternalDiffuseOverride = tex;
+                    break;
+                }
+            }
+        }
+
+        private void LoadYtdButton_Click(object sender, EventArgs e)
+        {
+            if (SourceFileEntry?.Parent?.Files != null)
+            {
+                var ytdFiles = new List<RpfFileEntry>();
+                foreach (var f in SourceFileEntry.Parent.Files)
+                {
+                    if (f.NameLower != null && f.NameLower.EndsWith(".ytd"))
+                        ytdFiles.Add(f);
+                }
+                if (ytdFiles.Count > 0)
+                {
+                    var menu = new ContextMenuStrip();
+                    menu.Items.Add("Load ALL (" + ytdFiles.Count + " YTDs)", null, (s2, e2) =>
+                    {
+                        LoadYtdEntriesFromRpf(ytdFiles);
+                    });
+                    menu.Items.Add(new ToolStripSeparator());
+                    foreach (var ytdEntry in ytdFiles.OrderBy(f => f.NameLower))
+                    {
+                        var entry = ytdEntry;
+                        menu.Items.Add(Path.GetFileNameWithoutExtension(entry.Name), null, (s2, e2) =>
+                        {
+                            LoadYtdEntriesFromRpf(new List<RpfFileEntry> { entry });
+                        });
+                    }
+                    menu.Show(MainToolbar, LoadYtdButton.Bounds.Location.X, LoadYtdButton.Bounds.Bottom);
+                    return;
+                }
+            }
+
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Filter = "YTD files (*.ytd)|*.ytd|All files (*.*)|*.*";
+                ofd.Multiselect = true;
+                ofd.Title = "Load YTD Texture File(s)";
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    LoadExternalYtdFiles(ofd.FileNames);
+                }
+            }
+        }
 
 
 

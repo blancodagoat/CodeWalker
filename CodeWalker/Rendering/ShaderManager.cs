@@ -52,6 +52,11 @@ namespace CodeWalker.Rendering
         public PathShader Paths { get; set; }
         public WidgetShader Widgets { get; set; }
 
+        // Water effects toggles. Refraction distorts a copy of the scene diffuse through the water normal.
+        // Planar reflections are not yet implemented; the setting is reserved for future work.
+        public bool waterRefraction = true;
+        public bool waterReflection = false;
+
         public bool shadows = Settings.Default.Shadows;
         public Shadowmap Shadowmap { get; set; }
         List<RenderableGeometryInst> shadowcasters = new List<RenderableGeometryInst>();
@@ -493,6 +498,11 @@ namespace CodeWalker.Rendering
                 }
                 if (bucket.DecalBatches.Count > 0)
                 {
+                    // Sort decal geometries back-to-front by camera distance for correct alpha blending
+                    for (int db = 0; db < bucket.DecalBatches.Count; db++)
+                    {
+                        bucket.DecalBatches[db].Geometries.Sort((a, b) => b.Inst.Distance.CompareTo(a.Inst.Distance));
+                    }
                     context.Rasterizer.State = wireframe ? rsWireframe : rsSolid;
                     context.OutputMerger.DepthStencilState = dsDisableWrite;
                     Basic.DecalMode = true;
@@ -524,11 +534,52 @@ namespace CodeWalker.Rendering
 
 
 
+            // Transparent water must depth-test against opaque/decal geometry but not write depth,
+            // otherwise semi-transparent water occludes glass (and other transparents) behind it.
             context.OutputMerger.BlendState = bsDefault;
             context.Rasterizer.State = wireframe ? rsWireframeDblSided : rsSolidDblSided;
-            context.OutputMerger.DepthStencilState = dsEnabled;
+            context.OutputMerger.DepthStencilState = dsDisableWrite;
+
+            // Water refraction: snapshot the gbuffer diffuse (what is behind the water surface) into
+            // a side buffer, then bind it to the water shader so the PS can distort-sample it.
+            // Only the deferred path is supported for now; forward path refraction is a follow-up.
+            bool waterRefractionActive = false;
+            if (waterRefraction && (DefScene != null) && ((RenderWaterQuads.Count > 0) || HasWaterBatches()))
+            {
+                DefScene.CaptureRefractionFromGBuffer(context);
+                Water.RefractionSRV = DefScene.RefractionBuffer?.SRV;
+                Water.RefractionWidth = DefScene.RefractionBuffer?.Texture?.Description.Width ?? 0;
+                Water.RefractionHeight = DefScene.RefractionBuffer?.Texture?.Description.Height ?? 0;
+                waterRefractionActive = Water.RefractionSRV != null;
+                //GBuffers are still bound as RTs from the opaque pass; the copy just happened so
+                //the side buffer holds a snapshot and is safe to bind as an SRV.
+            }
+            else
+            {
+                Water.RefractionSRV = null;
+                Water.RefractionWidth = 0;
+                Water.RefractionHeight = 0;
+            }
+
             if (RenderWaterQuads.Count > 0) //render water quads
             {
+                // Sort water quads back-to-front by center distance to camera for correct alpha blending
+                var camPos = Camera.Position;
+                RenderWaterQuads.Sort((a, b) =>
+                {
+                    var ka = a.Key; var kb = b.Key;
+                    float acx = (ka.minX + ka.maxX) * 0.5f;
+                    float acy = (ka.minY + ka.maxY) * 0.5f;
+                    float acz = ka.z.HasValue ? ka.z.Value : 0.0f;
+                    float bcx = (kb.minX + kb.maxX) * 0.5f;
+                    float bcy = (kb.minY + kb.maxY) * 0.5f;
+                    float bcz = kb.z.HasValue ? kb.z.Value : 0.0f;
+                    float adx = acx - camPos.X, ady = acy - camPos.Y, adz = acz - camPos.Z;
+                    float bdx = bcx - camPos.X, bdy = bcy - camPos.Y, bdz = bcz - camPos.Z;
+                    float ad = adx * adx + ady * ady + adz * adz;
+                    float bd = bdx * bdx + bdy * bdy + bdz * bdz;
+                    return bd.CompareTo(ad);
+                });
                 Water.SetShader(context);
                 Water.SetSceneVars(context, Camera, Shadowmap, GlobalLights);
                 for (int i = 0; i < RenderWaterQuads.Count; i++)
@@ -542,20 +593,37 @@ namespace CodeWalker.Rendering
                 var bucket = RenderBuckets[i];
                 if (bucket.WaterBatches.Count > 0)
                 {
+                    // Sort water geometries back-to-front by camera distance for correct alpha blending
+                    for (int wb = 0; wb < bucket.WaterBatches.Count; wb++)
+                    {
+                        bucket.WaterBatches[wb].Geometries.Sort((a, b) => b.Inst.Distance.CompareTo(a.Inst.Distance));
+                    }
                     RenderGeometryBatches(context, bucket.WaterBatches, Water);
                 }
             }
 
-            context.OutputMerger.DepthStencilState = dsDisableWrite;
             for (int i = 0; i < RenderBuckets.Count; i++) //water decals pass
             {
                 var bucket = RenderBuckets[i];
                 if (bucket.Water2Batches.Count > 0)
                 {
+                    // Sort water-decal geometries back-to-front by camera distance for correct alpha blending
+                    for (int wb = 0; wb < bucket.Water2Batches.Count; wb++)
+                    {
+                        bucket.Water2Batches[wb].Geometries.Sort((a, b) => b.Inst.Distance.CompareTo(a.Inst.Distance));
+                    }
                     RenderGeometryBatches(context, bucket.Water2Batches, Water);
                 }
             }
 
+            if (waterRefractionActive)
+            {
+                //drop the refraction SRV so later passes don't accidentally keep it bound
+                Water.RefractionSRV = null;
+                Water.RefractionWidth = 0;
+                Water.RefractionHeight = 0;
+                context.PixelShader.SetShaderResource(7, null);
+            }
 
 
             //TODO: needs second gbuffer pass?
@@ -566,11 +634,21 @@ namespace CodeWalker.Rendering
 
                 if (bucket.AlphaBatches.Count > 0)
                 {
+                    // Sort alpha geometries back-to-front by camera distance for correct alpha blending
+                    for (int ab = 0; ab < bucket.AlphaBatches.Count; ab++)
+                    {
+                        bucket.AlphaBatches[ab].Geometries.Sort((a, b) => b.Inst.Distance.CompareTo(a.Inst.Distance));
+                    }
                     //context.OutputMerger.BlendState = bsAlpha;
                     RenderGeometryBatches(context, bucket.AlphaBatches, Basic);
                 }
                 if (bucket.GlassBatches.Count > 0)
                 {
+                    // Sort glass geometries back-to-front by camera distance for correct alpha blending
+                    for (int gb = 0; gb < bucket.GlassBatches.Count; gb++)
+                    {
+                        bucket.GlassBatches[gb].Geometries.Sort((a, b) => b.Inst.Distance.CompareTo(a.Inst.Distance));
+                    }
                     RenderGeometryBatches(context, bucket.GlassBatches, Basic);
                 }
             }
@@ -849,8 +927,12 @@ namespace CodeWalker.Rendering
                 { }
 
                 Basic.SetModelVars(context, model);
-                foreach (var geom in model.Geometries)
+                for (int gi = 0; gi < model.Geometries.Length; gi++)
                 {
+                    if (model.IsGeometryHidden(gi))
+                    { continue; } //filter out individually hidden geometries
+
+                    var geom = model.Geometries[gi];
                     if (Basic.SetInputLayout(context, geom.VertexType))
                     {
                         Basic.SetGeomVars(context, geom);
@@ -913,6 +995,16 @@ namespace CodeWalker.Rendering
         }
 
 
+        private bool HasWaterBatches()
+        {
+            for (int i = 0; i < RenderBuckets.Count; i++)
+            {
+                var b = RenderBuckets[i];
+                if ((b.WaterBatches.Count > 0) || (b.Water2Batches.Count > 0)) return true;
+            }
+            return false;
+        }
+
         public ShaderRenderBucket EnsureRenderBucket(int index)
         {
             ShaderRenderBucket bucket = null;
@@ -949,6 +1041,9 @@ namespace CodeWalker.Rendering
             Terrain.RenderTextureSamplerCoord = RenderTextureSamplerCoord;
             Terrain.RenderTextureSampler = RenderTextureSampler;
             Terrain.AnisotropicFilter = AnisotropicFiltering;
+            TreesLod.RenderMode = RenderMode;
+            TreesLod.RenderVertexColourIndex = RenderVertexColourIndex;
+            TreesLod.RenderTextureCoordIndex = RenderTextureCoordIndex;
         }
 
 

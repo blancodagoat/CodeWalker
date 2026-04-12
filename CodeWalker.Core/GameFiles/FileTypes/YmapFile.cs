@@ -51,6 +51,8 @@ namespace CodeWalker.GameFiles
 
         public YmapLODLights LODLights { get; set; }
 
+        public byte[]? OriginalFileData { get; set; } = null;
+
         public YmapTimeCycleModifier[] TimeCycleModifiers { get; set; }
 
         public YmapCarGen[] CarGenerators { get; set; }
@@ -615,6 +617,20 @@ namespace CodeWalker.GameFiles
         {
             //direct save to a raw, compressed ymap file (openIV-compatible format)
 
+            bool hasEntities = (AllEntities != null) && (AllEntities.Length > 0);
+            bool hasCarGens = (CarGenerators != null) && (CarGenerators.Length > 0);
+            bool hasGrass = (GrassInstanceBatches != null) && (GrassInstanceBatches.Length > 0);
+            bool hasTimeCycleMods = (TimeCycleModifiers != null) && (TimeCycleModifiers.Length > 0);
+            bool hasBoxOccluders = (BoxOccluders != null) && (BoxOccluders.Length > 0);
+            bool hasOccludeModels = (OccludeModels != null) && (OccludeModels.Length > 0);
+            bool hasLODLights = (LODLights != null) && (LODLights.direction != null) && (LODLights.direction.Length > 0);
+            bool hasDistantLODLights = (DistantLODLights != null) && (DistantLODLights.positions != null) && (DistantLODLights.positions.Length > 0);
+
+            if (!hasEntities && !hasCarGens && !hasGrass && !hasTimeCycleMods &&
+                !hasBoxOccluders && !hasOccludeModels && !hasLODLights && !hasDistantLODLights)
+            {
+                return null; //don't save empty ymap files
+            }
 
             //since Ymap object contents have been modified, need to recreate the arrays which are what is saved.
             BuildCEntityDefs(); //technically this isn't required anymore since the CEntityDefs is no longer used for saving.

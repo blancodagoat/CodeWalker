@@ -970,6 +970,42 @@ namespace CodeWalker.World
         }
 
 
+        public bool AddNodeReAdd(ScenarioNode node)
+        {
+            //re-insert an existing ScenarioNode instance (used by undo/redo) so the
+            //original object identity is preserved. Mirrors RemoveNode's removals.
+            if (node == null) return false;
+
+            var rgn = Region;
+            if (rgn == null) return false;
+
+            if (rgn.Points != null)
+            {
+                if (node.MyPoint != null) rgn.Points.AddMyPoint(node.MyPoint);
+                if (node.LoadSavePoint != null) rgn.Points.AddLoadSavePoint(node.LoadSavePoint);
+            }
+            if ((node.Cluster != null) && (node.Cluster.Points != null))
+            {
+                if (node.ClusterMyPoint != null) node.Cluster.Points.AddMyPoint(node.ClusterMyPoint);
+                if (node.ClusterLoadSavePoint != null) node.Cluster.Points.AddLoadSavePoint(node.ClusterLoadSavePoint);
+            }
+            if (node.Entity != null)
+            {
+                if (node.EntityPoint != null) node.Entity.AddScenarioPoint(node.EntityPoint);
+            }
+            if ((node.ChainingNode != null) && (rgn.Paths != null))
+            {
+                rgn.Paths.AddNode(node.ChainingNode);
+            }
+
+            if (!Nodes.Contains(node))
+            {
+                Nodes.Add(node);
+            }
+
+            return true;
+        }
+
         public bool RemoveNode(ScenarioNode node)
         {
             if (node == null) return false;

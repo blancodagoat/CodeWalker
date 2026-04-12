@@ -76,6 +76,7 @@ namespace CodeWalker.Rendering
 
         public GpuMultiTexture GBuffers; // diffuse, normals, specular, irradiance
         public GpuTexture SceneColour; //final scene colour buffer
+        public GpuTexture RefractionBuffer; //resolved copy of gbuffer diffuse, used for water refraction
 
         SamplerState SampleStatePoint;
         SamplerState SampleStateLinear;
@@ -338,6 +339,10 @@ namespace CodeWalker.Rendering
 
             SceneColour = new GpuTexture(device, uw, uh, Format.R32G32B32A32_Float, 1, 0, true, Format.D32_Float);
             WindowSizeVramUsage += SceneColour.VramUsage;
+
+            //Non-MS copy of the gbuffer diffuse so water PS can sample the scene behind it
+            RefractionBuffer = new GpuTexture(device, uw, uh, Format.R8G8B8A8_UNorm, 1, 0);
+            WindowSizeVramUsage += RefractionBuffer.VramUsage;
         }
         public void DisposeBuffers()
         {
@@ -350,6 +355,11 @@ namespace CodeWalker.Rendering
             {
                 SceneColour.Dispose();
                 SceneColour = null;
+            }
+            if (RefractionBuffer != null)
+            {
+                RefractionBuffer.Dispose();
+                RefractionBuffer = null;
             }
             WindowSizeVramUsage = 0;
         }
@@ -372,6 +382,24 @@ namespace CodeWalker.Rendering
             GBuffers.SetRenderTargets(context);
             context.Rasterizer.SetViewport(Viewport);
         }
+        //Snapshot the gbuffer diffuse channel into RefractionBuffer (resolving MSAA if needed)
+        //so a subsequent forward/deferred pass can sample the pre-water scene colour.
+        public void CaptureRefractionFromGBuffer(DeviceContext context)
+        {
+            if (RefractionBuffer == null || GBuffers == null || GBuffers.Textures == null || GBuffers.Textures.Length == 0) return;
+            var src = GBuffers.Textures[0];
+            var dst = RefractionBuffer.Texture;
+            if (src == null || dst == null) return;
+            if (GBuffers.Multisampled)
+            {
+                context.ResolveSubresource(src, 0, dst, 0, SharpDX.DXGI.Format.R8G8B8A8_UNorm);
+            }
+            else
+            {
+                context.CopyResource(src, dst);
+            }
+        }
+
         public void SetSceneColour(DeviceContext context)
         {
             if (SceneColour == null) return;

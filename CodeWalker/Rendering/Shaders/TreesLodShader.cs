@@ -46,6 +46,10 @@ namespace CodeWalker.Rendering
     public struct TreesLodShaderPSSceneVars
     {
         public ShaderGlobalLightParams GlobalLights;
+        public uint RenderMode;//0=default, 1=normals, 2=tangents, 3=colours, 4=texcoords, 5=diffuse, 6=normalmap, 7=spec, 8=direct
+        public uint RenderModeIndex;
+        public uint PSSceneVarsPad0;
+        public uint PSSceneVarsPad1;
     }
     public struct TreesLodShaderPSEntityVars
     {
@@ -73,6 +77,10 @@ namespace CodeWalker.Rendering
         private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
 
         public bool Deferred = false;
+
+        public WorldRenderMode RenderMode = WorldRenderMode.Default;
+        public int RenderVertexColourIndex = 1;
+        public int RenderTextureCoordIndex = 1;
 
 
         public TreesLodShader(Device device)
@@ -134,11 +142,33 @@ namespace CodeWalker.Rendering
 
         public override void SetSceneVars(DeviceContext context, Camera camera, Shadowmap shadowmap, ShaderGlobalLights lights)
         {
+            uint rendermode = 0;
+            uint rendermodeind = 1;
+            switch (RenderMode)
+            {
+                case WorldRenderMode.VertexNormals:
+                    rendermode = 1;
+                    break;
+                case WorldRenderMode.VertexTangents:
+                    rendermode = 2; //billboards have no tangent - shader falls back to black
+                    break;
+                case WorldRenderMode.VertexColour:
+                    rendermode = 3;
+                    rendermodeind = (uint)RenderVertexColourIndex;
+                    break;
+                case WorldRenderMode.TextureCoord:
+                    rendermode = 4;
+                    rendermodeind = (uint)RenderTextureCoordIndex;
+                    break;
+            }
+
             VSSceneVars.Vars.ViewProj = Matrix.Transpose(camera.ViewProjMatrix);
             VSSceneVars.Update(context);
             VSSceneVars.SetVSCBuffer(context, 0);
 
             PSSceneVars.Vars.GlobalLights = lights.Params;
+            PSSceneVars.Vars.RenderMode = rendermode;
+            PSSceneVars.Vars.RenderModeIndex = rendermodeind;
             PSSceneVars.Update(context);
             PSSceneVars.SetPSCBuffer(context, 0);
         }

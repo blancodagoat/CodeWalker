@@ -31,6 +31,7 @@ namespace CodeWalker.Rendering
         private volatile bool Running = false;
         private volatile bool Rendering = false;
         private volatile bool Resizing = false;
+        private volatile bool deviceLost = false;
         private object syncroot = new object(); //for thread safety
         public int multisamplecount { get; private set; } = 4; //should be a setting..
         public int multisamplequality { get; private set; } = 0; //should be a setting...
@@ -225,6 +226,66 @@ namespace CodeWalker.Rendering
             dxform.BuffersResized(width, height);
         }
 
+        private bool HandleDeviceLost()
+        {
+            if (deviceLost) return false; // prevent re-entrancy
+            deviceLost = true;
+            try
+            {
+                dxform.CleanupScene();
+
+                if (context != null) context.ClearState();
+                if (depthview != null) depthview.Dispose();
+                if (depthbuffer != null) depthbuffer.Dispose();
+                if (targetview != null) targetview.Dispose();
+                if (backbuffer != null) backbuffer.Dispose();
+                if (swapchain != null) swapchain.Dispose();
+                if (context != null) context.Dispose();
+                if (device != null) device.Dispose();
+
+                SwapChainDescription scd = new SwapChainDescription()
+                {
+                    BufferCount = 2,
+                    Flags = SwapChainFlags.None,
+                    IsWindowed = true,
+                    ModeDescription = new ModeDescription(
+                        dxform.Form.ClientSize.Width,
+                        dxform.Form.ClientSize.Height,
+                        new Rational(0, 0),
+                        Format.R8G8B8A8_UNorm),
+                    OutputHandle = dxform.Form.Handle,
+                    SampleDescription = new SampleDescription(multisamplecount, multisamplequality),
+                    SwapEffect = SwapEffect.Discard,
+                    Usage = Usage.RenderTargetOutput
+                };
+
+                FeatureLevel[] levels = new FeatureLevel[] { FeatureLevel.Level_11_0, FeatureLevel.Level_10_1, FeatureLevel.Level_10_0 };
+                Device dev = null;
+                SwapChain sc = null;
+                Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.None, levels, scd, out dev, out sc);
+
+                device = dev;
+                swapchain = sc;
+
+                var factory = swapchain.GetParent<Factory>();
+                factory.MakeWindowAssociation(dxform.Form.Handle, WindowAssociationFlags.IgnoreAll);
+
+                context = device.ImmediateContext;
+
+                CreateRenderBuffers();
+
+                dxform.InitScene(device);
+
+                deviceLost = false;
+                return true;
+            }
+            catch
+            {
+                deviceLost = false;
+                return false;
+            }
+        }
+
         private void Dxform_Load(object sender, EventArgs e)
         {
             if (autoStartLoop)
@@ -279,9 +340,31 @@ namespace CodeWalker.Rendering
         {
             while (Running)
             {
+                // Check for device lost at frame start
+                if (device != null && !device.IsDisposed)
+                {
+                    try
+                    {
+                        var reason = device.DeviceRemovedReason;
+                        if (reason.Failure)
+                        {
+                            if (!HandleDeviceLost())
+                            {
+                                Thread.Sleep(100);
+                                continue;
+                            }
+                        }
+                    }
+                    catch { } // device may already be disposed
+                }
+
                 while (Resizing)
                 {
-                    swapchain.Present(1, PresentFlags.None); //just flip buffers when resizing; don't draw
+                    try
+                    {
+                        swapchain.Present(1, PresentFlags.None); //just flip buffers when resizing; don't draw
+                    }
+                    catch (SharpDXException) { break; } // device lost during resize, will be caught at frame start
                 }
                 while (dxform.Form.WindowState == FormWindowState.Minimized)
                 {
@@ -307,6 +390,18 @@ namespace CodeWalker.Rendering
                     context.OutputMerger.SetRenderTargets(depthview, targetview);
                     context.Rasterizer.SetViewport(0, 0, dxform.Form.ClientSize.Width, dxform.Form.ClientSize.Height);
                 }
+                catch (SharpDXException ex)
+                {
+                    if (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved || ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset)
+                    {
+                        Monitor.Exit(syncroot);
+                        Rendering = false;
+                        HandleDeviceLost();
+                        continue;
+                    }
+                    MessageBox.Show("Error setting main render target!\n" + ex.ToString());
+                    ok = false;
+                }
                 catch (Exception ex)
                 {
                     MessageBox.Show("Error setting main render target!\n" + ex.ToString());
@@ -327,6 +422,23 @@ namespace CodeWalker.Rendering
                     try
                     {
                         swapchain.Present(1, PresentFlags.None);
+                    }
+                    catch (SharpDXException ex)
+                    {
+                        if (ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceRemoved ||
+                            ex.ResultCode == SharpDX.DXGI.ResultCode.DeviceReset)
+                        {
+                            Monitor.Exit(syncroot);
+                            Rendering = false;
+                            HandleDeviceLost();
+                            continue;
+                        }
+                        if (ex.ResultCode == new Result(0x087A0001)) // DXGI_STATUS_OCCLUDED
+                        {
+                            // Window is occluded (e.g. alt-tabbed away), skip frames gracefully
+                            Thread.Sleep(100);
+                        }
+                        // For other SharpDX errors, just continue to next frame
                     }
                     catch (Exception ex)
                     {

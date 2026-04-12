@@ -88,6 +88,9 @@ namespace CodeWalker.Project.Panels
                 {
                     EntityFlagsCheckedListBox.SetItemCheckState(i, CheckState.Unchecked);
                 }
+                EntityExtensionsListBox.Items.Clear();
+                EntityExtensionsPropertyGrid.SelectedObject = null;
+                EntityExtensionDeleteButton.Enabled = false;
             }
             else
             {
@@ -155,6 +158,7 @@ namespace CodeWalker.Project.Panels
                 }
 
                 SetupParentEntityAutoComplete();
+                LoadExtensions();
                 populatingui = false;
 
 
@@ -866,6 +870,109 @@ namespace CodeWalker.Project.Panels
             parentEntityTextBox.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             parentEntityTextBox.AutoCompleteSource = AutoCompleteSource.CustomSource;
             parentEntityTextBox.AutoCompleteCustomSource = autoComplete;
+        }
+
+
+        private void EntityArchetypeBrowseButton_Click(object sender, EventArgs e)
+        {
+            // AssetBrowserForm is not yet ported to .NET 9. Placeholder for future integration.
+            MessageBox.Show("Asset Browser is not yet available in this build.", "Not Available",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+
+        private void LoadExtensions()
+        {
+            EntityExtensionsListBox.Items.Clear();
+            EntityExtensionsPropertyGrid.SelectedObject = null;
+
+            var exts = CurrentEntity?.Extensions;
+            if (exts != null)
+            {
+                foreach (var ext in exts)
+                {
+                    EntityExtensionsListBox.Items.Add(ExtensionsEditor.GetDisplayName(ext));
+                }
+            }
+            EntityExtensionDeleteButton.Enabled = false;
+        }
+
+        private void EntityExtensionsListBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (populatingui) return;
+            var exts = CurrentEntity?.Extensions;
+            int idx = EntityExtensionsListBox.SelectedIndex;
+            if (exts != null && idx >= 0 && idx < exts.Length)
+            {
+                EntityExtensionsPropertyGrid.SelectedObject = ExtensionsEditor.GetEditObject(exts[idx]);
+                EntityExtensionDeleteButton.Enabled = true;
+            }
+            else
+            {
+                EntityExtensionsPropertyGrid.SelectedObject = null;
+                EntityExtensionDeleteButton.Enabled = false;
+            }
+        }
+
+        private void EntityExtensionsPropertyGrid_PropertyValueChanged(object s, PropertyValueChangedEventArgs e)
+        {
+            if (CurrentEntity == null) return;
+            ProjectItemChanged();
+            int idx = EntityExtensionsListBox.SelectedIndex;
+            if (idx >= 0 && CurrentEntity.Extensions != null && idx < CurrentEntity.Extensions.Length)
+            {
+                var name = ExtensionsEditor.GetDisplayName(CurrentEntity.Extensions[idx]);
+                populatingui = true;
+                EntityExtensionsListBox.Items[idx] = name;
+                EntityExtensionsListBox.SelectedIndex = idx;
+                populatingui = false;
+            }
+        }
+
+        private void EntityExtensionAddButton_Click(object sender, EventArgs e)
+        {
+            if (CurrentEntity == null) return;
+            var menu = new ContextMenuStrip();
+            foreach (var t in ExtensionsEditor.KnownExtensionTypes)
+            {
+                var type = t; // capture
+                var mi = new ToolStripMenuItem(ExtensionsEditor.GetDisplayName(type));
+                mi.Click += (s2, e2) =>
+                {
+                    var ext = ExtensionsEditor.CreateExtension(type);
+                    if (ext == null) return;
+                    lock (ProjectForm.ProjectSyncRoot)
+                    {
+                        CurrentEntity.Extensions = ExtensionsEditor.AddExtension(CurrentEntity.Extensions, ext);
+                        if (CurrentMCEntity != null) CurrentMCEntity.Extensions = CurrentEntity.Extensions;
+                        ProjectItemChanged();
+                    }
+                    LoadExtensions();
+                    int newIdx = (CurrentEntity.Extensions?.Length ?? 1) - 1;
+                    if (newIdx >= 0 && newIdx < EntityExtensionsListBox.Items.Count)
+                    {
+                        EntityExtensionsListBox.SelectedIndex = newIdx;
+                    }
+                };
+                menu.Items.Add(mi);
+            }
+            menu.Show(EntityExtensionAddButton, new System.Drawing.Point(0, EntityExtensionAddButton.Height));
+        }
+
+        private void EntityExtensionDeleteButton_Click(object sender, EventArgs e)
+        {
+            if (CurrentEntity == null) return;
+            int idx = EntityExtensionsListBox.SelectedIndex;
+            var exts = CurrentEntity.Extensions;
+            if (exts == null || idx < 0 || idx >= exts.Length) return;
+            var toRemove = exts[idx];
+            lock (ProjectForm.ProjectSyncRoot)
+            {
+                CurrentEntity.Extensions = ExtensionsEditor.RemoveExtension(CurrentEntity.Extensions, toRemove);
+                if (CurrentMCEntity != null) CurrentMCEntity.Extensions = CurrentEntity.Extensions;
+                ProjectItemChanged();
+            }
+            LoadExtensions();
         }
     }
 }

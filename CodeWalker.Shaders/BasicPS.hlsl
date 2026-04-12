@@ -82,24 +82,14 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     float3 norm = normalize(input.Normal);
 
-    if (RenderMode == 1) //normals
+    float3 dbgRgb;
+    if (GetVertexDebugColour(RenderMode, RenderModeIndex,
+                             norm, input.Tangent.rgb,
+                             input.Colour0, input.Colour1,
+                             input.Texcoord0, input.Texcoord1, input.Texcoord2,
+                             dbgRgb))
     {
-        c.rgb = norm*0.5+0.5;
-    }
-    else if (RenderMode == 2) //tangents
-    {
-        c.rgb = normalize(input.Tangent.rgb)*0.5+0.5;
-    }
-    else if (RenderMode == 3) //colours
-    {
-        c.rgb = input.Colour0.rgb;
-        if (RenderModeIndex == 2) c.rgb = input.Colour1.rgb;
-    }
-    else if (RenderMode == 4) //texcoords
-    {
-        c.rgb = float3(input.Texcoord0, 0);
-        if (RenderModeIndex == 2) c.rgb = float3(input.Texcoord1, 0);
-        if (RenderModeIndex == 3) c.rgb = float3(input.Texcoord2, 0);
+        c.rgb = dbgRgb;
     }
 
 
