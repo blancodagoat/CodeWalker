@@ -5237,7 +5237,8 @@ namespace CodeWalker
                             if (gind >= m.Geometries.Length) continue;
 
                             var geom = m.Geometries[gind];
-                            if (geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
+                            bool isTreesLod = (geom?.Shader?.FileName == 4113118754); // trees_lod2.sps - vertices are billboard roots, shader generates geometry
+                            if (!isTreesLod && geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
                             {
                                 // Use cable line intersection for cable.sps, triangle intersection for everything else
                                 bool isCable = (geom.Shader?.FileName == 3854885487); // cable.sps
