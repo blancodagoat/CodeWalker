@@ -109,6 +109,7 @@ namespace CodeWalker.Project.Panels
             var n = CurrentPathNode;
 
             // Flags0 booleans
+            NodeFloodGroupUpDown.Value = n?.FloodGroup ?? 0;
             NodeOffRoadCheckBox.Checked = n?.OffRoad ?? false;
             NodeNoBigVehiclesCheckBox.Checked = n?.NoBigVehicles ?? false;
             NodeCannotGoRightCheckBox.Checked = n?.CannotGoRight ?? false;
@@ -160,6 +161,7 @@ namespace CodeWalker.Project.Panels
             lock (ProjectForm.ProjectSyncRoot)
             {
                 // Flags0 named properties
+                CurrentPathNode.FloodGroup = (int)NodeFloodGroupUpDown.Value;
                 CurrentPathNode.OffRoad = NodeOffRoadCheckBox.Checked;
                 CurrentPathNode.NoBigVehicles = NodeNoBigVehiclesCheckBox.Checked;
                 CurrentPathNode.CannotGoRight = NodeCannotGoRightCheckBox.Checked;
@@ -238,6 +240,10 @@ namespace CodeWalker.Project.Panels
             {
                 foreach (var link in CurrentPathNode.Links)
                     NodeLinksListBox.Items.Add(link);
+            }
+            if (CurrentPathLink != null)
+            {
+                NodeLinksListBox.SelectedItem = CurrentPathLink;
             }
             populatingui = false;
 
@@ -710,6 +716,7 @@ namespace CodeWalker.Project.Panels
 
         private void NodeLinksListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (populatingui) return;
             CurrentPathLink = NodeLinksListBox.SelectedItem as YndLink;
             LoadLinkTab();
         }

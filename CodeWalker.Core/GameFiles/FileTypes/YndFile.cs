@@ -164,7 +164,7 @@ namespace CodeWalker.GameFiles
                         node.LinkCount = 0;
                     }
 
-                    byte lcflags = (byte)((node.LinkCount << 3) | (node.LinkCountUnk & 7));
+                    byte lcflags = (byte)((node.LinkCount << 3) | (node.LinkCountUnk & 6) | (node.QualifiesAsJunction ? 1 : 0));
                     node._RawData.Flags1 = (node._RawData.Flags1 & 0xFFFF00FF) | ((uint)lcflags << 8);
 
                     nodes[i] = node.RawData;
@@ -796,6 +796,11 @@ namespace CodeWalker.GameFiles
         }
 
         // m_iAsInteger1 (Flags0) bit properties
+        public int FloodGroup                                        // bits 0-2: m_group (3 bits, 0-7)
+        {
+            get => (int)(Flags0 & 0x7u);
+            set => Flags0 = (Flags0 & ~0x7u) | ((uint)(value & 0x7));
+        }
         public bool OffRoad                                          // bit 3: m_Offroad
         {
             get => (Flags0 & 0x8u) != 0;
@@ -923,7 +928,7 @@ namespace CodeWalker.GameFiles
 
             byte lcflags = (byte)((node.Flags1 >> 8) & 0xFF);
             LinkCount = lcflags >> 3;
-            LinkCountUnk = lcflags & 7;
+            LinkCountUnk = lcflags & 6; // bits 1-2 only; bit 0 is QualifiesAsJunction in Flags1
 
             Colour = GetColour();
 

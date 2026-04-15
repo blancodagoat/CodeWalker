@@ -36,6 +36,8 @@ namespace CodeWalker.Project.Panels
             NodeDeleteButton = new Button();
             Flags0GroupBox = new GroupBox();
             NodeOffRoadCheckBox = new CheckBox();
+            lblFloodGroup = new Label();
+            NodeFloodGroupUpDown = new NumericUpDown();
             NodeNoBigVehiclesCheckBox = new CheckBox();
             NodeCannotGoRightCheckBox = new CheckBox();
             NodeCannotGoLeftCheckBox = new CheckBox();
@@ -69,11 +71,11 @@ namespace CodeWalker.Project.Panels
             NodeFlags1UpDown = new NumericUpDown();
             NodeFloodCopyButton = new Button();
             NodeEnableDisableButton = new Button();
+            LinkTabPage = new TabPage();
             NodeLinkCountLabel = new Label();
             NodeLinksListBox = new ListBox();
             NodeAddLinkButton = new Button();
             NodeRemoveLinkButton = new Button();
-            LinkTabPage = new TabPage();
             LinkPanel = new Panel();
             LinkTargetGroupBox = new GroupBox();
             lblLinkAreaID = new Label();
@@ -123,6 +125,7 @@ namespace CodeWalker.Project.Panels
             ((System.ComponentModel.ISupportInitialize)NodeAreaIDUpDown).BeginInit();
             ((System.ComponentModel.ISupportInitialize)NodeNodeIDUpDown).BeginInit();
             Flags0GroupBox.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)NodeFloodGroupUpDown).BeginInit();
             ((System.ComponentModel.ISupportInitialize)NodeFlags0UpDown).BeginInit();
             Flags1GroupBox.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NodeHeuristicUpDown).BeginInit();
@@ -349,6 +352,8 @@ namespace CodeWalker.Project.Panels
             // Flags0GroupBox
             // 
             Flags0GroupBox.Controls.Add(NodeOffRoadCheckBox);
+            Flags0GroupBox.Controls.Add(lblFloodGroup);
+            Flags0GroupBox.Controls.Add(NodeFloodGroupUpDown);
             Flags0GroupBox.Controls.Add(NodeNoBigVehiclesCheckBox);
             Flags0GroupBox.Controls.Add(NodeCannotGoRightCheckBox);
             Flags0GroupBox.Controls.Add(NodeCannotGoLeftCheckBox);
@@ -365,7 +370,7 @@ namespace CodeWalker.Project.Panels
             Flags0GroupBox.Margin = new Padding(4, 3, 4, 3);
             Flags0GroupBox.Name = "Flags0GroupBox";
             Flags0GroupBox.Padding = new Padding(4, 3, 4, 3);
-            Flags0GroupBox.Size = new System.Drawing.Size(555, 112);
+            Flags0GroupBox.Size = new System.Drawing.Size(555, 135);
             Flags0GroupBox.TabIndex = 1;
             Flags0GroupBox.TabStop = false;
             Flags0GroupBox.Text = "Flags0";
@@ -380,6 +385,26 @@ namespace CodeWalker.Project.Panels
             NodeOffRoadCheckBox.TabIndex = 0;
             NodeOffRoadCheckBox.Text = "Off Road";
             NodeOffRoadCheckBox.CheckedChanged += NodeFlagCheckBox_Changed;
+            // 
+            // lblFloodGroup
+            // 
+            lblFloodGroup.AutoSize = true;
+            lblFloodGroup.Location = new System.Drawing.Point(415, 83);
+            lblFloodGroup.Margin = new Padding(4, 0, 4, 0);
+            lblFloodGroup.Name = "lblFloodGroup";
+            lblFloodGroup.Size = new System.Drawing.Size(76, 15);
+            lblFloodGroup.TabIndex = 14;
+            lblFloodGroup.Text = "Flood Group:";
+            // 
+            // NodeFloodGroupUpDown
+            // 
+            NodeFloodGroupUpDown.Location = new System.Drawing.Point(497, 80);
+            NodeFloodGroupUpDown.Margin = new Padding(4, 3, 4, 3);
+            NodeFloodGroupUpDown.Maximum = new decimal(new int[] { 7, 0, 0, 0 });
+            NodeFloodGroupUpDown.Name = "NodeFloodGroupUpDown";
+            NodeFloodGroupUpDown.Size = new System.Drawing.Size(50, 23);
+            NodeFloodGroupUpDown.TabIndex = 15;
+            NodeFloodGroupUpDown.ValueChanged += NodeFlagCheckBox_Changed;
             // 
             // NodeNoBigVehiclesCheckBox
             // 
@@ -528,7 +553,7 @@ namespace CodeWalker.Project.Panels
             Flags1GroupBox.Controls.Add(lblRawFlags1);
             Flags1GroupBox.Controls.Add(NodeFlags1HexLabel);
             Flags1GroupBox.Controls.Add(NodeFlags1UpDown);
-            Flags1GroupBox.Location = new System.Drawing.Point(7, 253);
+            Flags1GroupBox.Location = new System.Drawing.Point(7, 276);
             Flags1GroupBox.Margin = new Padding(4, 3, 4, 3);
             Flags1GroupBox.Name = "Flags1GroupBox";
             Flags1GroupBox.Padding = new Padding(4, 3, 4, 3);
@@ -727,7 +752,7 @@ namespace CodeWalker.Project.Panels
             // 
             // NodeFloodCopyButton
             // 
-            NodeFloodCopyButton.Location = new System.Drawing.Point(7, 385);
+            NodeFloodCopyButton.Location = new System.Drawing.Point(7, 408);
             NodeFloodCopyButton.Margin = new Padding(4, 3, 4, 3);
             NodeFloodCopyButton.Name = "NodeFloodCopyButton";
             NodeFloodCopyButton.Size = new System.Drawing.Size(134, 29);
@@ -738,7 +763,7 @@ namespace CodeWalker.Project.Panels
             // 
             // NodeEnableDisableButton
             // 
-            NodeEnableDisableButton.Location = new System.Drawing.Point(149, 385);
+            NodeEnableDisableButton.Location = new System.Drawing.Point(149, 408);
             NodeEnableDisableButton.Margin = new Padding(4, 3, 4, 3);
             NodeEnableDisableButton.Name = "NodeEnableDisableButton";
             NodeEnableDisableButton.Size = new System.Drawing.Size(134, 29);
@@ -746,48 +771,6 @@ namespace CodeWalker.Project.Panels
             NodeEnableDisableButton.Text = "Disable Section";
             NodeEnableDisableButton.UseVisualStyleBackColor = true;
             NodeEnableDisableButton.Click += NodeEnableDisableButton_Click;
-            // 
-            // NodeLinkCountLabel
-            // 
-            NodeLinkCountLabel.AutoSize = true;
-            NodeLinkCountLabel.Location = new System.Drawing.Point(7, 7);
-            NodeLinkCountLabel.Margin = new Padding(4, 0, 4, 0);
-            NodeLinkCountLabel.Name = "NodeLinkCountLabel";
-            NodeLinkCountLabel.Size = new System.Drawing.Size(77, 15);
-            NodeLinkCountLabel.TabIndex = 8;
-            NodeLinkCountLabel.Text = "Link Count: 0";
-            //
-            // NodeLinksListBox
-            //
-            NodeLinksListBox.FormattingEnabled = true;
-            NodeLinksListBox.Location = new System.Drawing.Point(7, 25);
-            NodeLinksListBox.Margin = new Padding(4, 3, 4, 3);
-            NodeLinksListBox.Name = "NodeLinksListBox";
-            NodeLinksListBox.Size = new System.Drawing.Size(450, 109);
-            NodeLinksListBox.TabIndex = 9;
-            NodeLinksListBox.SelectedIndexChanged += NodeLinksListBox_SelectedIndexChanged;
-            //
-            // NodeAddLinkButton
-            //
-            NodeAddLinkButton.Location = new System.Drawing.Point(463, 25);
-            NodeAddLinkButton.Margin = new Padding(4, 3, 4, 3);
-            NodeAddLinkButton.Name = "NodeAddLinkButton";
-            NodeAddLinkButton.Size = new System.Drawing.Size(90, 29);
-            NodeAddLinkButton.TabIndex = 10;
-            NodeAddLinkButton.Text = "Add Link";
-            NodeAddLinkButton.UseVisualStyleBackColor = true;
-            NodeAddLinkButton.Click += NodeAddLinkButton_Click;
-            //
-            // NodeRemoveLinkButton
-            //
-            NodeRemoveLinkButton.Location = new System.Drawing.Point(463, 60);
-            NodeRemoveLinkButton.Margin = new Padding(4, 3, 4, 3);
-            NodeRemoveLinkButton.Name = "NodeRemoveLinkButton";
-            NodeRemoveLinkButton.Size = new System.Drawing.Size(90, 29);
-            NodeRemoveLinkButton.TabIndex = 11;
-            NodeRemoveLinkButton.Text = "Remove";
-            NodeRemoveLinkButton.UseVisualStyleBackColor = true;
-            NodeRemoveLinkButton.Click += NodeRemoveLinkButton_Click;
             // 
             // LinkTabPage
             // 
@@ -804,9 +787,51 @@ namespace CodeWalker.Project.Panels
             LinkTabPage.Size = new System.Drawing.Size(570, 559);
             LinkTabPage.TabIndex = 1;
             LinkTabPage.Text = "Link";
-            //
+            // 
+            // NodeLinkCountLabel
+            // 
+            NodeLinkCountLabel.AutoSize = true;
+            NodeLinkCountLabel.Location = new System.Drawing.Point(7, 7);
+            NodeLinkCountLabel.Margin = new Padding(4, 0, 4, 0);
+            NodeLinkCountLabel.Name = "NodeLinkCountLabel";
+            NodeLinkCountLabel.Size = new System.Drawing.Size(77, 15);
+            NodeLinkCountLabel.TabIndex = 8;
+            NodeLinkCountLabel.Text = "Link Count: 0";
+            // 
+            // NodeLinksListBox
+            // 
+            NodeLinksListBox.FormattingEnabled = true;
+            NodeLinksListBox.Location = new System.Drawing.Point(7, 25);
+            NodeLinksListBox.Margin = new Padding(4, 3, 4, 3);
+            NodeLinksListBox.Name = "NodeLinksListBox";
+            NodeLinksListBox.Size = new System.Drawing.Size(450, 109);
+            NodeLinksListBox.TabIndex = 9;
+            NodeLinksListBox.SelectedIndexChanged += NodeLinksListBox_SelectedIndexChanged;
+            // 
+            // NodeAddLinkButton
+            // 
+            NodeAddLinkButton.Location = new System.Drawing.Point(463, 25);
+            NodeAddLinkButton.Margin = new Padding(4, 3, 4, 3);
+            NodeAddLinkButton.Name = "NodeAddLinkButton";
+            NodeAddLinkButton.Size = new System.Drawing.Size(90, 29);
+            NodeAddLinkButton.TabIndex = 10;
+            NodeAddLinkButton.Text = "Add Link";
+            NodeAddLinkButton.UseVisualStyleBackColor = true;
+            NodeAddLinkButton.Click += NodeAddLinkButton_Click;
+            // 
+            // NodeRemoveLinkButton
+            // 
+            NodeRemoveLinkButton.Location = new System.Drawing.Point(463, 60);
+            NodeRemoveLinkButton.Margin = new Padding(4, 3, 4, 3);
+            NodeRemoveLinkButton.Name = "NodeRemoveLinkButton";
+            NodeRemoveLinkButton.Size = new System.Drawing.Size(90, 29);
+            NodeRemoveLinkButton.TabIndex = 11;
+            NodeRemoveLinkButton.Text = "Remove";
+            NodeRemoveLinkButton.UseVisualStyleBackColor = true;
+            NodeRemoveLinkButton.Click += NodeRemoveLinkButton_Click;
+            // 
             // LinkPanel
-            //
+            // 
             LinkPanel.AutoScroll = true;
             LinkPanel.Controls.Add(LinkTargetGroupBox);
             LinkPanel.Controls.Add(LinkFlagsGroupBox);
@@ -1292,7 +1317,7 @@ namespace CodeWalker.Project.Panels
             // 
             // JunctionGenerateButton
             // 
-            JunctionGenerateButton.Location = new System.Drawing.Point(4, 538);
+            JunctionGenerateButton.Location = new System.Drawing.Point(199, 155);
             JunctionGenerateButton.Margin = new Padding(4, 3, 4, 3);
             JunctionGenerateButton.Name = "JunctionGenerateButton";
             JunctionGenerateButton.Size = new System.Drawing.Size(117, 29);
@@ -1312,13 +1337,13 @@ namespace CodeWalker.Project.Panels
             Text = "Edit Ynd Node";
             PathNodeTabControl.ResumeLayout(false);
             NodeTabPage.ResumeLayout(false);
-            NodeTabPage.PerformLayout();
             NodeInfoGroupBox.ResumeLayout(false);
             NodeInfoGroupBox.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)NodeAreaIDUpDown).EndInit();
             ((System.ComponentModel.ISupportInitialize)NodeNodeIDUpDown).EndInit();
             Flags0GroupBox.ResumeLayout(false);
             Flags0GroupBox.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)NodeFloodGroupUpDown).EndInit();
             ((System.ComponentModel.ISupportInitialize)NodeFlags0UpDown).EndInit();
             Flags1GroupBox.ResumeLayout(false);
             Flags1GroupBox.PerformLayout();
@@ -1327,6 +1352,7 @@ namespace CodeWalker.Project.Panels
             ((System.ComponentModel.ISupportInitialize)NodeDeadEndnessUpDown).EndInit();
             ((System.ComponentModel.ISupportInitialize)NodeFlags1UpDown).EndInit();
             LinkTabPage.ResumeLayout(false);
+            LinkTabPage.PerformLayout();
             LinkPanel.ResumeLayout(false);
             LinkPanel.PerformLayout();
             LinkTargetGroupBox.ResumeLayout(false);
@@ -1379,6 +1405,8 @@ namespace CodeWalker.Project.Panels
         // Flags0
         private System.Windows.Forms.GroupBox Flags0GroupBox;
         private System.Windows.Forms.CheckBox NodeOffRoadCheckBox;
+        private System.Windows.Forms.Label lblFloodGroup;
+        private System.Windows.Forms.NumericUpDown NodeFloodGroupUpDown;
         private System.Windows.Forms.CheckBox NodeNoBigVehiclesCheckBox;
         private System.Windows.Forms.CheckBox NodeCannotGoRightCheckBox;
         private System.Windows.Forms.CheckBox NodeCannotGoLeftCheckBox;
