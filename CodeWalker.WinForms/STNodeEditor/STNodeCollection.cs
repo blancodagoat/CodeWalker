@@ -178,24 +178,24 @@ namespace ST.Library.UI.NodeEditor
             }
         }
         //============================================================================
-        int IList.Add(object value) {
-            return this.Add((STNode)value);
+        int IList.Add(object? value) {
+            return this.Add((STNode)value!);
         }
 
         void IList.Clear() {
             this.Clear();
         }
 
-        bool IList.Contains(object value) {
-            return this.Contains((STNode)value);
+        bool IList.Contains(object? value) {
+            return this.Contains((STNode)value!);
         }
 
-        int IList.IndexOf(object value) {
-            return this.IndexOf((STNode)value);
+        int IList.IndexOf(object? value) {
+            return this.IndexOf((STNode)value!);
         }
 
-        void IList.Insert(int index, object value) {
-            this.Insert(index, (STNode)value);
+        void IList.Insert(int index, object? value) {
+            this.Insert(index, (STNode)value!);
         }
 
         bool IList.IsFixedSize {
@@ -206,20 +206,20 @@ namespace ST.Library.UI.NodeEditor
             get { return this.IsReadOnly; }
         }
 
-        void IList.Remove(object value) {
-            this.Remove((STNode)value);
+        void IList.Remove(object? value) {
+            this.Remove((STNode)value!);
         }
 
         void IList.RemoveAt(int index) {
             this.RemoveAt(index);
         }
 
-        object IList.this[int index] {
+        object? IList.this[int index] {
             get {
                 return this[index];
             }
             set {
-                this[index] = (STNode)value;
+                this[index] = (STNode)value!;
             }
         }
 
