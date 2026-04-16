@@ -57,45 +57,11 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path artifacts\* -DestinationPath release.zip
 
-      - name: Get Release Draft
-        id: get_release
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const releases = await github.rest.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-
-            const draftRelease = releases.data.find(release =>
-              release.draft && release.tag_name === context.ref.replace('refs/tags/', '')
-            );
-
-            if (draftRelease) {
-              await core.summary.addRaw(`Found draft release: ${draftRelease.name}`).write();
-
-              const fs = require('fs');
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=${draftRelease.id}\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_body=${draftRelease.body.replace(/\n/g, '%0A')}\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_name=${draftRelease.name}\n`);
-
-              return draftRelease.id;
-            } else {
-              await core.summary.addRaw('No draft release found, will create new release').write();
-
-              const fs = require('fs');
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_body=\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_name=\n`);
-
-              return '';
-            }
-
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           files: release.zip
-          name: ${{ steps.get_release.outputs.release_name || format('CodeWalker-Dabz-v{0}', env.VERSION) }}
-          body: ${{ steps.get_release.outputs.release_body || 'Release build' }}
+          name: CodeWalker-Blanco-v${{ env.VERSION }}
+          generate_release_notes: true
           draft: false
           prerelease: false
