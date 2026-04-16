@@ -17,9 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -31,11 +28,25 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Restore
-        run: msbuild CodeWalker.sln /t:Restore /p:Configuration=Release /p:Platform=x64
-
-      - name: Build Release
-        run: msbuild CodeWalker.sln /p:Configuration=Release /p:Platform=x64 /m
+      - name: Build all C# projects
+        shell: pwsh
+        run: |
+          $projects = @(
+            'CodeWalker/CodeWalker.csproj',
+            'CodeWalker.ErrorReport/CodeWalker.ErrorReport.csproj',
+            'CodeWalker.Extractor/CodeWalker.Extractor.csproj',
+            'CodeWalker.ModManager/CodeWalker.ModManager.csproj',
+            'CodeWalker.Gen9Converter/CodeWalker.Gen9Converter.csproj',
+            'CodeWalker.Peds/CodeWalker.Peds.csproj',
+            'CodeWalker.RPFExplorer/CodeWalker.RPFExplorer.csproj',
+            'CodeWalker.Vehicles/CodeWalker.Vehicles.csproj'
+          )
+          foreach ($p in $projects) {
+            Write-Host "::group::Build $p"
+            dotnet build $p -c Release
+            if ($LASTEXITCODE -ne 0) { throw "Build failed for $p" }
+            Write-Host "::endgroup::"
+          }
 
       - name: Collect artifacts
         shell: bash
