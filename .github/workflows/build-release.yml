@@ -1,0 +1,101 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build_and_release:
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Strip leading 'v' from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Restore
+        run: msbuild CodeWalker.sln /t:Restore /p:RuntimeIdentifiers=win-x64
+
+      - name: Build Release
+        run: msbuild CodeWalker.sln /p:Configuration=Release /p:RuntimeIdentifiers=win-x64 /m
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          if [ ! -d "x64/Release" ]; then
+            echo "::error::x64/Release not found - PostBuild targets did not run"
+            exit 1
+          fi
+          cp -r x64/Release/* artifacts/
+          cp README.md artifacts/ 2>/dev/null || true
+          find artifacts -name '*.pdb' -delete
+
+      - name: List artifacts (debug)
+        shell: bash
+        run: ls -la artifacts/
+
+      - name: Archive artifacts
+        shell: pwsh
+        run: Compress-Archive -Path artifacts\* -DestinationPath release.zip
+
+      - name: Get Release Draft
+        id: get_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const draftRelease = releases.data.find(release =>
+              release.draft && release.tag_name === context.ref.replace('refs/tags/', '')
+            );
+
+            if (draftRelease) {
+              await core.summary.addRaw(`Found draft release: ${draftRelease.name}`).write();
+
+              const fs = require('fs');
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=${draftRelease.id}\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_body=${draftRelease.body.replace(/\n/g, '%0A')}\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_name=${draftRelease.name}\n`);
+
+              return draftRelease.id;
+            } else {
+              await core.summary.addRaw('No draft release found, will create new release').write();
+
+              const fs = require('fs');
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_id=\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_body=\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_name=\n`);
+
+              return '';
+            }
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release.zip
+          name: ${{ steps.get_release.outputs.release_name || format('CodeWalker-Dabz-v{0}', env.VERSION) }}
+          body: ${{ steps.get_release.outputs.release_body || 'Release build' }}
+          draft: false
+          prerelease: false
