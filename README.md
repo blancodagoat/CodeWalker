@@ -6,9 +6,15 @@
 ## Requirements:
 - PC version of GTA:V;
 - 4GB RAM (8+ recommended);
-- Windows 7 and above, x64 processor;
-- .NET framework 4.5 or newer from [Microsoft](https://www.microsoft.com/net/download/thank-you/net471);
+- Windows 10 and above, x64 processor;
+- [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0);
 - DirectX 11 and Shader Model 4.0 capable graphics.
+
+## Building from source:
+- Visual Studio 2022 with the **.NET desktop development** workload and the **.NET 9 SDK**
+- Open `CodeWalker.sln` and build Release (AnyCPU, x64 platform target)
+- Or from CLI: `msbuild CodeWalker.sln /t:Restore /p:RuntimeIdentifiers=win-x64` then `msbuild CodeWalker.sln /p:Configuration=Release /p:RuntimeIdentifiers=win-x64`
+- Unified output is written to `x64/Release/` (binaries, icons, compiled shaders)
 
 # App Usage:
 On first startup, the app will prompt to browse for the GTA:V game folder. If you have the Steam version installed

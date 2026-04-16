@@ -3,6 +3,10 @@
 
 x64/
 
+# Local-only workflow artifacts (not for upstream)
+CLAUDE.md
+docs/superpowers/
+
 # User-specific files
 *.suo
 *.user
