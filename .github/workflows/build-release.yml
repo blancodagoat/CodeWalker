@@ -32,10 +32,10 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Restore
-        run: msbuild CodeWalker.sln /t:Restore /p:RuntimeIdentifiers=win-x64
+        run: msbuild CodeWalker.sln /t:Restore /p:Configuration=Release /p:Platform=x64
 
       - name: Build Release
-        run: msbuild CodeWalker.sln /p:Configuration=Release /p:RuntimeIdentifiers=win-x64 /m
+        run: msbuild CodeWalker.sln /p:Configuration=Release /p:Platform=x64 /m
 
       - name: Collect artifacts
         shell: bash
