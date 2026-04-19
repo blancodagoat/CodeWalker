@@ -143,7 +143,8 @@ namespace CodeWalker.Forms
             }
             else
             {
-                SelTextureMipTrackBar.Maximum = tex.Levels - 1;
+                SelTextureMipTrackBar.Value = 0;
+                SelTextureMipTrackBar.Maximum = Math.Max(0, tex.Levels - 1);
             }
 
             SelTextureNameTextBox.Text = tex.Name;
