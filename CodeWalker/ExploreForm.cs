@@ -2035,7 +2035,17 @@ namespace CodeWalker
                 fentry = CreateFileEntry(name, file.FullPath, ref data);
             }
 
-            var xml = MetaXml.GetXml(fentry, data, out newfn, outputFolder);
+            string xml;
+            try
+            {
+                xml = MetaXml.GetXml(fentry, data, out newfn, outputFolder);
+            }
+            catch (Exception ex)
+            {
+                errorAction("Error converting file to XML: " + file.Path + "\n" + ex.Message);
+                newfn = null;
+                return null;
+            }
             if (string.IsNullOrEmpty(xml))
             {
                 errorAction("Unable to convert file to XML: " + file.Path);

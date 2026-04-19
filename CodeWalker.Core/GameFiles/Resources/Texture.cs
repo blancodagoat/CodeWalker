@@ -711,13 +711,21 @@ namespace CodeWalker.GameFiles
             var dxgifmt = DDSIO.GetDXGIFormat(Format);
             int div = 1;
             int len = 0;
-            for (int i = 0; i < Levels; i++)
+            try
             {
-                var width = Width / div;
-                var height = Height / div;
-                DDSIO.DXTex.ComputePitch(dxgifmt, width, height, out var rowPitch, out var slicePitch, 0);
-                len += slicePitch;
-                div *= 2;
+                for (int i = 0; i < Levels; i++)
+                {
+                    var width = Width / div;
+                    var height = Height / div;
+                    DDSIO.DXTex.ComputePitch(dxgifmt, width, height, out var rowPitch, out var slicePitch, 0);
+                    len += slicePitch;
+                    div *= 2;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Texture '{Name}': unable to compute data size for format {Format} (dxgi {dxgifmt}, G9 {G9_Format}): {ex.Message}");
+                return 0;
             }
             return len * Depth;
         }
@@ -725,8 +733,16 @@ namespace CodeWalker.GameFiles
         {
             if (Format == 0) return 0;
             var dxgifmt = DDSIO.GetDXGIFormat(Format);
-            DDSIO.DXTex.ComputePitch(dxgifmt, Width, Height, out var rowPitch, out var slicePitch, 0);
-            return (ushort)rowPitch;
+            try
+            {
+                DDSIO.DXTex.ComputePitch(dxgifmt, Width, Height, out var rowPitch, out var slicePitch, 0);
+                return (ushort)rowPitch;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Texture '{Name}': unable to compute stride for format {Format} (dxgi {dxgifmt}, G9 {G9_Format}): {ex.Message}");
+                return 0;
+            }
         }
         public TextureFormat GetLegacyFormat(TextureFormatG9 format)
         {
@@ -746,7 +762,23 @@ namespace CodeWalker.GameFiles
                 case TextureFormatG9.BC7_UNORM: return TextureFormat.D3DFMT_BC7;
                 case TextureFormatG9.BC7_UNORM_SRGB: return TextureFormat.D3DFMT_BC7;//TODO
                 case TextureFormatG9.BC3_UNORM_SRGB: return TextureFormat.D3DFMT_DXT5;//TODO
+                case TextureFormatG9.BC1_UNORM_SRGB: return TextureFormat.D3DFMT_DXT1;//TODO
+                case TextureFormatG9.BC2_UNORM_SRGB: return TextureFormat.D3DFMT_DXT3;//TODO
+                case TextureFormatG9.R8G8B8A8_UNORM_SRGB: return TextureFormat.D3DFMT_A8B8G8R8;//TODO
+                case TextureFormatG9.B8G8R8A8_UNORM_SRGB: return TextureFormat.D3DFMT_A8R8G8B8;//TODO
                 case TextureFormatG9.R16_UNORM: return TextureFormat.D3DFMT_A8;//TODO
+                //no direct legacy equivalent — leave Format=0 so CalculateStride/CalcDataSize short-circuit safely
+                case TextureFormatG9.BC6H_UF16:
+                case TextureFormatG9.BC6H_SF16:
+                case TextureFormatG9.R16G16B16A16_FLOAT:
+                case TextureFormatG9.R11G11B10_FLOAT:
+                case TextureFormatG9.R9G9B9E5_SHAREDEXP:
+                case TextureFormatG9.R32G32B32A32_FLOAT:
+                case TextureFormatG9.ETC1:
+                case TextureFormatG9.ETC1_SRGB:
+                case TextureFormatG9.ETC1A:
+                case TextureFormatG9.ETC1A_SRGB:
+                    return 0;
                 default: return TextureFormat.D3DFMT_A8R8G8B8;
             }
         }
