@@ -62,6 +62,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         if (IsDistMap) c = float4(c.rgb*2, (c.r+c.g+c.b) - 1);
         if ((IsDecal == 0) && (c.a <= 0.33)) discard;
         if ((IsDecal == 1) && (c.a <= 0.0)) discard;
+        if ((IsDecal >= 3) && (c.a <= 0.0)) discard;
         if(IsDecal==0) c.a = 1;
 		if (IsDecal == 2)
 		{
@@ -204,6 +205,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     //c.rgb = max(c.rgb, 0);
     c.a = saturate(c.a);
+    if (IsDecal == 3) c.a = 0;
     return c;
 }
 

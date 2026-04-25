@@ -1360,70 +1360,85 @@ namespace CodeWalker.Rendering
 
         public override void Load(Device device)
         {
-            if ((Key != null) && (Key.Data != null) && (Key.Data.FullData != null))
+            if ((Key != null) && (Key.Data != null) && (Key.Data.FullData != null) && (Key.Data.FullData.Length > 0) && (Key.Width > 0) && (Key.Height > 0) && (Key.Levels > 0))
             {
-                using (var stream = DataStream.Create(Key.Data.FullData, true, false))
+                try
                 {
-
-                    var format = TextureFormats.GetDXGIFormat(Key.Format);
-                    var width = Key.Width;
-                    var height = Key.Height;
-                    int mips = Key.Levels;
-                    int rowpitch, slicepitch;
-                    var totlength = Key.Data.FullData.Length;
-                    int pxsize = TextureFormats.ByteSize(Key.Format); // SharpDX.DXGI.FormatHelper.SizeOfInBytes(desc.Format);
-
-                    //get databoxes for mips
-                    int offset = 0;
-                    int level = 1;
-                    List<DataBox> boxes = new List<DataBox>();
-                    for (int i = 0; i < mips; i++)
+                    using (var stream = DataStream.Create(Key.Data.FullData, true, false))
                     {
-                        if (offset >= totlength) break; //only load as many mips as there are..
 
-                        var mipw = width / level;
-                        var miph = height / level;
+                        var format = TextureFormats.GetDXGIFormat(Key.Format);
+                        var width = Key.Width;
+                        var height = Key.Height;
+                        int mips = Key.Levels;
+                        int rowpitch, slicepitch;
+                        var totlength = Key.Data.FullData.Length;
+                        int pxsize = TextureFormats.ByteSize(Key.Format); // SharpDX.DXGI.FormatHelper.SizeOfInBytes(desc.Format);
 
-                        TextureFormats.ComputePitch(format, mipw, miph, out rowpitch, out slicepitch, 0);
-                        var mipbox = new DataBox(stream.DataPointer + offset, rowpitch, slicepitch);
-                        boxes.Add(mipbox);
+                        //get databoxes for mips
+                        int offset = 0;
+                        int level = 1;
+                        List<DataBox> boxes = new List<DataBox>();
+                        for (int i = 0; i < mips; i++)
+                        {
+                            if (offset >= totlength) break; //only load as many mips as there are..
 
-                        offset += slicepitch;
-                        level *= 2;
+                            var mipw = Math.Max(1, width / level);
+                            var miph = Math.Max(1, height / level);
+
+                            TextureFormats.ComputePitch(format, mipw, miph, out rowpitch, out slicepitch, 0);
+                            if (slicepitch <= 0) break;
+                            if (offset + slicepitch > totlength) break; //avoid reading past end of buffer
+                            var mipbox = new DataBox(stream.DataPointer + offset, rowpitch, slicepitch);
+                            boxes.Add(mipbox);
+
+                            offset += slicepitch;
+                            level *= 2;
+                        }
+                        mips = boxes.Count;
+
+                        if (mips <= 0)
+                        {
+                            IsLoaded = true;
+                            return;
+                        }
+
+
+                        //single mip..
+                        //TextureFormats.ComputePitch(format, width, height, out rowpitch, out slicepitch, 0);
+                        //var box = new DataBox(stream.DataPointer, rowpitch, slicepitch);
+
+
+                        var desc = new Texture2DDescription()
+                        {
+                            ArraySize = 1,
+                            BindFlags = BindFlags.ShaderResource,
+                            CpuAccessFlags = CpuAccessFlags.None,
+                            Format = format,
+                            Height = Key.Height,
+                            MipLevels = mips,//Texture.Levels,
+                            OptionFlags = ResourceOptionFlags.None,
+                            SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                            Usage = ResourceUsage.Default,
+                            Width = Key.Width
+                        };
+
+
+                        try
+                        {
+                            //Texture2D = new Texture2D(device, desc, new[] { box }); //single mip
+                            Texture2D = new Texture2D(device, desc, boxes.ToArray()); //multiple mips
+                            ShaderResourceView = new ShaderResourceView(device, Texture2D);
+                        }
+                        catch //(Exception ex)
+                        {
+                            //string str = ex.ToString(); //todo: don't fail silently..
+                        }
                     }
-                    mips = boxes.Count;
-
-
-                    //single mip..
-                    //TextureFormats.ComputePitch(format, width, height, out rowpitch, out slicepitch, 0);
-                    //var box = new DataBox(stream.DataPointer, rowpitch, slicepitch);
-
-
-                    var desc = new Texture2DDescription()
-                    {
-                        ArraySize = 1,
-                        BindFlags = BindFlags.ShaderResource,
-                        CpuAccessFlags = CpuAccessFlags.None,
-                        Format = format,
-                        Height = Key.Height,
-                        MipLevels = mips,//Texture.Levels,
-                        OptionFlags = ResourceOptionFlags.None,
-                        SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
-                        Usage = ResourceUsage.Default,
-                        Width = Key.Width
-                    };
-
-
-                    try
-                    {
-                        //Texture2D = new Texture2D(device, desc, new[] { box }); //single mip
-                        Texture2D = new Texture2D(device, desc, boxes.ToArray()); //multiple mips
-                        ShaderResourceView = new ShaderResourceView(device, Texture2D);
-                    }
-                    catch //(Exception ex)
-                    {
-                        //string str = ex.ToString(); //todo: don't fail silently..
-                    }
+                }
+                catch
+                {
+                    //swallow unsupported-format/overflow errors from texture load to prevent content-thread crash
                 }
             }
 

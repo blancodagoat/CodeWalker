@@ -739,6 +739,10 @@ namespace CodeWalker.Rendering
                     if (usetint) { tintflag = 0; pstintflag = 2; } //use diffuse sampler alpha for tint lookup!
                     break;
                 case 341123999://{decal_normal_only.sps}
+                    decalflag = 3;
+                    usediff = false;
+                    usespec = false;
+                    break;
                 case 2706821972://{mirror_decal.sps}
                 case 2457676400://{reflect_decal.sps}
                     decalflag = 3;
