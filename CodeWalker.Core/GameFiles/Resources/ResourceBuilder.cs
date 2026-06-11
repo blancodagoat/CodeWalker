@@ -529,6 +529,190 @@ namespace CodeWalker.GameFiles
         }
 
 
+        // Tail-aware page packer.
+        // Generalises AssignPositions2 to all 9 page-size buckets the resource header can describe:
+        //   index 0..4 = "head" pages of 16x/8x/4x/2x/1x the base chunk size (counts up to 1/3/15/63/127)
+        //   index 5..8 = "tail" pages of 1/2/1/4/1/8/1/16 the base chunk size (one page each)
+        // Unlike AssignPositions2 it does NOT force the base chunk to be >= the smallest block, so the
+        // smallest blocks can land in fractional tail pages instead of wasting a full base page - which is
+        // how the original RAGE buddy-allocated resources are laid out (HasTail2/4/8/16 in datResourceInfo).
+        // Returns false if it cannot pack (caller should fall back to AssignPositions2).
+        public static bool TryAssignPositionsWithTails(IList<IResourceBlock> blocks, uint basePosition, out RpfResourcePageFlags pageFlags, uint maxPageCount, bool gen9)
+        {
+            pageFlags = new RpfResourcePageFlags(0);
+
+            if ((blocks.Count > 0) && (blocks[0] is Meta))
+            {
+                return false;//Meta uses the naive packer - let the caller fall back
+            }
+            if (blocks.Count == 0)
+            {
+                return true;//nothing to pack, zero flags are correct
+            }
+
+            long getLen(IResourceBlock b) => gen9 ? b.BlockLength_Gen9 : b.BlockLength;
+            long pad(long p) => ((ALIGN_SIZE - (p % ALIGN_SIZE)) % ALIGN_SIZE);
+
+            var sys = (basePosition == 0x50000000);
+
+            long maxBlockSize = 0;
+            foreach (var block in blocks)
+            {
+                var l = getLen(block);
+                if (l > maxBlockSize) maxBlockSize = l;
+            }
+
+            //the root (system) block must end up at offset 0, so keep it first
+            var rootBlock = (sys && (blocks.Count > 0)) ? blocks[0] : null;
+            var sortedBlocks = new List<IResourceBlock>();
+            foreach (var block in blocks)
+            {
+                if (block == null) continue;
+                if (block != rootBlock) sortedBlocks.Add(block);
+            }
+            sortedBlocks.Sort((a, b) => getLen(b).CompareTo(getLen(a)));
+            if (rootBlock != null) sortedBlocks.Insert(0, rootBlock);
+
+            //bucket sizes are laid out largest-first to match RpfResourcePageFlags page ordering
+            var maxCounts = new uint[] { 1, 3, 15, 63, 127, 1, 1, 1, 1 };
+
+            for (int baseShift = 0; baseShift <= 0xF; baseShift++)
+            {
+                long chunkBase = 0x2000L << baseShift;//the 1x base chunk size (== RpfResourcePageFlags BaseSizes[4])
+                if ((chunkBase * 16) < maxBlockSize) continue;//the largest block has to fit in the largest (16x) page
+
+                var sizes = new long[9];
+                for (int i = 0; i < 9; i++) sizes[i] = (chunkBase * 16) >> i;//i=0:16x ... i=4:1x ... i=8:1/16
+
+                int largestBucket = 8;
+                for (int j = 0; j < 9; j++) { if (sizes[j] >= maxBlockSize) { largestBucket = j; break; } }
+
+                var pageUsed = new List<long>[9];//bytes used so far in each allocated page, per bucket
+                var blockPages = new Dictionary<IResourceBlock, (int bucket, int page, long off)>();
+
+                bool ok = true;
+                for (int bi = 0; bi < sortedBlocks.Count; bi++)
+                {
+                    var block = sortedBlocks[bi];
+                    var size = getLen(block);
+
+                    if (bi == 0)//root (or largest) block starts the first largest-used page, at offset 0
+                    {
+                        pageUsed[largestBucket] = new List<long>() { size };
+                        blockPages[block] = (largestBucket, 0, 0);
+                        continue;
+                    }
+
+                    //smallest bucket (largest index) whose page is big enough for this block
+                    int wantBucket = 0;
+                    for (int j = 8; j >= 0; j--) { if (sizes[j] >= size) { wantBucket = j; break; } }
+
+                    //try to fit into an existing page of that size or larger (smaller index)
+                    bool placed = false;
+                    for (int j = wantBucket; (j >= 0) && !placed; j--)
+                    {
+                        var list = pageUsed[j];
+                        if (list == null) continue;
+                        for (int p = 0; p < list.Count; p++)
+                        {
+                            var s = list[p];
+                            s += pad(s);
+                            var o = s;
+                            s += size;
+                            if (s <= sizes[j]) { list[p] = s; blockPages[block] = (j, p, o); placed = true; break; }
+                        }
+                    }
+                    if (placed) continue;
+
+                    //allocate a new page: prefer the smallest fitting bucket; if it's maxed out, step up to a larger one
+                    for (int j = wantBucket; j >= 0; j--)
+                    {
+                        var list = pageUsed[j];
+                        var cur = list?.Count ?? 0;
+                        if (cur < maxCounts[j])
+                        {
+                            if (list == null) { list = new List<long>(); pageUsed[j] = list; }
+                            var p = list.Count;
+                            list.Add(size);
+                            blockPages[block] = (j, p, 0);
+                            placed = true;
+                            break;
+                        }
+                    }
+                    if (!placed) { ok = false; break; }//ran out of pages at this base size
+                }
+                if (!ok) continue;
+
+                var counts = new uint[9];
+                uint totalPages = 0;
+                for (int i = 0; i < 9; i++) { var c = (uint)(pageUsed[i]?.Count ?? 0); counts[i] = c; totalPages += c; if (c > maxCounts[i]) ok = false; }
+                if (!ok) continue;
+                if (totalPages > maxPageCount) continue;//too many pages - try a larger base size
+
+                //assign actual file positions; pages are laid out largest (index 0) first
+                var pageBaseOffsets = new long[9];
+                long pageOffset = 0;
+                for (int i = 0; i < 9; i++) { pageBaseOffsets[i] = pageOffset; pageOffset += sizes[i] * counts[i]; }
+                foreach (var kvp in blockPages)
+                {
+                    var bucket = kvp.Value.bucket;
+                    var page = kvp.Value.page;
+                    var off = kvp.Value.off;
+                    var pos = pageBaseOffsets[bucket] + (sizes[bucket] * page) + off;
+                    kvp.Key.FilePosition = basePosition + pos;
+                }
+
+                uint v = (uint)baseShift & 0xF;
+                v += (counts[0] & 0x1) << 4;
+                v += (counts[1] & 0x3) << 5;
+                v += (counts[2] & 0xF) << 7;
+                v += (counts[3] & 0x3F) << 11;
+                v += (counts[4] & 0x7F) << 17;
+                v += (counts[5] & 0x1) << 24;
+                v += (counts[6] & 0x1) << 25;
+                v += (counts[7] & 0x1) << 26;
+                v += (counts[8] & 0x1) << 27;
+                pageFlags = new RpfResourcePageFlags(v);
+                return true;
+            }
+
+            return false;//couldn't pack even at the largest base size
+        }
+
+        // Validates that every block lies fully inside a single page and within the total mapped size
+        // described by the page flags. Used as a safety net for TryAssignPositionsWithTails.
+        public static bool ValidatePacking(IList<IResourceBlock> blocks, uint basePosition, RpfResourcePageFlags pageFlags, bool gen9)
+        {
+            if (blocks.Count == 0) return true;
+            var pages = pageFlags.Pages;
+            if (pages == null) return false;
+            long total = pageFlags.Size;
+            var extents = new List<(long pos, long end)>(blocks.Count);
+            foreach (var block in blocks)
+            {
+                if (block == null) continue;
+                long pos = (long)block.FilePosition - basePosition;
+                long len = gen9 ? block.BlockLength_Gen9 : block.BlockLength;
+                if (pos < 0) return false;
+                if ((pos + len) > total) return false;
+                bool inPage = false;
+                foreach (var pg in pages)
+                {
+                    if ((pos >= pg.Offset) && ((pos + len) <= ((long)pg.Offset + pg.Size))) { inPage = true; break; }
+                }
+                if (!inPage) return false;
+                extents.Add((pos, pos + len));
+            }
+            //ensure no two blocks overlap
+            extents.Sort((a, b) => a.pos.CompareTo(b.pos));
+            for (int i = 1; i < extents.Count; i++)
+            {
+                if (extents[i].pos < extents[i - 1].end) return false;
+            }
+            return true;
+        }
+
+
         public static byte[] Build(ResourceFileBase fileBase, int version, bool compress = true, bool gen9 = false)
         {
 
@@ -541,8 +725,18 @@ namespace CodeWalker.GameFiles
             //AssignPositions(systemBlocks, 0x50000000, out var systemPageFlags, 128);
             //AssignPositions(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count);
 
-            AssignPositions2(systemBlocks, 0x50000000, out var systemPageFlags, 128, gen9);
-            AssignPositions2(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count, gen9);
+            //try the tail-aware packer first (matches the game's use of fractional tail pages),
+            //falling back to AssignPositions2 if it can't pack or the result fails validation.
+            if (!TryAssignPositionsWithTails(systemBlocks, 0x50000000, out var systemPageFlags, 128, gen9)
+                || !ValidatePacking(systemBlocks, 0x50000000, systemPageFlags, gen9))
+            {
+                AssignPositions2(systemBlocks, 0x50000000, out systemPageFlags, 128, gen9);
+            }
+            if (!TryAssignPositionsWithTails(graphicBlocks, 0x60000000, out var graphicsPageFlags, 128 - systemPageFlags.Count, gen9)
+                || !ValidatePacking(graphicBlocks, 0x60000000, graphicsPageFlags, gen9))
+            {
+                AssignPositions2(graphicBlocks, 0x60000000, out graphicsPageFlags, 128 - systemPageFlags.Count, gen9);
+            }
 
 
             fileBase.FilePagesInfo.SystemPagesCount = (byte)systemPageFlags.Count;
