@@ -394,6 +394,13 @@ namespace CodeWalker.Project
                 (panel) => { panel.SetYmap(CurrentYmapFile); }, //updateFunc
                 (panel) => { return panel.Ymap == CurrentYmapFile; }); //findFunc
         }
+        public void ShowYmapLodHierarchyPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditYmapLodHierarchyPanel(this); }, //createFunc
+                (panel) => { panel.SetYmap(CurrentYmapFile); }, //updateFunc
+                (panel) => { return true; }); //findFunc - single instance
+        }
         public void ShowEditYmapEntityPanel(bool promote)
         {
             ShowPanel(promote,
@@ -2026,6 +2033,10 @@ namespace CodeWalker.Project
         }
         public void AddYmapToProject(YmapFile ymap)
         {
+            AddYmapToProject(ymap, true, true);
+        }
+        public void AddYmapToProject(YmapFile ymap, bool markChanged, bool select)
+        {
             if (ymap == null) return;
             if (CurrentProjectFile == null)
             {
@@ -2034,10 +2045,14 @@ namespace CodeWalker.Project
             if (YmapExistsInProject(ymap)) return;
             if (CurrentProjectFile.AddYmapFile(ymap))
             {
-                ymap.HasChanged = true;
+                if (markChanged)
+                {
+                    ymap.HasChanged = true;
+                }
                 CurrentProjectFile.HasChanged = true;
                 ProjectExplorer?.AddYmapFileTreeNode(ymap);
             }
+            if (!select) return;
             CurrentYmapFile = ymap;
             RefreshUI();
             if (CurrentEntity != null)
@@ -2221,62 +2236,72 @@ namespace CodeWalker.Project
         private bool DeleteYmapEntity()
         {
             if (CurrentEntity.Ymap != CurrentYmapFile) return false;
-            if (CurrentYmapFile.AllEntities == null) return false; //nothing to delete..
-            if (CurrentYmapFile.RootEntities == null) return false; //nothing to delete..
 
-            if (CurrentEntity._CEntityDef.numChildren != 0)
+            var children = CurrentEntity.ChildrenMerged ?? CurrentEntity.Children;
+            if ((children != null) && (children.Length > 0))
             {
-                MessageBox.Show("This entity's numChildren is not 0 - deleting entities with children is not currently supported by CodeWalker.");
-                return true;
-            }
-
-            int idx = CurrentEntity.Index;
-            for (int i = idx + 1; i < CurrentYmapFile.AllEntities.Length; i++)
-            {
-                var ent = CurrentYmapFile.AllEntities[i];
-                if (ent._CEntityDef.numChildren != 0)
+                if (MessageBox.Show("This entity has " + children.Length.ToString() + " LOD child entities, which will be orphaned by deleting it.\nUse the LOD Hierarchy panel (Ymap menu) to manage or delete LOD children.\n\nDelete this entity and orphan its children?", "Confirm delete", MessageBoxButtons.YesNo) != DialogResult.Yes)
                 {
-                    MessageBox.Show("There are other entities present in this .ymap that have children. Deleting this entity is not currently supported by CodeWalker.");
                     return true;
                 }
             }
 
-            //if (MessageBox.Show("Are you sure you want to delete this entity?\n" + CurrentEntity._CEntityDef.archetypeName.ToString() + "\n" + CurrentEntity.Position.ToString() + "\n\nThis operation cannot be undone. Continue?", "Confirm delete", MessageBoxButtons.YesNo) != DialogResult.Yes)
-            //{
-            //    return true;
-            //}
+            return DeleteYmapEntity(CurrentEntity, false);
+        }
+
+        public bool DeleteYmapEntity(YmapEntityDef ent, bool deleteChildren)
+        {
+            var ymap = ent?.Ymap;
+            if (ymap == null) return false;
+            if (ymap.AllEntities == null) return false; //nothing to delete..
+            if (ymap.RootEntities == null) return false; //nothing to delete..
+
+            if (deleteChildren)
+            {
+                var children = ent.ChildrenMerged ?? ent.Children;
+                if (children != null)
+                {
+                    foreach (var child in children.ToArray()) //copy, since delete mutates the arrays
+                    {
+                        if (child != null)
+                        {
+                            DeleteYmapEntity(child, true);
+                        }
+                    }
+                }
+            }
 
             bool res = false;
             if (WorldForm != null)
             {
                 lock (WorldForm.RenderSyncRoot) //don't try to do this while rendering...
                 {
-                    res = CurrentYmapFile.RemoveEntity(CurrentEntity);
+                    res = ymap.RemoveEntity(ent);
                     //WorldForm.SelectItem(null, null, null);
                 }
             }
             else
             {
-                res = CurrentYmapFile.RemoveEntity(CurrentEntity);
+                res = ymap.RemoveEntity(ent);
             }
             if (!res)
             {
                 MessageBox.Show("Entity.Index didn't match the index of the entity in the ymap. This shouldn't happen, check LOD linkages!");
             }
 
-            var delent = CurrentEntity;
-            var delymap = CurrentYmapFile;
+            ProjectExplorer?.RemoveEntityTreeNode(ent);
+            ProjectExplorer?.SetYmapHasChanged(ymap, true);
 
-            ProjectExplorer?.RemoveEntityTreeNode(delent);
-            ProjectExplorer?.SetYmapHasChanged(delymap, true);
+            ClosePanel((EditYmapEntityPanel p) => { return p.Tag == ent; });
 
-            ClosePanel((EditYmapEntityPanel p) => { return p.Tag == delent; });
-
-            CurrentEntity = null;
-
-            if (WorldForm != null)
+            if (CurrentEntity == ent)
             {
-                WorldForm.SelectItem(null);
+                CurrentEntity = null;
+
+                if (WorldForm != null)
+                {
+                    WorldForm.SelectItem(null);
+                }
             }
 
             return true;
@@ -8976,6 +9001,7 @@ namespace CodeWalker.Project
             YmapNewEntityMenu.Enabled = enable && inproj;
             YmapNewCarGenMenu.Enabled = enable && inproj;
             YmapNewGrassBatchMenu.Enabled = enable && inproj;
+            YmapLodHierarchyMenu.Enabled = enable;
 
             if (CurrentYmapFile != null)
             {
@@ -9555,6 +9581,10 @@ namespace CodeWalker.Project
         private void YmapNewGrassBatchMenu_Click(object sender, EventArgs e)
         {
             NewGrassBatch();
+        }
+        private void YmapLodHierarchyMenu_Click(object sender, EventArgs e)
+        {
+            ShowYmapLodHierarchyPanel(true);
         }
         private void YmapAddToProjectMenu_Click(object sender, EventArgs e)
         {

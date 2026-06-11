@@ -1035,9 +1035,87 @@ namespace CodeWalker.GameFiles
                 if (oent != ent) newRootEntities.Add(oent);
             }
 
-            if ((AllEntities.Length == newAllEntities.Count) || (RootEntities.Length == newRootEntities.Count))
+            if (AllEntities.Length == newAllEntities.Count)
             {
-                res = false;
+                res = false; //the entity wasn't found in this ymap! (note: non-root entities are no longer in RootEntities, so only check AllEntities)
+            }
+
+
+            //detach the removed entity from its LOD parent, if it has one.
+            if (ent.Parent != null)
+            {
+                var p = ent.Parent;
+                p.RemoveChild(ent);
+                if (p._CEntityDef.numChildren > 0)
+                {
+                    p._CEntityDef.numChildren--;
+                }
+                if ((p.Ymap != null) && (p.Ymap != this))
+                {
+                    p.Ymap.HasChanged = true;
+                    p.Ymap.LodManagerUpdate = true;
+                }
+                ent.Parent = null;
+            }
+
+            //orphan any children of the removed entity.
+            var remchildren = ent.ChildrenMerged ?? ent.Children;
+            if (remchildren != null)
+            {
+                foreach (var child in remchildren)
+                {
+                    if (child == null) continue;
+                    child.Parent = null;
+                    child.ParentName = new MetaHash(0);
+                    child._CEntityDef.parentIndex = -1;
+                    child.LodInParentYmap = false;
+                    if (child.Ymap == this)
+                    {
+                        if (!newRootEntities.Contains(child)) newRootEntities.Add(child);
+                    }
+                    else if (child.Ymap != null)
+                    {
+                        child.Ymap.HasChanged = true;
+                        child.Ymap.LodManagerUpdate = true;
+                    }
+                }
+            }
+            ent.Children = null;
+            ent.ChildrenMerged = null;
+
+            //rewrite parentIndex values from object references, since indices above idx have shifted.
+            foreach (var oent in newAllEntities)
+            {
+                if ((oent.Parent != null) && (oent.Parent.Ymap == this))
+                {
+                    oent._CEntityDef.parentIndex = oent.Parent.Index;
+                }
+                var children = oent.ChildrenMerged ?? oent.Children;
+                if (children != null)
+                {
+                    foreach (var child in children)
+                    {
+                        if ((child != null) && (child.Ymap != this) && (child._CEntityDef.parentIndex != oent.Index))
+                        {
+                            child._CEntityDef.parentIndex = oent.Index;
+                            child.Ymap?.SetHasChanged();
+                        }
+                    }
+                }
+            }
+            if (ChildYmaps != null) //catch cross-ymap children only linked via Parent refs
+            {
+                foreach (var cymap in ChildYmaps)
+                {
+                    if (cymap?.RootEntities == null) continue;
+                    foreach (var rent in cymap.RootEntities)
+                    {
+                        if (rent?.Parent?.Ymap == this)
+                        {
+                            rent._CEntityDef.parentIndex = rent.Parent.Index;
+                        }
+                    }
+                }
             }
 
             LodManagerOldEntities = AllEntities;
@@ -1048,6 +1126,42 @@ namespace CodeWalker.GameFiles
             LodManagerUpdate = true;
 
             return res;
+        }
+
+        private void SetHasChanged()
+        {
+            HasChanged = true;
+            LodManagerUpdate = true;
+        }
+
+        public void EnsureRootEntity(YmapEntityDef ent)
+        {
+            if (ent == null) return;
+            if (RootEntities != null)
+            {
+                foreach (var rent in RootEntities)
+                {
+                    if (rent == ent) return;
+                }
+            }
+            List<YmapEntityDef> rootents = new();
+            if (RootEntities != null) rootents.AddRange(RootEntities);
+            rootents.Add(ent);
+            RootEntities = rootents.ToArray();
+        }
+
+        public void RemoveRootEntity(YmapEntityDef ent)
+        {
+            if ((ent == null) || (RootEntities == null)) return;
+            List<YmapEntityDef> rootents = new();
+            foreach (var rent in RootEntities)
+            {
+                if (rent != ent) rootents.Add(rent);
+            }
+            if (rootents.Count != RootEntities.Length)
+            {
+                RootEntities = rootents.ToArray();
+            }
         }
 
 
@@ -1717,7 +1831,15 @@ namespace CodeWalker.GameFiles
         public LightInstance[] Lights { get; set; }
         //public uint[] LightHashTest { get; set; }
 
-        public bool LodInParentYmap { get { return ((_CEntityDef.flags >> 3) & 1) > 0; } }
+        public bool LodInParentYmap
+        {
+            get { return ((_CEntityDef.flags >> 3) & 1) > 0; }
+            set
+            {
+                if (value) _CEntityDef.flags |= 8u;
+                else _CEntityDef.flags &= ~8u;
+            }
+        }
 
 
         public string Name
@@ -2169,6 +2291,112 @@ namespace CodeWalker.GameFiles
             ChildList.Clear();
             ChildList = null;
         }
+        public void AddChildDirect(YmapEntityDef c)
+        {
+            //editor version of AddChild - updates the Children/ChildrenMerged arrays immediately.
+            c.Parent = this;
+            c.ParentName = _CEntityDef.archetypeName;
+
+            List<YmapEntityDef> children = new();
+            if (Children != null) children.AddRange(Children);
+            if (!children.Contains(c)) children.Add(c);
+            Children = children.ToArray();
+
+            List<YmapEntityDef> merged = new();
+            if (ChildrenMerged != null) merged.AddRange(ChildrenMerged);
+            if (!merged.Contains(c)) merged.Add(c);
+            ChildrenMerged = merged.ToArray();
+        }
+
+        public void RemoveChild(YmapEntityDef c)
+        {
+            if (c == null) return;
+            if (Children != null)
+            {
+                List<YmapEntityDef> children = new();
+                foreach (var child in Children)
+                {
+                    if (child != c) children.Add(child);
+                }
+                if (children.Count != Children.Length) Children = children.ToArray();
+            }
+            if (ChildrenMerged != null)
+            {
+                List<YmapEntityDef> merged = new();
+                foreach (var child in ChildrenMerged)
+                {
+                    if (child != c) merged.Add(child);
+                }
+                if (merged.Count != ChildrenMerged.Length) ChildrenMerged = merged.ToArray();
+            }
+        }
+
+        public void SetLodParent(YmapEntityDef p)
+        {
+            //editor function to relink this entity to a new LOD parent (or orphan it, if p is null).
+            //updates parentIndex, numChildren, child arrays, root entity lists and the lod-in-parent-ymap flag.
+            if (Parent == p) return;
+            if (p == this) return;
+
+            if (Parent != null)
+            {
+                var oldp = Parent;
+                oldp.RemoveChild(this);
+                if (oldp._CEntityDef.numChildren > 0)
+                {
+                    oldp._CEntityDef.numChildren--;
+                }
+                if (oldp.Ymap != null)
+                {
+                    oldp.Ymap.HasChanged = true;
+                    oldp.Ymap.LodManagerUpdate = true;
+                }
+                Parent = null;
+            }
+
+            if (p == null)
+            {
+                ParentName = new MetaHash(0);
+                _CEntityDef.parentIndex = -1;
+                LodInParentYmap = false;
+                if (_CEntityDef.lodLevel == rage__eLodType.LODTYPES_DEPTH_HD)
+                {
+                    _CEntityDef.lodLevel = rage__eLodType.LODTYPES_DEPTH_ORPHANHD;
+                }
+                Ymap?.EnsureRootEntity(this);
+            }
+            else
+            {
+                if (_CEntityDef.lodLevel == rage__eLodType.LODTYPES_DEPTH_ORPHANHD)
+                {
+                    _CEntityDef.lodLevel = rage__eLodType.LODTYPES_DEPTH_HD;
+                }
+                p.AddChildDirect(this);
+                p._CEntityDef.numChildren++;
+                _CEntityDef.parentIndex = p.Index;
+                LodInParentYmap = (p.Ymap != Ymap);
+                if (p.Ymap == Ymap)
+                {
+                    Ymap?.RemoveRootEntity(this); //parented within the same ymap - no longer a root here
+                }
+                else
+                {
+                    Ymap?.EnsureRootEntity(this); //cross-ymap parent - entity remains a root of its own ymap
+                    if (p.Ymap != null)
+                    {
+                        p.Ymap.HasChanged = true;
+                        p.Ymap.LodManagerUpdate = true;
+                    }
+                }
+            }
+
+            if (Ymap != null)
+            {
+                Ymap.HasChanged = true;
+                Ymap.LodManagerUpdate = true;
+            }
+        }
+
         public void ChildListToMergedArray()
         {
             if (ChildList == null) return;

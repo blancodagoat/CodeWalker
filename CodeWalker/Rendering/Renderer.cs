@@ -4293,6 +4293,7 @@ namespace CodeWalker.Rendering
 
         public Dictionary<MetaHash, YmapFile> CurrentYmaps = new Dictionary<MetaHash, YmapFile>();
         private List<MetaHash> RemoveYmaps = new List<MetaHash>();
+        private HashSet<YmapFile> RemoveYmapsSet = new HashSet<YmapFile>();
         public Dictionary<YmapEntityDef, YmapEntityDef> RootEntities = new Dictionary<YmapEntityDef, YmapEntityDef>();
         public List<YmapEntityDef> VisibleLeaves = new List<YmapEntityDef>();
 
@@ -4322,12 +4323,29 @@ namespace CodeWalker.Rendering
             }
 
             RemoveYmaps.Clear();
+            RemoveYmapsSet.Clear();
             foreach (var kvp in CurrentYmaps)
             {
                 YmapFile ymap = null;
                 if (!ymaps.TryGetValue(kvp.Key, out ymap) || (ymap != kvp.Value) || (ymap.IsScripted && !ShowScriptedYmaps) || (ymap.LodManagerUpdate))
                 {
                     RemoveYmaps.Add(kvp.Key);
+                    RemoveYmapsSet.Add(kvp.Value);
+                }
+            }
+            bool remExpanded = true;//also remove+re-add ymaps whose parent (chain) is being removed, to rebuild cross-ymap LOD links
+            while (remExpanded)
+            {
+                remExpanded = false;
+                foreach (var kvp in CurrentYmaps)
+                {
+                    if (RemoveYmapsSet.Contains(kvp.Value)) continue;
+                    if ((kvp.Value.Parent != null) && RemoveYmapsSet.Contains(kvp.Value.Parent))
+                    {
+                        RemoveYmaps.Add(kvp.Key);
+                        RemoveYmapsSet.Add(kvp.Value);
+                        remExpanded = true;
+                    }
                 }
             }
             foreach (var remYmap in RemoveYmaps)

@@ -1825,6 +1825,9 @@ namespace CodeWalker.World
 
         private bool EntityCollisionsEnabled(YmapEntityDef ent)
         {
+            if (ent == null)
+            { return false; } //entity slot can be null while ymaps are being mutated (e.g. grass-batch painting)
+
             if ((ent._CEntityDef.lodLevel != rage__eLodType.LODTYPES_DEPTH_ORPHANHD) && (ent._CEntityDef.lodLevel != rage__eLodType.LODTYPES_DEPTH_HD))
             { return false; } //only test HD entities
 
