@@ -19,7 +19,7 @@ namespace CodeWalker.GameFiles
         // structure data
         public uint Unknown_10h { get; set; } // 0x00000000
         public uint Unknown_14h { get; set; } // 0x00000000
-        public uint Unknown_18h { get; set; } = 1; // 0x00000001
+        public uint RefCount { get; set; } = 1; // pgDictionary m_RefCount
         public uint Unknown_1Ch { get; set; } // 0x00000000
         public ResourceSimpleList64_uint TextureNameHashes { get; set; }
         public ResourcePointerList64<Texture> Textures { get; set; }
@@ -56,7 +56,7 @@ namespace CodeWalker.GameFiles
             // read structure data
             this.Unknown_10h = reader.ReadUInt32();
             this.Unknown_14h = reader.ReadUInt32();
-            this.Unknown_18h = reader.ReadUInt32();
+            this.RefCount = reader.ReadUInt32();
             this.Unknown_1Ch = reader.ReadUInt32();
             this.TextureNameHashes = reader.ReadBlock<ResourceSimpleList64_uint>();
             this.Textures = reader.ReadBlock<ResourcePointerList64<Texture>>();
@@ -71,7 +71,7 @@ namespace CodeWalker.GameFiles
             // write structure data
             writer.Write(this.Unknown_10h);
             writer.Write(this.Unknown_14h);
-            writer.Write(this.Unknown_18h);
+            writer.Write(this.RefCount);
             writer.Write(this.Unknown_1Ch);
             writer.WriteBlock(this.TextureNameHashes);
             writer.WriteBlock(this.Textures);
@@ -215,7 +215,7 @@ namespace CodeWalker.GameFiles
         public uint Unknown_20h { get; set; } // 0x00000000
         public uint Unknown_24h { get; set; } // 0x00000000
         public ulong NamePointer { get; set; }
-        public ushort Unknown_30h { get; set; } = 1;
+        public ushort RefCount { get; set; } = 1; // grcTexture m_RefCount
         public ushort Unknown_32h { get; set; }
         public uint Unknown_34h { get; set; } // 0x00000000
         public uint Unknown_38h { get; set; } // 0x00000000
@@ -223,7 +223,7 @@ namespace CodeWalker.GameFiles
         public uint UsageData { get; set; }
         public uint Unknown_44h { get; set; } // 0x00000000
         public uint ExtraFlags { get; set; } // 0, 1
-        public uint Unknown_4Ch { get; set; } // 0x00000000
+        public uint ExtraFlagsPadding { get; set; } // grcTexturePC m_ExtraFlagsPadding (64-bit pad)
 
         //Texture subclass structure data - moved here for gen9 compatibility
         public ushort Width { get; set; }
@@ -231,9 +231,10 @@ namespace CodeWalker.GameFiles
         public ushort Depth { get; set; } = 1;  //is depth > 1 supported?
         public ushort Stride { get; set; }
         public TextureFormat Format { get; set; }
-        public byte Unknown_5Ch { get; set; } // 0x00
+        public byte ImageType { get; set; } // grcTexturePC m_ImageType
         public byte Levels { get; set; }
-        public ushort Unknown_5Eh { get; set; } // 0x0000
+        public byte CutMipLevels { get; set; } // grcTexturePC m_CutMipLevels
+        public byte IsSRGB { get; set; } // grcTexturePC m_IsSRGB / InfoBits
         public uint Unknown_60h { get; set; } // 0x00000000
         public uint Unknown_64h { get; set; } // 0x00000000
         public uint Unknown_68h { get; set; } // 0x00000000
@@ -462,7 +463,7 @@ namespace CodeWalker.GameFiles
                 this.Unknown_20h = reader.ReadUInt32();
                 this.Unknown_24h = reader.ReadUInt32();
                 this.NamePointer = reader.ReadUInt64();
-                this.Unknown_30h = reader.ReadUInt16();
+                this.RefCount = reader.ReadUInt16();
                 this.Unknown_32h = reader.ReadUInt16();
                 this.Unknown_34h = reader.ReadUInt32();
                 this.Unknown_38h = reader.ReadUInt32();
@@ -470,7 +471,7 @@ namespace CodeWalker.GameFiles
                 this.UsageData = reader.ReadUInt32();
                 this.Unknown_44h = reader.ReadUInt32();
                 this.ExtraFlags = reader.ReadUInt32();
-                this.Unknown_4Ch = reader.ReadUInt32();
+                this.ExtraFlagsPadding = reader.ReadUInt32();
 
 
 
@@ -627,7 +628,7 @@ namespace CodeWalker.GameFiles
                 writer.Write(this.Unknown_20h);
                 writer.Write(this.Unknown_24h);
                 writer.Write(this.NamePointer);
-                writer.Write(this.Unknown_30h);
+                writer.Write(this.RefCount);
                 writer.Write(this.Unknown_32h);
                 writer.Write(this.Unknown_34h);
                 writer.Write(this.Unknown_38h);
@@ -635,7 +636,7 @@ namespace CodeWalker.GameFiles
                 writer.Write(this.UsageData);
                 writer.Write(this.Unknown_44h);
                 writer.Write(this.ExtraFlags);
-                writer.Write(this.Unknown_4Ch);
+                writer.Write(this.ExtraFlagsPadding);
             }
         }
         public virtual void WriteXml(StringBuilder sb, int indent, string ddsfolder)
@@ -935,9 +936,10 @@ namespace CodeWalker.GameFiles
                 this.Depth = reader.ReadUInt16();
                 this.Stride = reader.ReadUInt16();
                 this.Format = (TextureFormat)reader.ReadUInt32();
-                this.Unknown_5Ch = reader.ReadByte();
+                this.ImageType = reader.ReadByte();
                 this.Levels = reader.ReadByte();
-                this.Unknown_5Eh = reader.ReadUInt16();
+                this.CutMipLevels = reader.ReadByte();
+                this.IsSRGB = reader.ReadByte();
                 this.Unknown_60h = reader.ReadUInt32();
                 this.Unknown_64h = reader.ReadUInt32();
                 this.Unknown_68h = reader.ReadUInt32();
@@ -975,9 +977,10 @@ namespace CodeWalker.GameFiles
                 writer.Write(this.Depth);
                 writer.Write(this.Stride);
                 writer.Write((uint)this.Format);
-                writer.Write(this.Unknown_5Ch);
+                writer.Write(this.ImageType);
                 writer.Write(this.Levels);
-                writer.Write(this.Unknown_5Eh);
+                writer.Write(this.CutMipLevels);
+                writer.Write(this.IsSRGB);
                 writer.Write(this.Unknown_60h);
                 writer.Write(this.Unknown_64h);
                 writer.Write(this.Unknown_68h);
