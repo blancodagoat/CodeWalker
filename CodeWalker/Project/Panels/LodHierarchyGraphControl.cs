@@ -55,6 +55,12 @@ namespace CodeWalker.Project.Panels
         private bool BoxSelecting = false;
         private PointF BoxStart; //graph space
         private PointF BoxEnd;
+        private GraphNode LinkDragNode = null; //node a link is being dragged from
+        private bool LinkDragFromTop = false;  //true = dragging the node's parent end, false = dragging its children end
+        private PointF LinkDragPos;            //graph space position of the dangling link end
+        private GraphNode LinkDropTarget = null;
+
+        private const float SocketRadius = 6.0f;
 
         private Font NodeFont;
         private Font NodeBoldFont;
@@ -62,8 +68,11 @@ namespace CodeWalker.Project.Panels
 
         public bool UserNavigated { get; private set; } = false; //true once the user has panned/zoomed manually
 
+        public delegate void LinkEventHandler(YmapEntityDef child, YmapEntityDef parent);
+
         public event EventHandler SelectionChanged;
         public event EventHandler EntityActivated;
+        public event LinkEventHandler LinkRequested; //parent == null means an unlink (orphan) request
 
         public YmapEntityDef SelectedEntity
         {
@@ -140,8 +149,20 @@ namespace CodeWalker.Project.Panels
         }
 
 
-        public void SetData(List<YmapFile> ymaps, HashSet<YmapEntityDef> entities, Dictionary<YmapEntityDef, List<YmapEntityDef>> childMap, YmapEntityDef[] selEntities, bool fitView = true)
+        public void SetData(List<YmapFile> ymaps, HashSet<YmapEntityDef> entities, Dictionary<YmapEntityDef, List<YmapEntityDef>> childMap, YmapEntityDef[] selEntities, bool fitView = true, bool preservePositions = false)
         {
+            //when preserving (eg. after link edits), nodes that already exist keep their current
+            //positions, so editing a link doesn't shuffle the layout under the user.
+            Dictionary<YmapEntityDef, PointF> oldpositions = null;
+            if (preservePositions && (NodeLookup.Count > 0))
+            {
+                oldpositions = new Dictionary<YmapEntityDef, PointF>(NodeLookup.Count);
+                foreach (var kvp in NodeLookup)
+                {
+                    oldpositions[kvp.Key] = new PointF(kvp.Value.X, kvp.Value.Y);
+                }
+            }
+
             Nodes.Clear();
             NodeLookup.Clear();
             SelectedNode = null;
@@ -176,6 +197,18 @@ namespace CodeWalker.Project.Panels
                 }
 
                 LayoutNodes();
+
+                if (oldpositions != null)
+                {
+                    foreach (var node in Nodes)
+                    {
+                        if (oldpositions.TryGetValue(node.Entity, out var pos))
+                        {
+                            node.X = pos.X;
+                            node.Y = pos.Y;
+                        }
+                    }
+                }
             }
 
             if (selEntities != null)
@@ -417,6 +450,36 @@ namespace CodeWalker.Project.Panels
             return null;
         }
 
+        private static PointF TopSocket(GraphNode n)
+        {
+            return new PointF(n.X, n.Y);
+        }
+        private static PointF BottomSocket(GraphNode n)
+        {
+            return new PointF(n.X, n.Y + NodeHeight);
+        }
+
+        private GraphNode HitTestSocket(Point p, out bool top)
+        {
+            var gp = ScreenToGraph(p);
+            float r = Math.Max(SocketRadius * 1.5f, 8.0f / Zoom); //keep sockets grabbable when zoomed out
+            float r2 = r * r;
+            for (int i = Nodes.Count - 1; i >= 0; i--)
+            {
+                var n = Nodes[i];
+                var ts = TopSocket(n);
+                float dx = gp.X - ts.X;
+                float dy = gp.Y - ts.Y;
+                if ((dx * dx + dy * dy) <= r2) { top = true; return n; }
+                var bs = BottomSocket(n);
+                dx = gp.X - bs.X;
+                dy = gp.Y - bs.Y;
+                if ((dx * dx + dy * dy) <= r2) { top = false; return n; }
+            }
+            top = false;
+            return null;
+        }
+
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -477,6 +540,40 @@ namespace CodeWalker.Project.Panels
                 }
             }
 
+            //link sockets (parent end on top, children end on bottom).
+            if (detail > 0)
+            {
+                var socketbrush = GetBrush(Color.FromArgb(190, 195, 205));
+                using (var socketpen = new Pen(Color.FromArgb(60, 60, 70), 1.5f))
+                {
+                    foreach (var node in Nodes)
+                    {
+                        if (!vis.IntersectsWith(node.Bounds)) continue;
+                        var ts = TopSocket(node);
+                        var bs = BottomSocket(node);
+                        g.FillEllipse(socketbrush, ts.X - SocketRadius, ts.Y - SocketRadius, SocketRadius * 2, SocketRadius * 2);
+                        g.DrawEllipse(socketpen, ts.X - SocketRadius, ts.Y - SocketRadius, SocketRadius * 2, SocketRadius * 2);
+                        g.FillEllipse(socketbrush, bs.X - SocketRadius, bs.Y - SocketRadius, SocketRadius * 2, SocketRadius * 2);
+                        g.DrawEllipse(socketpen, bs.X - SocketRadius, bs.Y - SocketRadius, SocketRadius * 2, SocketRadius * 2);
+                    }
+                }
+            }
+
+            //dangling link while connecting/disconnecting.
+            if ((LinkDragNode != null) && MouseMoved)
+            {
+                var p0 = LinkDragFromTop ? TopSocket(LinkDragNode) : BottomSocket(LinkDragNode);
+                var p3 = LinkDragPos;
+                float dy = Math.Max(Math.Abs(p3.Y - p0.Y) * 0.5f, 30.0f);
+                var p1 = new PointF(p0.X, p0.Y + (LinkDragFromTop ? -dy : dy));
+                var p2 = new PointF(p3.X, p3.Y + (LinkDragFromTop ? dy : -dy));
+                using (var linkpen = new Pen(Color.FromArgb(230, 255, 220, 100), 2.5f / Zoom))
+                {
+                    linkpen.DashStyle = DashStyle.Dash;
+                    g.DrawBezier(linkpen, p0, p1, p2, p3);
+                }
+            }
+
             //box selection rubber band.
             if (BoxSelecting && MouseMoved)
             {
@@ -502,14 +599,15 @@ namespace CodeWalker.Project.Panels
 
             bool selected = SelectedNodes.Contains(node);
             bool marked = (node == MarkedNode);
+            bool droptarget = (node == LinkDropTarget);
 
             if (detail == 0)
             {
                 //zoomed way out: plain rectangles, borders only for highlights/warnings.
                 g.FillRectangle(GetBrush(node.FillColor), b.X, b.Y, b.Width, b.Height);
-                if (selected || marked || (node.WarningText != null))
+                if (droptarget || selected || marked || (node.WarningText != null))
                 {
-                    var bordercol = selected ? Color.White : (marked ? Color.Cyan : Color.FromArgb(230, 150, 60));
+                    var bordercol = droptarget ? Color.FromArgb(255, 220, 100) : (selected ? Color.White : (marked ? Color.Cyan : Color.FromArgb(230, 150, 60)));
                     using (var border = new Pen(bordercol, 3.0f / Zoom))
                     {
                         g.DrawRectangle(border, b.X, b.Y, b.Width, b.Height);
@@ -524,12 +622,13 @@ namespace CodeWalker.Project.Panels
 
                 Color bordercol = Color.FromArgb(90, 90, 100);
                 float borderw = 1.5f;
-                if (selected) { bordercol = Color.White; borderw = 3.0f; }
+                if (droptarget) { bordercol = Color.FromArgb(255, 220, 100); borderw = 3.5f; }
+                else if (selected) { bordercol = Color.White; borderw = 3.0f; }
                 else if (marked) { bordercol = Color.Cyan; borderw = 2.5f; }
                 else if (node.WarningText != null) { bordercol = Color.FromArgb(230, 150, 60); borderw = 2.0f; }
                 using (var border = new Pen(bordercol, borderw))
                 {
-                    if (marked && !selected) border.DashStyle = DashStyle.Dash;
+                    if (marked && !selected && !droptarget) border.DashStyle = DashStyle.Dash;
                     g.DrawPath(border, path);
                 }
             }
@@ -585,6 +684,17 @@ namespace CodeWalker.Project.Panels
 
             if (e.Button == MouseButtons.Left)
             {
+                var socketnode = HitTestSocket(e.Location, out var sockettop);
+                if (socketnode != null) //start dragging a link from this socket
+                {
+                    LinkDragNode = socketnode;
+                    LinkDragFromTop = sockettop;
+                    LinkDragPos = ScreenToGraph(e.Location);
+                    LinkDropTarget = null;
+                    base.OnMouseDown(e);
+                    return;
+                }
+
                 var node = HitTest(e.Location);
                 bool ctrl = (ModifierKeys & Keys.Control) != 0;
                 if (node != null)
@@ -671,17 +781,64 @@ namespace CodeWalker.Project.Panels
                 MouseMoved = true;
                 Invalidate();
             }
+            else if (LinkDragNode != null)
+            {
+                LinkDragPos = ScreenToGraph(e.Location);
+                var target = HitTestSocket(e.Location, out _) ?? HitTest(e.Location);
+                LinkDropTarget = (target != LinkDragNode) ? target : null;
+                MouseMoved = true;
+                Invalidate();
+            }
             else if (BoxSelecting)
             {
                 BoxEnd = ScreenToGraph(e.Location);
                 MouseMoved = true;
                 Invalidate();
             }
+            else
+            {
+                //cursor feedback over link sockets.
+                Cursor = (HitTestSocket(e.Location, out _) != null) ? Cursors.Cross : Cursors.Default;
+            }
             base.OnMouseMove(e);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
+            if ((LinkDragNode != null) && (e.Button == MouseButtons.Left))
+            {
+                var dragnode = LinkDragNode;
+                var target = LinkDropTarget;
+                LinkDragNode = null;
+                LinkDropTarget = null;
+                Invalidate();
+                if (MouseMoved)
+                {
+                    if (LinkDragFromTop) //dragging this node's parent end
+                    {
+                        if ((target != null) && (target != dragnode))
+                        {
+                            LinkRequested?.Invoke(dragnode.Entity, target.Entity); //connect: target becomes the parent
+                        }
+                        else if ((target == null) && (dragnode.Entity.Parent != null))
+                        {
+                            LinkRequested?.Invoke(dragnode.Entity, null); //dropped in space: disconnect from parent
+                        }
+                    }
+                    else //dragging this node's children end
+                    {
+                        if ((target != null) && (target != dragnode))
+                        {
+                            LinkRequested?.Invoke(target.Entity, dragnode.Entity); //connect: target becomes a child
+                        }
+                    }
+                }
+                Panning = false;
+                DragNode = null;
+                base.OnMouseUp(e);
+                return;
+            }
+
             if (BoxSelecting && (e.Button == MouseButtons.Left))
             {
                 BoxSelecting = false;

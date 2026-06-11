@@ -86,6 +86,7 @@ namespace CodeWalker.Project.Panels
             this.GraphView.TabIndex = 0;
             this.GraphView.SelectionChanged += new System.EventHandler(this.GraphView_SelectionChanged);
             this.GraphView.EntityActivated += new System.EventHandler(this.GraphView_EntityActivated);
+            this.GraphView.LinkRequested += new CodeWalker.Project.Panels.LodHierarchyGraphControl.LinkEventHandler(this.GraphView_LinkRequested);
             //
             // DetailsTextBox
             //
@@ -221,9 +222,10 @@ namespace CodeWalker.Project.Panels
             this.HelpLabel.TabIndex = 11;
             this.HelpLabel.Text = "Click selects (Ctrl+click toggles), left-drag empty space box-selects, double-cl" +
     "ick opens the entity editor. Wheel zooms, right-drag pans, drag nodes to move th" +
-    "em.\r\n\r\nOrange node borders mark numChildren or parentIndex values that don\'t m" +
-    "atch the actual hierarchy - use Recalc to fix counts. Dashed links are cross-ym" +
-    "ap LOD chains.";
+    "em.\r\n\r\nDrag from a node\'s sockets to link: top socket onto a parent connects, " +
+    "bottom socket onto a child adopts it, drop a top-socket drag in empty space to " +
+    "unlink.\r\n\r\nOrange borders mark numChildren / parentIndex mismatches - use Reca" +
+    "lc to fix counts. Dashed links are cross-ymap LOD chains.";
             //
             // EditYmapLodHierarchyPanel
             //

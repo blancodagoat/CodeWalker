@@ -37,7 +37,7 @@ namespace CodeWalker.Project.Panels
             UpdateFormTitle();
             if (ymapchanged) GraphView.ResetNavigation(); //allow auto-fit again for the new hierarchy
             BeginAddHierarchyToProject();
-            RefreshHierarchy();
+            RefreshHierarchy(!ymapchanged); //keep node positions when re-showing the same hierarchy
         }
 
 
@@ -126,7 +126,7 @@ namespace CodeWalker.Project.Panels
                 {
                     LastAutoRefreshTime = now;
                     AutoRefreshPending = false;
-                    RefreshHierarchy();
+                    RefreshHierarchy(false); //fresh layout while the hierarchy is still streaming in
                 }
                 else
                 {
@@ -136,7 +136,7 @@ namespace CodeWalker.Project.Panels
             else if (!keepPolling && AutoRefreshPending)
             {
                 AutoRefreshPending = false;
-                RefreshHierarchy();
+                RefreshHierarchy(false);
             }
 
             if (keepPolling)
@@ -166,7 +166,7 @@ namespace CodeWalker.Project.Panels
         }
 
 
-        public void RefreshHierarchy()
+        public void RefreshHierarchy(bool preservePositions = true)
         {
             var selents = GraphView.SelectedEntities;
 
@@ -178,7 +178,7 @@ namespace CodeWalker.Project.Panels
             });
 
             //keep the user's pan/zoom once they've started navigating; auto-fit otherwise.
-            GraphView.SetData(CurrentYmaps, CurrentEntities, ChildMap, selents, !GraphView.UserNavigated);
+            GraphView.SetData(CurrentYmaps, CurrentEntities, ChildMap, selents, !GraphView.UserNavigated, preservePositions);
 
             if ((MarkedParent != null) && !CurrentEntities.Contains(MarkedParent))
             {
@@ -509,10 +509,15 @@ namespace CodeWalker.Project.Panels
 
         private void UnlinkSelectedEntity()
         {
+            UnlinkEntities(GraphView.SelectedEntities);
+        }
+
+        private void UnlinkEntities(YmapEntityDef[] candidates)
+        {
             var ents = new List<YmapEntityDef>();
-            foreach (var e in GraphView.SelectedEntities)
+            foreach (var e in candidates)
             {
-                if (e.Parent != null) ents.Add(e);
+                if (e?.Parent != null) ents.Add(e);
             }
             if (ents.Count == 0) return;
 
@@ -547,14 +552,18 @@ namespace CodeWalker.Project.Panels
 
         private void SetParentOfSelectedEntity()
         {
-            var newp = MarkedParent;
+            SetParentForEntities(GraphView.SelectedEntities, MarkedParent);
+        }
+
+        private void SetParentForEntities(YmapEntityDef[] candidates, YmapEntityDef newp)
+        {
             if (newp == null) return;
 
-            //candidates: selected entities that aren't the marked parent and aren't already its children,
+            //candidates: entities that aren't the new parent and aren't already its children,
             //excluding any that would create a cycle (the new parent being their own LOD descendant).
             var targets = new List<YmapEntityDef>();
             int cycleskips = 0;
-            foreach (var ent in GraphView.SelectedEntities)
+            foreach (var ent in candidates)
             {
                 if ((ent == null) || (ent == newp) || (ent.Parent == newp)) continue;
                 bool cycle = false;
@@ -732,9 +741,22 @@ namespace CodeWalker.Project.Panels
             ProjectForm?.ShowProjectItem(ent, true);
         }
 
+        private void GraphView_LinkRequested(YmapEntityDef child, YmapEntityDef parent)
+        {
+            if (child == null) return;
+            if (parent == null)
+            {
+                UnlinkEntities(new[] { child });
+            }
+            else
+            {
+                SetParentForEntities(new[] { child }, parent);
+            }
+        }
+
         private void RefreshButton_Click(object sender, EventArgs e)
         {
-            RefreshHierarchy();
+            RefreshHierarchy(false); //explicit refresh re-runs the layout
         }
 
         private void FitViewButton_Click(object sender, EventArgs e)
