@@ -621,7 +621,7 @@ namespace CodeWalker
             dGeom.IndicesCount = (uint)iList.Count;
             dGeom.TrianglesCount = (uint)iList.Count / 3;
             dGeom.VerticesCount = (ushort)vList.Count;
-            dGeom.Unknown_62h = 3; //indices per triangle..?
+            dGeom.IndicesPerPrimitive = 3; //indices per triangle..?
             dGeom.VertexStride = vStride;
             dGeom.BoneIdsCount = 0;//todo: bones
 
