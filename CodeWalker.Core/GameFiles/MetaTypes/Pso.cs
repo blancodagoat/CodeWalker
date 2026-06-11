@@ -946,10 +946,17 @@ namespace CodeWalker.GameFiles
     {
         public int Ident { get; private set; } = 0x53545245;
         public int Length { get; set; }
-        public byte[] Data { get; set; }
+        public byte[] Data { get; set; }            //the raw (AES encrypted) section bytes
+        public byte[] DecryptedData { get; set; }   //the decrypted blob
+        public string[] Strings { get; set; }       //the decrypted debug strings
 
-        //public byte[] Decr1 { get; set; }
-        //public byte[] Decr2 { get; set; }
+        public static readonly byte[] StringKey = new byte[32]
+        {
+            0xa6, 0xda, 0xa3, 0xa1, 0xad, 0xf1, 0x7d, 0x06,
+            0x5a, 0xcf, 0xd3, 0xf4, 0xfe, 0xb7, 0x58, 0x2f,
+            0xd9, 0xd4, 0xda, 0x81, 0xee, 0x9a, 0x70, 0xc1,
+            0xda, 0x95, 0x14, 0x64, 0x33, 0x03, 0x66, 0xa9
+        };
 
         public void Read(DataReader reader)
         {
@@ -960,24 +967,53 @@ namespace CodeWalker.GameFiles
             {
                 Data = reader.ReadBytes(Length - 8);
 
-                //Decr1 = GTACrypto.DecryptAES(Data);
-                //Decr2 = GTACrypto.DecryptNG(Data, )
+                DecryptedData = GTACrypto.DecryptAESData(Data, StringKey);
 
-                //TODO: someone plz figure out that encryption
+                var strs = new List<string>();
+                using (var strStream = new MemoryStream(DecryptedData))
+                {
+                    var strReader = new DataReader(strStream, Endianess.BigEndian);
+                    while (strReader.Position < strReader.Length)
+                    {
+                        strs.Add(strReader.ReadString());
+                    }
+                }
+                foreach (var str in strs)
+                {
+                    if (string.IsNullOrEmpty(str)) continue;
+                    JenkIndex.Ensure(str);
+                    JenkIndex.Ensure(str.ToLowerInvariant());
+                }
+                Strings = strs.ToArray();
             }
         }
 
         public void Write(DataWriter writer)
         {
+            byte[] outData = Data;
 
-            Length = (Data?.Length??0) + 8;
+            if (Strings != null)
+            {
+                using var strStream = new MemoryStream();
+                var strWriter = new DataWriter(strStream, Endianess.BigEndian);
+                foreach (var str in Strings)
+                {
+                    strWriter.Write(str ?? string.Empty);
+                }
+                var plain = new byte[strStream.Length];
+                strStream.Position = 0;
+                strStream.Read(plain, 0, plain.Length);
+                outData = GTACrypto.EncryptAESData(plain, StringKey);
+            }
+
+            Length = (outData?.Length ?? 0) + 8;
 
             writer.Write(Ident);
             writer.Write(Length);
 
-            if (Length > 8)
+            if ((outData != null) && (outData.Length > 0))
             {
-                writer.Write(Data);
+                writer.Write(outData);
             }
 
         }
