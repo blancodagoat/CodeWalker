@@ -1615,6 +1615,154 @@ namespace CodeWalker.Rendering
         }
 
 
+        private YmapEntityDef particleModelEntity;
+        private readonly List<KeyValuePair<float, ParticleInstance>> particleSortList = new List<KeyValuePair<float, ParticleInstance>>();
+
+        // Enqueues model-type particles (DrawType==1) into the normal drawable pipeline.
+        // Must be called BEFORE RenderQueued() so the enqueued drawables get flushed.
+        public void RenderParticleModels(ParticleEffectInst inst)
+        {
+            if (inst == null) return;
+
+            if (inst.HasModelParticles)
+            {
+                if (particleModelEntity == null) particleModelEntity = new YmapEntityDef();
+
+                foreach (var em in inst.Emitters)
+                {
+                    if (!em.Visible) continue;
+                    if ((em.DrawMode != ParticleDrawMode.Model) || (em.Drawables == null) || (em.Particles.Count == 0)) continue;
+
+                    foreach (var p in em.Particles)
+                    {
+                        if ((p.DrawableIndex < 0) || (p.DrawableIndex >= em.Drawables.Length)) continue;
+                        var pd = em.Drawables[p.DrawableIndex];
+                        var drw = pd?.Drawable;
+                        if (drw == null) continue;
+
+                        particleModelEntity.SetPosition(p.Position);
+                        particleModelEntity.SetOrientation(Quaternion.RotationYawPitchRoll(p.ModelYaw, p.ModelPitch, p.Rotation));
+                        particleModelEntity.SetScale(p.ModelScale);
+
+                        RenderDrawable(drw, null, particleModelEntity);
+                    }
+                }
+            }
+
+            // recurse into EffectSpawner child effects
+            foreach (var ch in inst.ChildEffects) RenderParticleModels(ch);
+        }
+
+        // Diagnostic counters for the particle preview (populated by RenderParticleEffect each frame).
+        public string ParticleRenderStats;
+
+        // Preview-only scale for big additive "glow" light sprites (em.IsGlow). They're meant to glow over a lit
+        // scene; on the editor's black backdrop they show as a frame-filling disc. 1 = full, 0 = hidden.
+        public float ParticleGlowScale = 1.0f;
+
+        // Renders sprite-type particles (camera-facing billboards). Call AFTER RenderQueued().
+        public void RenderParticleEffect(ParticleEffectInst inst)
+        {
+            if (inst == null) return;
+            var ps = shaders.Particles;
+            if (ps == null) { ParticleRenderStats = "no particle shader"; return; }
+
+            int stEmitters = 0, stSprite = 0, stTexNull = 0, stTexUnloaded = 0, stDrawn = 0;
+
+            bool shaderSet = false;
+            foreach (var em in inst.Emitters)
+            {
+                stEmitters++;
+                if (!em.Visible) continue;
+                if (em.DrawMode != ParticleDrawMode.Sprite) continue;
+                stSprite++;
+                if (em.Particles.Count == 0) continue;
+                if (em.SpriteTexture == null) { stTexNull++; continue; }
+
+                var rt = renderableCache.GetRenderableTexture(em.SpriteTexture);
+                if ((rt == null) || (!rt.IsLoaded) || (rt.ShaderResourceView == null)) { stTexUnloaded++; continue; }
+                stDrawn++;
+
+                if (!shaderSet)
+                {
+                    ps.SetShader(context);
+                    ps.SetSceneVars(context, camera, null, globalLights);
+                    shaders.SetRasterizerMode(context, RasterizerMode.SolidDblSided);
+                    shaders.SetDepthStencilMode(context, DepthStencilMode.DisableWrite);
+                    shaderSet = true;
+                }
+
+                switch (em.BlendMode)
+                {
+                    // Pure additive: with HDR on, the contribution accumulates in the float scene buffer past 1.0
+                    // and the PostProcessor's bloom + tonemap compress it - bright saturated core without a hard
+                    // white-disc clip. (The old screen-blend hack was only needed in the no-HDR path.)
+                    case ParticleBlendMode.Additive: shaders.SetAddBlendState(context); break;
+                    case ParticleBlendMode.Composite: shaders.SetCompositeBlendState(context); break;
+                    default: shaders.SetDefaultBlendState(context); break;
+                }
+
+                ps.Instances.Clear();
+
+                if (em.BlendMode == ParticleBlendMode.Additive)
+                {
+                    // order-independent: no sort needed. Glow light-sprites are scaled (preview backdrop is black,
+                    // so they'd otherwise read as a frame-filling disc instead of glowing over a lit scene).
+                    float glow = em.IsGlow ? ParticleGlowScale : 1.0f;
+                    foreach (var p in em.Particles)
+                    {
+                        var pi = ToInstance(p);
+                        if (glow != 1.0f) pi.Colour = new Vector4(pi.Colour.X * glow, pi.Colour.Y * glow, pi.Colour.Z * glow, pi.Colour.W * glow);
+                        if (!ps.Instances.Add(pi)) break;
+                    }
+                }
+                else
+                {
+                    // alpha/composite: sort back-to-front for correct blending
+                    particleSortList.Clear();
+                    var campos = camera.Position;
+                    foreach (var p in em.Particles)
+                    {
+                        float d = (p.Position - campos).LengthSquared();
+                        particleSortList.Add(new KeyValuePair<float, ParticleInstance>(d, ToInstance(p)));
+                    }
+                    particleSortList.Sort((a, b) => b.Key.CompareTo(a.Key));
+                    foreach (var kvp in particleSortList)
+                    {
+                        if (!ps.Instances.Add(kvp.Value)) break;
+                    }
+                }
+
+                ps.RenderBatch(context, rt.ShaderResourceView);
+            }
+
+            if (shaderSet)
+            {
+                ps.UnbindResources(context);
+                shaders.SetDefaultBlendState(context);
+                shaders.SetDepthStencilMode(context, DepthStencilMode.Enabled);
+                shaders.SetRasterizerMode(context, RasterizerMode.Solid);
+            }
+
+            ParticleRenderStats = $"em:{stEmitters} sprite:{stSprite} texNull:{stTexNull} texUnloaded:{stTexUnloaded} drawn:{stDrawn}";
+
+            // recurse into EffectSpawner child effects (each re-sets its own shader/blend state)
+            foreach (var ch in inst.ChildEffects) RenderParticleEffect(ch);
+        }
+
+        private static ParticleInstance ToInstance(Particle p)
+        {
+            return new ParticleInstance()
+            {
+                Position = p.Position,
+                Rotation = p.Rotation,
+                Size = p.Size,
+                UVRect = p.UVRect,
+                Colour = p.Colour,
+            };
+        }
+
+
 
 
 

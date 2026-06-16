@@ -1,0 +1,53 @@
+<UserControl x:Class="CodeWalker.ParticleEditorWpf.Controls.KeyframeEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#FF1E1E1E">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="180"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- left: track list -->
+        <DockPanel Grid.Column="0" Background="#FF252526">
+            <TextBlock DockPanel.Dock="Top" Text="  Keyframe Tracks" Background="#FF333337"
+                       Foreground="#FFE0E0E0" Padding="2" FontWeight="Bold"/>
+            <ListBox x:Name="TrackList" Background="#FF1E1E1E" Foreground="#FFE0E0E0"
+                     BorderThickness="0" SelectionChanged="TrackList_SelectionChanged">
+                <ListBox.Resources>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF094771"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FF3F3F46"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White"/>
+                </ListBox.Resources>
+            </ListBox>
+        </DockPanel>
+
+        <!-- right: channel toolbar + graph -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#FF252526" BorderBrush="#FF3F3F46" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="ChannelLabel" Text="Channels:" Foreground="#FFB0B0B0"
+                               VerticalAlignment="Center" Margin="8,0,4,0"/>
+                    <StackPanel x:Name="ChannelBar" Orientation="Horizontal" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HintLabel" Foreground="#FF808080" VerticalAlignment="Center" Margin="16,0"
+                               Text="drag points · double-click to add · right-click to remove"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" ClipToBounds="True">
+                <Canvas x:Name="GraphCanvas" Background="#FF181818"
+                        MouseLeftButtonDown="GraphCanvas_MouseLeftButtonDown"
+                        MouseMove="GraphCanvas_MouseMove"
+                        MouseLeftButtonUp="GraphCanvas_MouseLeftButtonUp"
+                        MouseRightButtonDown="GraphCanvas_MouseRightButtonDown"
+                        SizeChanged="GraphCanvas_SizeChanged"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

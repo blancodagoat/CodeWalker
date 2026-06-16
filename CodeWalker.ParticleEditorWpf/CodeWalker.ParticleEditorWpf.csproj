@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>CWParticle.ico</ApplicationIcon>
+    <Copyright>dexyfex</Copyright>
+    <Company>dexyfex software</Company>
+    <Authors>dexyfex</Authors>
+    <AssemblyName>CodeWalker Particle Editor</AssemblyName>
+    <RootNamespace>CodeWalker.ParticleEditorWpf</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeWalker\CodeWalker.csproj" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <BuildOutputFiles Include="$(OutDir)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BuildOutputFiles)" DestinationFolder="$(ProjectDir)..\x64\$(Configuration)\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Text="Copied build output to x64\$(Configuration)" Importance="high" />
+  </Target>
+
+</Project>

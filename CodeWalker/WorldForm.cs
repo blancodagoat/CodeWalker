@@ -7321,6 +7321,9 @@ namespace CodeWalker
 
 
 
+        private volatile string pendingStatusText;
+        private int statusUpdatePending; //0 = no marshal in flight, 1 = one queued
+
         private void UpdateStatus(string text)
         {
             try
@@ -7328,7 +7331,20 @@ namespace CodeWalker
                 if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
-                    BeginInvoke(new Action(() => { UpdateStatus(text); }));
+                    //Coalesce status updates: during loading this is called per-entry from worker
+                    //threads (hundreds of thousands of times). Queuing a BeginInvoke for each one
+                    //floods the UI message pump. Instead keep at most one marshal in flight and let
+                    //it pick up the most recent text, so we never drop the final value.
+                    pendingStatusText = text;
+                    if (Interlocked.Exchange(ref statusUpdatePending, 1) == 0)
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            Interlocked.Exchange(ref statusUpdatePending, 0);
+                            if (IsDisposed) return;
+                            StatusLabel.Text = pendingStatusText;
+                        }));
+                    }
                 }
                 else
                 {

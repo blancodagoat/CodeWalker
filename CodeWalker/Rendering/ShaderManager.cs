@@ -28,6 +28,8 @@ namespace CodeWalker.Rendering
         BlendState bsDefault;
         BlendState bsAlpha;
         BlendState bsAdd;
+        BlendState bsParticleComposite;
+        BlendState bsParticleScreen;
         DepthStencilState dsEnabled;
         DepthStencilState dsDisableAll;
         DepthStencilState dsDisableComp;
@@ -54,6 +56,7 @@ namespace CodeWalker.Rendering
         public PathShader Paths { get; set; }
         public WidgetShader Widgets { get; set; }
         public OutlineShader Outline { get; set; }
+        public ParticleShader Particles { get; set; }
 
         public bool shadows = Settings.Default.Shadows;
         public Shadowmap Shadowmap { get; set; }
@@ -65,6 +68,15 @@ namespace CodeWalker.Rendering
         public bool deferred = Settings.Default.Deferred;
         public bool hdr = Settings.Default.HDR;
         public float hdrLumBlendSpeed = 2.0f;
+        // When set, overrides the HDR Primary clear colour (the scene backdrop). The particle preview uses a
+        // near-black backdrop so the fire reads sharp/high-contrast under HDR instead of washing over a bright sky.
+        public Color4? HdrClearColour = null;
+        // Per-view HDR bloom toggle. The particle preview turns this OFF: bloom is a 1/8-res wide gaussian tuned
+        // for full scenes, and on one bright fire over black it spreads a frame-filling orange halo (the "glow").
+        public bool hdrBloom = true;
+        // When set, pins HDR exposure (bypasses auto-exposure) to MIDDLE_GRAY/value. The preview pins it so a
+        // bright fire on a dark backdrop doesn't crank exposure and blow out. ~0.72 = 1x exposure.
+        public float? HdrFixedLuminance = null;
         int Width;
         int Height;
 
@@ -142,6 +154,7 @@ namespace CodeWalker.Rendering
             Paths = new PathShader(device);
             Widgets = new WidgetShader(device);
             Outline = new OutlineShader(device);
+            Particles = new ParticleShader(device);
 
 
             RasterizerStateDescription rsd = new RasterizerStateDescription()
@@ -190,6 +203,19 @@ namespace CodeWalker.Rendering
             bsd.AlphaToCoverageEnable = false;
             bsd.RenderTarget[0].DestinationBlend = BlendOption.One;
             bsAdd = new BlendState(device, bsd);
+
+            //composite/premultiplied alpha: dest*(1-srcAlpha) + src  (rage grcbsCompositeAlpha)
+            bsd.RenderTarget[0].SourceBlend = BlendOption.One;
+            bsd.RenderTarget[0].DestinationBlend = BlendOption.InverseSourceAlpha;
+            bsParticleComposite = new BlendState(device, bsd);
+
+            //screen blend: src*(1-dst) + dst = 1-(1-src)(1-dst). Asymptotes to white instead of accumulating past
+            //it like pure additive, so dense fire/glow doesn't saturate to a hard white disc. With the colour
+            //premultiplied by alpha on the CPU this stays alpha-weighted, approximating the game's HDR-tonemapped
+            //additive look without an HDR/bloom pass.
+            bsd.RenderTarget[0].SourceBlend = BlendOption.InverseDestinationColor;
+            bsd.RenderTarget[0].DestinationBlend = BlendOption.One;
+            bsParticleScreen = new BlendState(device, bsd);
 
             DepthStencilStateDescription dsd = new DepthStencilStateDescription()
             {
@@ -240,6 +266,8 @@ namespace CodeWalker.Rendering
             bsDefault.Dispose();
             bsAlpha.Dispose();
             bsAdd.Dispose();
+            bsParticleComposite.Dispose();
+            bsParticleScreen.Dispose();
             rsSolid.Dispose();
             rsWireframe.Dispose();
             rsSolidDblSided.Dispose();
@@ -248,6 +276,7 @@ namespace CodeWalker.Rendering
             Outline.Dispose();
             Widgets.Dispose();
             Paths.Dispose();
+            Particles.Dispose();
             DistLights.Dispose();
             Shadow.Dispose();
             Bounds.Dispose();
@@ -355,6 +384,9 @@ namespace CodeWalker.Rendering
             }
             if (HDR != null)
             {
+                if (HdrClearColour.HasValue) HDR.ClearColour = HdrClearColour.Value;
+                HDR.EnableBloom = hdrBloom;
+                HDR.FixedAvgLuminance = HdrFixedLuminance;
                 HDR.Clear(context);
                 HDR.ClearDepth(context);
             }
@@ -1079,6 +1111,18 @@ namespace CodeWalker.Rendering
         public void SetAlphaBlendState(DeviceContext context)
         {
             context.OutputMerger.BlendState = bsAlpha;
+        }
+        public void SetAddBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsAdd;
+        }
+        public void SetCompositeBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsParticleComposite;
+        }
+        public void SetScreenBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsParticleScreen;
         }
 
         public void OnWindowResize(int w, int h)

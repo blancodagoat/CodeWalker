@@ -327,7 +327,10 @@ namespace CodeWalker.Rendering
                     Thread.Sleep(10); //don't hog CPU when minimised
                     if (dxform.Form.IsDisposed) return; //if closed while minimised
                 }
-                if (Form.ActiveForm == null)
+                //throttle FPS when the app isn't active - but only for top-level forms. A hosted viewport
+                //(TopLevel==false, e.g. embedded in a WPF window via WindowsFormsHost) never owns Form.ActiveForm,
+                //so this would otherwise sleep every frame and peg the preview at ~10 FPS.
+                if (dxform.Form.TopLevel && (Form.ActiveForm == null))
                 {
                     Thread.Sleep(100); //reduce the FPS when the app isn't active (maybe this should be configurable?)
                     if (context.IsDisposed) return; //if form closed while sleeping (eg from rightclick on taskbar)
