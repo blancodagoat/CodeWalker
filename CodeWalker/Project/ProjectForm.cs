@@ -2097,11 +2097,92 @@ namespace CodeWalker.Project
             if (autoymapflags)
             {
                 CurrentYmapFile.CalcFlags();
+                AutoCalcCarGenAlignment();
             }
             var panel = FindPanel((EditYmapPanel p) => p.Tag == CurrentYmapFile);
             if (panel != null)
             {
                 panel.SetYmap(CurrentYmapFile);
+            }
+        }
+
+        // Auto-derive cargen CARGEN_ALIGN_LEFT(128)/CARGEN_ALIGN_RIGHT(256) flags from nearby road path nodes.
+        // The game shifts the spawned car toward whichever side these flags pick (cargen.cpp BuildCreationMatrix),
+        // so we pick the side that pushes the car AWAY from the road centreline (toward the curb).
+        // ponytail: O(cargens * nodes) scan, fine at save-time; only runs when ynd nodes are loaded near the cargen.
+        private void AutoCalcCarGenAlignment()
+        {
+            const uint ALIGN_LEFT = 128, ALIGN_RIGHT = 256;
+            const float MaxRoadDist = 30.0f;   // cargen must be within this of a road link to align
+            const float MinSideOffset = 1.0f;  // must sit at least this far off the centreline
+            const float MinSideCos = 0.34f;    // offset must be ~across the road (>~70deg), not along it
+
+            var cargens = CurrentYmapFile?.CarGenerators;
+            if ((cargens == null) || (cargens.Length == 0)) return;
+
+            // Gather candidate path nodes: project-loaded ynds + whatever the world has streamed into the node grid.
+            var ynds = new HashSet<YndFile>();
+            if (CurrentProjectFile?.YndFiles != null)
+            {
+                foreach (var ynd in CurrentProjectFile.YndFiles) { if (ynd != null) ynds.Add(ynd); }
+            }
+            var cells = WorldForm?.Space?.NodeGrid?.Cells;
+            if (cells != null)
+            {
+                foreach (var cell in cells) { if (cell?.Ynd != null) ynds.Add(cell.Ynd); }
+            }
+            if (ynds.Count == 0) return;
+
+            foreach (var cg in cargens)
+            {
+                var ox = cg._CCarGen.orientX;
+                var oy = cg._CCarGen.orientY;
+                var olen = (float)Math.Sqrt(ox * ox + oy * oy);
+                if (olen < 0.0001f) continue;
+                ox /= olen; oy /= olen;             // forward (vec1)
+                float rx = oy, ry = -ox;            // right axis (vec2), matches CCarGenerator::Setup
+
+                var p = cg.Position;
+                float bestDist = MaxRoadDist;
+                float bestOffX = 0, bestOffY = 0;
+                bool found = false;
+
+                foreach (var ynd in ynds)
+                {
+                    if (ynd.Nodes == null) continue;
+                    foreach (var node in ynd.Nodes)
+                    {
+                        if (node?.Links == null) continue;
+                        foreach (var link in node.Links)
+                        {
+                            var n2 = link?.Node2;
+                            if (n2 == null) continue;
+                            var a = node.Position; var b = n2.Position;
+                            float abx = b.X - a.X, aby = b.Y - a.Y;
+                            float ablen2 = abx * abx + aby * aby;
+                            if (ablen2 < 0.0001f) continue;
+                            float t = ((p.X - a.X) * abx + (p.Y - a.Y) * aby) / ablen2;
+                            t = Math.Max(0.0f, Math.Min(1.0f, t));
+                            float offX = p.X - (a.X + t * abx);
+                            float offY = p.Y - (a.Y + t * aby);
+                            float d = (float)Math.Sqrt(offX * offX + offY * offY);
+                            if (d < bestDist)
+                            {
+                                bestDist = d; bestOffX = offX; bestOffY = offY; found = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!found) continue;
+                float offLen = (float)Math.Sqrt(bestOffX * bestOffX + bestOffY * bestOffY);
+                if (offLen < MinSideOffset) continue;          // basically on the centreline, ambiguous
+                float ax = bestOffX / offLen, ay = bestOffY / offLen; // unit "away from road"
+                float dot = ax * rx + ay * ry;                  // component along the cargen's right axis
+                if (Math.Abs(dot) < MinSideCos) continue;       // offset runs along the road, not across it
+
+                cg._CCarGen.flags &= ~(ALIGN_LEFT | ALIGN_RIGHT);
+                cg._CCarGen.flags |= (dot > 0) ? ALIGN_RIGHT : ALIGN_LEFT;
             }
         }
 

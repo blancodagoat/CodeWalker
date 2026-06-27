@@ -5207,10 +5207,15 @@ namespace CodeWalker
                         }
                     }
 
-                    int gbbcount = m.BoundsData.Length;
-                    for (int j = 0; j < gbbcount; j++)
+                    // BoundsData may have a leading model-level box (boffset=1) or one box per geometry (boffset=0).
+                    // Map geometry j -> BoundsData[j + boffset]; test every geometry box independently (no early break).
+                    int geomcount = m.Geometries.Length;
+                    int boffset = (m.BoundsData.Length > geomcount) ? 1 : 0;
+                    for (int j = 0; j < geomcount; j++)
                     {
-                        var gbox = m.BoundsData[j];
+                        int bidx = j + boffset;
+                        if (bidx >= m.BoundsData.Length) break;
+                        var gbox = m.BoundsData[bidx];
                         gbbox.Minimum = gbox.Min.XYZ();
                         gbbox.Maximum = gbox.Max.XYZ();
 
@@ -5228,43 +5233,33 @@ namespace CodeWalker
                             bbox.Maximum = gbbox.Maximum * scale;
                         }
 
-                        // First check bounding box intersection
-                        if (mraytrn.Intersects(ref bbox, out hitdist))
+                        // skip geometries whose box isn't under the cursor
+                        if (!mraytrn.Intersects(ref bbox, out hitdist)) continue;
+
+                        var geom = m.Geometries[j];
+                        bool isTreesLod = (geom?.Shader?.FileName == 4113118754); // trees_lod2.sps - vertices are billboard roots, shader generates geometry
+                        if (!isTreesLod && geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
                         {
-                            if ((j == 0) && (gbbcount > 1)) continue; // Skip model-level bounding box
-
-                            int gind = (j > 0) ? j - 1 : 0;
-                            if (gind >= m.Geometries.Length) continue;
-
-                            var geom = m.Geometries[gind];
-                            bool isTreesLod = (geom?.Shader?.FileName == 4113118754); // trees_lod2.sps - vertices are billboard roots, shader generates geometry
-                            if (!isTreesLod && geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
+                            // Use cable line intersection for cable.sps, triangle intersection for everything else
+                            bool isCable = (geom.Shader?.FileName == 3854885487); // cable.sps
+                            float triangleHitDist = isCable
+                                ? GetCableLineIntersection(geom, mraytrn, scale, modelTransform)
+                                : GetGeometryTriangleIntersection(geom, mraytrn, scale, modelTransform);
+                            if (triangleHitDist > 0 && triangleHitDist < ghitdist)
                             {
-                                // Use cable line intersection for cable.sps, triangle intersection for everything else
-                                bool isCable = (geom.Shader?.FileName == 3854885487); // cable.sps
-                                float triangleHitDist = isCable
-                                    ? GetCableLineIntersection(geom, mraytrn, scale, modelTransform)
-                                    : GetGeometryTriangleIntersection(geom, mraytrn, scale, modelTransform);
-                                if (triangleHitDist > 0 && triangleHitDist < ghitdist)
-                                {
-                                    ghitdist = triangleHitDist;
-                                    bestGeometry = geom;
-                                    bestAABB = gbbox;
-                                    bestGeomIndex = gind;
-                                }
-                            }
-                            else if (hitdist > 0.0f && hitdist < ghitdist)
-                            {
-                                // Fallback to bounding box if no vertex data available
-                                ghitdist = hitdist;
+                                ghitdist = triangleHitDist;
                                 bestGeometry = geom;
                                 bestAABB = gbbox;
-                                bestGeomIndex = gind;
+                                bestGeomIndex = j;
                             }
                         }
-                        else if (j == 0)
+                        else if (hitdist > 0.0f && hitdist < ghitdist)
                         {
-                            break; // No hit on model box, skip this model
+                            // Fallback to bounding box if no vertex data available
+                            ghitdist = hitdist;
+                            bestGeometry = geom;
+                            bestAABB = gbbox;
+                            bestGeomIndex = j;
                         }
                     }
                 }
@@ -5289,18 +5284,18 @@ namespace CodeWalker
                     if (firsthit || (hitdist > 0.0f)) //ignore when inside the box..
                     {
                         bool nearer = (hitdist < CurMouseHit.HitDist);  //closer than the last..
-                        bool radsm = true;
-                        if ((CurMouseHit.Archetype != null) && (arche != null)) //compare hit archetype sizes...
+                        if (nearer)
                         {
-                            //var b1 = (arche.BBMax - arche.BBMin) * scale;
-                            //var b2 = (mousehit.Archetype.BBMax - mousehit.Archetype.BBMin) * scale;
-                            float r1 = arche.BSRadius;
-                            float r2 = CurMouseHit.Archetype.BSRadius;
-                            radsm = (r1 <= (r2));// * 0.5f)); //prefer selecting smaller things
+                            outerhit = true; //closer always wins - select the thing in front
                         }
-                        if ((nearer&&radsm) || radsm)
+                        else if (Math.Abs(hitdist - CurMouseHit.HitDist) < 0.1f) //near-equal depth: tie-break by size
                         {
-                            outerhit = true;
+                            bool radsm = true;
+                            if ((CurMouseHit.Archetype != null) && (arche != null)) //compare hit archetype sizes...
+                            {
+                                radsm = (arche.BSRadius <= CurMouseHit.Archetype.BSRadius); //prefer selecting smaller things
+                            }
+                            outerhit = radsm;
                         }
                     }
                 }
