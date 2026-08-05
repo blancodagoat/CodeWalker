@@ -95,8 +95,8 @@ namespace CodeWalker.Project
 
 
 
-        private bool renderitems = true;
-        private bool hidegtavmap = false;
+        public static bool renderitems = true;
+        public static bool hidegtavmap = false;
         private bool autoymapflags = true;
         private bool autoymapextents = true;
         public bool displayentityindexes = false;
@@ -1458,6 +1458,7 @@ namespace CodeWalker.Project
                         CurrentYmapFile = ymap;
                         SaveYmap();
                     }
+                    ymap.HasChanged = false;
                 }
             }
 
@@ -1584,6 +1585,15 @@ namespace CodeWalker.Project
 
             }
 
+            if (!renderitems)
+            {
+                renderitems = true;
+            }
+
+            if (hidegtavmap)
+            {
+                hidegtavmap = false;
+            }
 
             if (WorldForm != null)
             {
@@ -1705,7 +1715,11 @@ namespace CodeWalker.Project
                     {
                         case ".ymap":
                             var ymap = CurrentProjectFile.AddYmapFile(file);
-                            if (ymap != null) LoadYmapFromFile(ymap, file);
+                            if (ymap != null)
+                            {
+                                LoadYmapFromFile(ymap, file);
+                                ymap.HasChanged = true;
+                            }
                             break;
                         case ".ytyp":
                             var ytyp = CurrentProjectFile.AddYtypFile(file);
@@ -2087,7 +2101,7 @@ namespace CodeWalker.Project
                 File.WriteAllBytes(filepath, data);
             }
 
-            SetYmapHasChanged(false);
+            SetYmapHasChanged(true);
 
             if (saveas)
             {
@@ -2153,6 +2167,7 @@ namespace CodeWalker.Project
             if (CurrentYmapFile == null) return;
             if (CurrentProjectFile == null) return;
             ProjectExplorer?.RemoveFileTreeNode(CurrentYmapFile);
+            CurrentYmapFile.HasChanged = false;
             CurrentProjectFile.RemoveYmapFile(CurrentYmapFile);
             CurrentYmapFile = null;
             RefreshUI();
@@ -7622,10 +7637,10 @@ namespace CodeWalker.Project
 
         public void GetVisibleYmaps(Camera camera, Dictionary<MetaHash, YmapFile> ymaps)
         {
-            if (hidegtavmap)
-            {
-                ymaps.Clear(); //remove all the gtav ymaps.
-            }
+            //if (hidegtavmap)
+            //{
+            //    ymaps.Clear(); //remove all the gtav ymaps.
+            //}
 
             lock (projectsyncroot)
             {
