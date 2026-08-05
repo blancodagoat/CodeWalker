@@ -992,12 +992,12 @@ namespace CodeWalker.GameFiles
                 this.Unknown_84h = reader.ReadUInt32();
                 this.Unknown_88h = reader.ReadUInt32();
                 this.Unknown_8Ch = reader.ReadUInt32();
-                
+
                 // Ignore stride loaded from file as it may be incorrect, especially if texture is ATI2 and the file was
                 // previously saved in OpenIV, DDS documentation recommends recalculating this anyway
                 DDSIO.DXTex.ComputePitch(DDSIO.GetDXGIFormat(Format), this.Width, this.Height, out int rowPitch, out int slicePitch, 0);
                 this.Stride = (ushort)rowPitch;
-                
+
                 // read reference data
                 this.Data = reader.ReadBlockAt<TextureData>(this.DataPointer, CalcDataSize()); 
                 //this.Format, this.Width, this.Height, this.Levels, this.Stride);
