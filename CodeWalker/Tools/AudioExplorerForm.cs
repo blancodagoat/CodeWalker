@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.IO;
 
 namespace CodeWalker.Tools
 {
@@ -494,6 +495,38 @@ namespace CodeWalker.Tools
             else
             {
                 SelectItem(null);
+            }
+        }
+
+        private void ExportBotton_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.FileName = HierarchyTreeView.SelectedNode.Text.Replace(" : ", ":").Split(':')[0] + ".xml";
+            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                string fileName = saveFileDialog.FileName;
+                List<string> sl = new List<string>();
+                StringBuilder sb = new StringBuilder();
+                sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<AudioConfig>\n ");
+
+                AppendXmlRecursive(HierarchyTreeView.SelectedNode, sb, sl);
+
+                sb.Append("</AudioConfig>");
+                File.WriteAllText(fileName, sb.ToString());
+            }
+        }
+
+        private void AppendXmlRecursive(TreeNode treeNode, StringBuilder sb, List<string> sl)
+        {
+            RelData item = treeNode?.Tag as RelData;
+            if (!sl.Contains(treeNode.Text))
+            {
+                sb.Append(RelXml.GetXml(item).Replace("\n", "\n "));
+                sl.Add(treeNode.Text);
+            }
+            foreach (TreeNode tn in treeNode.Nodes)
+            {
+                AppendXmlRecursive(tn, sb, sl);
             }
         }
     }
