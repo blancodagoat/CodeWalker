@@ -1995,6 +1995,8 @@ namespace CodeWalker.GameFiles
                 Quaternion inv = Quaternion.Normalize(Quaternion.Invert(rel));
                 Orientation = ori;
                 _CEntityDef.rotation = inv.ToVector4();
+                UpdateBB();
+                UpdateMloArchetype();
             }
             else
             {
@@ -2008,6 +2010,7 @@ namespace CodeWalker.GameFiles
                     Quaternion inv = inverse ? ori : Quaternion.Normalize(Quaternion.Invert(ori));
                     _CEntityDef.rotation = inv.ToVector4();
                 }
+                UpdateBB();
             }
 
             if (MloInstance != null)
@@ -2016,7 +2019,6 @@ namespace CodeWalker.GameFiles
                 MloInstance.UpdateEntities();
             }
 
-            UpdateBB();
             UpdateWidgetPosition();
             UpdateWidgetOrientation();
         }
@@ -2036,6 +2038,8 @@ namespace CodeWalker.GameFiles
                     MloRefOrientation = Quaternion.Invert(MloRefOrientation);
                 }
                 Orientation = Quaternion.Multiply(MloParent.Orientation, MloRefOrientation);
+                UpdateBB();
+                UpdateMloArchetype();
             }
             else
             {
@@ -2047,6 +2051,7 @@ namespace CodeWalker.GameFiles
                         Orientation = Quaternion.Invert(Orientation);
                     }
                 }
+                UpdateBB();
             }
 
             if (MloInstance != null)
@@ -2055,7 +2060,6 @@ namespace CodeWalker.GameFiles
                 MloInstance.UpdateEntities();
             }
 
-            UpdateBB();
             UpdateWidgetPosition();
             UpdateWidgetOrientation();
         }
