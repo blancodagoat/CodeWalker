@@ -1,26 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using CodeWalker.Utils;
+using System;
 using System.Windows.Forms;
 
-namespace CodeWalker.Vehicles
-{
-    static class Program
-    {
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        static void Main()
-        {
-            //Process.Start("CodeWalker.exe", "vehicles");
+namespace CodeWalker.Vehicles;
 
+static class Program
+{
+    [STAThread]
+    static void Main(string[] args)
+    {
+        SessionLog.Run(args, () =>
+        {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new VehicleForm());
-
             GTAFolder.UpdateSettings();
-        }
+        }, "Launching Vehicle Viewer");
     }
 }

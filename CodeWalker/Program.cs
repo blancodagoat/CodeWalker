@@ -1,4 +1,5 @@
 ﻿using CodeWalker.Properties;
+using CodeWalker.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,7 +19,11 @@ static class Program
         [STAThread]
         static void Main(string[] args)
         {
+            SessionLog.Run(args, () => RunApplication(args), "Launching CodeWalker");
+        }
 
+        static void RunApplication(string[] args)
+        {
             bool menumode = false;
             bool explorermode = false;
             bool projectmode = false;
@@ -59,45 +64,42 @@ static class Program
             // Always check the GTA folder first thing
             if (!GTAFolder.UpdateGTAFolder(Properties.Settings.Default.RememberGTAFolder))
             {
+                SessionLog.WriteLine("GTA 5 folder not found; exiting.");
                 MessageBox.Show("Could not load CodeWalker because no valid GTA 5 folder was selected. CodeWalker will now exit.", "GTA 5 Folder Not Found", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
             }
-#if !DEBUG
-            try
+
+            SessionLog.WriteLine(menumode ? "Launching MenuForm"
+                : explorermode ? "Launching ExploreForm"
+                : projectmode ? "Launching ProjectForm"
+                : vehiclesmode ? "Launching VehicleForm"
+                : pedsmode ? "Launching PedsForm"
+                : "Launching WorldForm");
+
+            if (menumode)
             {
-#endif
-                if (menumode)
-                {
-                    Application.Run(new MenuForm());
-                }
-                else if (explorermode)
-                {
-                    Application.Run(new ExploreForm());
-                }
-                else if (projectmode)
-                {
-                    Application.Run(new Project.ProjectForm());
-                }
-                else if (vehiclesmode)
-                {
-                    Application.Run(new VehicleForm());
-                }
-                else if (pedsmode)
-                {
-                    Application.Run(new PedsForm());
-                }
-                else
-                {
-                    Application.Run(new WorldForm());
-                }
-#if !DEBUG
+                Application.Run(new MenuForm());
             }
-            catch (Exception ex)
+            else if (explorermode)
             {
-                MessageBox.Show("An unexpected error was encountered!\n" + ex.ToString());
-                //this can happen if folder wasn't chosen, or in some other catastrophic error. meh.
+                Application.Run(new ExploreForm());
             }
-#endif
+            else if (projectmode)
+            {
+                Application.Run(new Project.ProjectForm());
+            }
+            else if (vehiclesmode)
+            {
+                Application.Run(new VehicleForm());
+            }
+            else if (pedsmode)
+            {
+                Application.Run(new PedsForm());
+            }
+            else
+            {
+                Application.Run(new WorldForm());
+            }
         }
 
 
