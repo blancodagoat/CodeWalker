@@ -1,29 +1,21 @@
 ﻿using CodeWalker.GameFiles;
-using CodeWalker.Properties;
+using CodeWalker.Utils;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CodeWalker.RPFExplorer
-{
-    static class Program
-    {
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        static void Main()
-        {
-            //Process.Start("CodeWalker.exe", "explorer");
+namespace CodeWalker.RPFExplorer;
 
+static class Program
+{
+    [STAThread]
+    static void Main(string[] args)
+    {
+        SessionLog.Run(args, () =>
+        {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new ExploreForm());
-
             GTAFolder.UpdateSettings();
-        }
+        }, "Launching RPF Explorer");
     }
 }

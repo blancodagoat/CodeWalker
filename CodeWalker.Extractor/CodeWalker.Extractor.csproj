@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodeWalker.Core\CodeWalker.Core.csproj" />
+    <ProjectReference Include="..\CodeWalker.WinForms\CodeWalker.WinForms.csproj" />
   </ItemGroup>
 
   <ItemGroup>

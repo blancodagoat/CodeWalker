@@ -6,6 +6,8 @@ x64/
 # Local-only workflow artifacts (not for upstream)
 CLAUDE.md
 docs/superpowers/
+.cursor/
+AGENTS.md
 
 # User-specific files
 *.suo
@@ -27,6 +29,7 @@ docs/superpowers/
 bld/
 [Bb]in/
 [Oo]bj/
+logs/
 
 # Visual Studio 2015 cache/options directory
 .vs/
