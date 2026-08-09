@@ -2342,7 +2342,7 @@ namespace CodeWalker.GameFiles
                 return ytd;
             }
         }
-        public YmapFile GetYmap(uint hash)
+        public YmapFile GetYmap(uint hash, bool includeInactive = false)
         {
             if (!IsInited) return null;
             lock (requestSyncRoot)
@@ -2351,7 +2351,7 @@ namespace CodeWalker.GameFiles
                 var ymap = mainCache.TryGet(key) as YmapFile;
                 if (ymap == null)
                 {
-                    var e = GetYmapEntry(hash);
+                    var e = GetYmapEntry(hash, includeInactive);
                     if (e != null)
                     {
                         ymap = new YmapFile(e);
@@ -2574,14 +2574,19 @@ namespace CodeWalker.GameFiles
             ref var entry = ref CollectionsMarshal.GetValueRefOrNullRef(YtdDict, hash);
             return !Unsafe.IsNullRef(ref entry) ? entry : null;
         }
-        public RpfFileEntry GetYmapEntry(uint hash)
+        public RpfFileEntry GetYmapEntry(uint hash, bool includeInactive = false)
         {
             ref var entry = ref CollectionsMarshal.GetValueRefOrNullRef(YmapDict, hash);
             if (!Unsafe.IsNullRef(ref entry))
             {
                 return entry;
             }
-            
+
+            //AllYmapsDict includes ymaps from DLC/base RPFs that aren't part of the active map data
+            //(eg base ymaps a DLC has invalidated). Falling back to it while streaming the world
+            //resurrects them via ymap parent chains, so LOD + HD of both variants render at once.
+            if (!includeInactive) return null;
+
             ref var allEntry = ref CollectionsMarshal.GetValueRefOrNullRef(AllYmapsDict, hash);
             return !Unsafe.IsNullRef(ref allEntry) ? allEntry : null;
         }
