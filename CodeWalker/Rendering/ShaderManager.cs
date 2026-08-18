@@ -28,6 +28,8 @@ namespace CodeWalker.Rendering
         BlendState bsDefault;
         BlendState bsAlpha;
         BlendState bsAdd;
+        BlendState bsParticleComposite;
+        BlendState bsParticleScreen;
         DepthStencilState dsEnabled;
         DepthStencilState dsDisableAll;
         DepthStencilState dsDisableComp;
@@ -42,7 +44,9 @@ namespace CodeWalker.Rendering
         public CableShader Cable { get; set; }
         public WaterShader Water { get; set; }
         public TerrainShader Terrain { get; set; }
+        public TreeShader Trees { get; set; }
         public TreesLodShader TreesLod { get; set; }
+        public GrassFurShader GrassFur { get; set; }
         public SkydomeShader Skydome { get; set; }
         public CloudsShader Clouds { get; set; }
         public MarkerShader Marker { get; set; }
@@ -51,6 +55,8 @@ namespace CodeWalker.Rendering
         public DistantLightsShader DistLights { get; set; }
         public PathShader Paths { get; set; }
         public WidgetShader Widgets { get; set; }
+        public OutlineShader Outline { get; set; }
+        public ParticleShader Particles { get; set; }
 
         // Water effects toggles. Refraction distorts a copy of the scene diffuse through the water normal.
         // Planar reflections are not yet implemented; the setting is reserved for future work.
@@ -67,6 +73,15 @@ namespace CodeWalker.Rendering
         public bool deferred = Settings.Default.Deferred;
         public bool hdr = Settings.Default.HDR;
         public float hdrLumBlendSpeed = 2.0f;
+        // When set, overrides the HDR Primary clear colour (the scene backdrop). The particle preview uses a
+        // near-black backdrop so the fire reads sharp/high-contrast under HDR instead of washing over a bright sky.
+        public Color4? HdrClearColour = null;
+        // Per-view HDR bloom toggle. The particle preview turns this OFF: bloom is a 1/8-res wide gaussian tuned
+        // for full scenes, and on one bright fire over black it spreads a frame-filling orange halo (the "glow").
+        public bool hdrBloom = true;
+        // When set, pins HDR exposure (bypasses auto-exposure) to MIDDLE_GRAY/value. The preview pins it so a
+        // bright fire on a dark backdrop doesn't crank exposure and blow out. ~0.72 = 1x exposure.
+        public float? HdrFixedLuminance = null;
         int Width;
         int Height;
 
@@ -132,7 +147,9 @@ namespace CodeWalker.Rendering
             Cable = new CableShader(device);
             Water = new WaterShader(device);
             Terrain = new TerrainShader(device);
+            Trees = new TreeShader(device);
             TreesLod = new TreesLodShader(device);
+            GrassFur = new GrassFurShader(device);
             Skydome = new SkydomeShader(device);
             Clouds = new CloudsShader(device);
             Marker = new MarkerShader(device);
@@ -141,6 +158,8 @@ namespace CodeWalker.Rendering
             DistLights = new DistantLightsShader(device);
             Paths = new PathShader(device);
             Widgets = new WidgetShader(device);
+            Outline = new OutlineShader(device);
+            Particles = new ParticleShader(device);
 
 
             RasterizerStateDescription rsd = new RasterizerStateDescription()
@@ -189,6 +208,19 @@ namespace CodeWalker.Rendering
             bsd.AlphaToCoverageEnable = false;
             bsd.RenderTarget[0].DestinationBlend = BlendOption.One;
             bsAdd = new BlendState(device, bsd);
+
+            //composite/premultiplied alpha: dest*(1-srcAlpha) + src  (rage grcbsCompositeAlpha)
+            bsd.RenderTarget[0].SourceBlend = BlendOption.One;
+            bsd.RenderTarget[0].DestinationBlend = BlendOption.InverseSourceAlpha;
+            bsParticleComposite = new BlendState(device, bsd);
+
+            //screen blend: src*(1-dst) + dst = 1-(1-src)(1-dst). Asymptotes to white instead of accumulating past
+            //it like pure additive, so dense fire/glow doesn't saturate to a hard white disc. With the colour
+            //premultiplied by alpha on the CPU this stays alpha-weighted, approximating the game's HDR-tonemapped
+            //additive look without an HDR/bloom pass.
+            bsd.RenderTarget[0].SourceBlend = BlendOption.InverseDestinationColor;
+            bsd.RenderTarget[0].DestinationBlend = BlendOption.One;
+            bsParticleScreen = new BlendState(device, bsd);
 
             DepthStencilStateDescription dsd = new DepthStencilStateDescription()
             {
@@ -239,18 +271,24 @@ namespace CodeWalker.Rendering
             bsDefault.Dispose();
             bsAlpha.Dispose();
             bsAdd.Dispose();
+            bsParticleComposite.Dispose();
+            bsParticleScreen.Dispose();
             rsSolid.Dispose();
             rsWireframe.Dispose();
             rsSolidDblSided.Dispose();
             rsWireframeDblSided.Dispose();
 
+            Outline.Dispose();
             Widgets.Dispose();
             Paths.Dispose();
+            Particles.Dispose();
             DistLights.Dispose();
             Shadow.Dispose();
             Bounds.Dispose();
             Marker.Dispose();
             Terrain.Dispose();
+            GrassFur.Dispose();
+            Trees.Dispose();
             TreesLod.Dispose();
             Skydome.Dispose();
             Clouds.Dispose();
@@ -351,6 +389,9 @@ namespace CodeWalker.Rendering
             }
             if (HDR != null)
             {
+                if (HdrClearColour.HasValue) HDR.ClearColour = HdrClearColour.Value;
+                HDR.EnableBloom = hdrBloom;
+                HDR.FixedAvgLuminance = HdrFixedLuminance;
                 HDR.Clear(context);
                 HDR.ClearDepth(context);
             }
@@ -375,7 +416,9 @@ namespace CodeWalker.Rendering
             Cable.Deferred = deferred;
             Water.Deferred = deferred;
             Terrain.Deferred = deferred;
+            Trees.Deferred = deferred;
             TreesLod.Deferred = deferred;
+            GrassFur.Deferred = deferred;
         }
 
 
@@ -419,6 +462,10 @@ namespace CodeWalker.Rendering
 
             Basic.WindVector = wind;
             Shadow.WindVector = wind;
+            Trees.WindVector = wind;
+            Trees.WindTimer = (float)CurrentRealTime;
+            TreesLod.WindVector = wind;
+            TreesLod.WindTimer = (float)CurrentRealTime;
             Water.CurrentRealTime = CurrentRealTime;
             Water.CurrentElapsedTime = CurrentElapsedTime;
 
@@ -436,6 +483,7 @@ namespace CodeWalker.Rendering
                     shadowbatches.AddRange(bucket.TerrainBatches);
                     shadowbatches.AddRange(bucket.CableBatches);
                     shadowbatches.AddRange(bucket.CutoutBatches);
+                    shadowbatches.AddRange(bucket.TreesBatches);
                     shadowbatches.AddRange(bucket.ClothBatches);
                 }
             }
@@ -476,6 +524,11 @@ namespace CodeWalker.Rendering
                 {
                     RenderGeometryBatches(context, bucket.BasicBatches, Basic);
                 }
+                if (bucket.TreesBatches.Count > 0)
+                {
+                    context.Rasterizer.State = wireframe ? rsWireframeDblSided : rsSolidDblSided;
+                    RenderGeometryBatches(context, bucket.TreesBatches, Trees);
+                }
                 if (bucket.TreesLodBatches.Count > 0)
                 {
                     context.Rasterizer.State = wireframe ? rsWireframeDblSided : rsSolidDblSided;
@@ -485,6 +538,13 @@ namespace CodeWalker.Rendering
                 {
                     context.Rasterizer.State = wireframe ? rsWireframeDblSided : rsSolidDblSided;
                     RenderGeometryBatches(context, bucket.CutoutBatches, Basic);
+                }
+                if (bucket.GrassFurBatches.Count > 0)
+                {
+                    context.Rasterizer.State = wireframe ? rsWireframeDblSided : rsSolidDblSided;
+                    context.OutputMerger.BlendState = bsAlpha;
+                    RenderGrassFurBatches(context, bucket.GrassFurBatches);
+                    context.OutputMerger.BlendState = bsDefault;
                 }
                 if (bucket.ClothBatches.Count > 0)
                 {
@@ -897,6 +957,48 @@ namespace CodeWalker.Rendering
 
         }
 
+        private void RenderGrassFurBatches(DeviceContext context, List<ShaderBatch> batches)
+        {
+            GrassFur.SetShader(context);
+            GrassFur.SetSceneVars(context, Camera, Shadowmap, GlobalLights);
+            foreach (var batch in batches)
+            {
+                RenderGrassFurBatch(context, batch.Geometries);
+            }
+            GrassFur.UnbindResources(context);
+        }
+        private void RenderGrassFurBatch(DeviceContext context, List<RenderableGeometryInst> batch)
+        {
+            GeometryCount += batch.Count;
+
+            RenderableModel model = null;
+            VertexType vtyp = 0;
+            bool vtypok = false;
+
+            for (int i = 0; i < batch.Count; i++)
+            {
+                var geom = batch[i];
+                var gmodel = geom.Geom.Owner;
+                GrassFur.SetEntityVars(context, ref geom.Inst);
+
+                if (gmodel != model)
+                {
+                    model = gmodel;
+                    GrassFur.SetModelVars(context, model);
+                }
+                if (geom.Geom.VertexType != vtyp)
+                {
+                    vtyp = geom.Geom.VertexType;
+                    vtypok = GrassFur.SetInputLayout(context, vtyp);
+                }
+                if (vtypok)
+                {
+                    GrassFur.SetGeomVars(context, geom.Geom);
+                    GrassFur.RenderGeom(context, geom.Geom);
+                }
+            }
+        }
+
         private void RenderBoundGeometryBatch(DeviceContext context, List<RenderableBoundGeometryInst> batch)
         {
             Basic.RenderMode = WorldRenderMode.VertexColour;
@@ -1105,6 +1207,18 @@ namespace CodeWalker.Rendering
         {
             context.OutputMerger.BlendState = bsAlpha;
         }
+        public void SetAddBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsAdd;
+        }
+        public void SetCompositeBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsParticleComposite;
+        }
+        public void SetScreenBlendState(DeviceContext context)
+        {
+            context.OutputMerger.BlendState = bsParticleScreen;
+        }
 
         public void OnWindowResize(int w, int h)
         {
@@ -1117,6 +1231,10 @@ namespace CodeWalker.Rendering
             if (HDR != null)
             {
                 HDR.OnWindowResize(DXMan);
+            }
+            if (Outline != null)
+            {
+                Outline.OnWindowResize(w, h);
             }
         }
     }
@@ -1159,7 +1277,9 @@ namespace CodeWalker.Rendering
         public List<ShaderBatch> AlphaBatches = new List<ShaderBatch>();
         public List<ShaderBatch> GlassBatches = new List<ShaderBatch>();
         public List<ShaderBatch> CutoutBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> GrassFurBatches = new List<ShaderBatch>();
         public List<ShaderBatch> TerrainBatches = new List<ShaderBatch>();
+        public List<ShaderBatch> TreesBatches = new List<ShaderBatch>();
         public List<ShaderBatch> TreesLodBatches = new List<ShaderBatch>();
         public List<ShaderBatch> CableBatches = new List<ShaderBatch>();
         public List<ShaderBatch> ClothBatches = new List<ShaderBatch>();
@@ -1187,7 +1307,9 @@ namespace CodeWalker.Rendering
             AlphaBatches.Clear();
             GlassBatches.Clear();
             CutoutBatches.Clear();
+            GrassFurBatches.Clear();
             TerrainBatches.Clear();
+            TreesBatches.Clear();
             TreesLodBatches.Clear();
             CableBatches.Clear();
             ClothBatches.Clear();
@@ -1285,7 +1407,7 @@ namespace CodeWalker.Rendering
                     case 748520668://{normal_cutout_um.sps}
                     case 807996366://{normal_spec_cutout.sps}
                     case 3300978494://{normal_spec_cutout_tnt.sps}
-                    case 582493193://{trees_lod.sps} //not billboarded..
+                    case 582493193://{trees_lod.sps}
                     case 2322653400://{trees.sps}
                     case 3334613197://{trees_tnt.sps}
                     case 3192134330://{trees_normal.sps}
@@ -1293,7 +1415,7 @@ namespace CodeWalker.Rendering
                     case 1229591973://{trees_normal_spec_tnt.sps}
                     case 4265705004://{trees_normal_diffspec.sps}
                     case 2245870123://{trees_normal_diffspec_tnt.sps}
-                        b = CutoutBatches;
+                        b = TreesBatches;
                         break;
                     #endregion
                     #region alpha batches
@@ -1471,7 +1593,7 @@ namespace CodeWalker.Rendering
                     #region grass_fur batches
                     case 3333227093://{grass_fur.sps}
                     case 4256676773://{grass_fur_mask.sps}
-                        b = CutoutBatches; //grass_fur renders similar to cutout with alpha
+                        b = GrassFurBatches;
                         break;
 
                     case 83630553://{cpv_only.sps}

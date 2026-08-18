@@ -59,6 +59,8 @@
             this.CarGoToButton = new System.Windows.Forms.Button();
             this.CarPositionTextBox = new System.Windows.Forms.TextBox();
             this.label31 = new System.Windows.Forms.Label();
+            this.CarCreationRuleComboBox = new System.Windows.Forms.ComboBox();
+            this.label45 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // CarFlagsCheckedListBox
@@ -365,12 +367,49 @@
             this.label31.Size = new System.Drawing.Size(47, 13);
             this.label31.TabIndex = 82;
             this.label31.Text = "Position:";
-            // 
+            //
+            // label45
+            //
+            this.label45.AutoSize = true;
+            this.label45.Location = new System.Drawing.Point(4, 351);
+            this.label45.Name = "label45";
+            this.label45.Size = new System.Drawing.Size(75, 13);
+            this.label45.TabIndex = 106;
+            this.label45.Text = "Creation Rule:";
+            //
+            // CarCreationRuleComboBox
+            //
+            this.CarCreationRuleComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.CarCreationRuleComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.CarCreationRuleComboBox.FormattingEnabled = true;
+            this.CarCreationRuleComboBox.Items.AddRange(new object[] {
+            "0 - All",
+            "1 - Only Sports",
+            "2 - No Sports",
+            "3 - Only Big",
+            "4 - No Big",
+            "5 - Only Bikes",
+            "6 - No Bikes",
+            "7 - Only Delivery",
+            "8 - No Delivery",
+            "9 - Boats",
+            "10 - Only Poor",
+            "11 - No Poor",
+            "12 - Can Be Broken Down"});
+            this.CarCreationRuleComboBox.Location = new System.Drawing.Point(118, 348);
+            this.CarCreationRuleComboBox.Name = "CarCreationRuleComboBox";
+            this.CarCreationRuleComboBox.Size = new System.Drawing.Size(198, 21);
+            this.CarCreationRuleComboBox.TabIndex = 107;
+            this.CarCreationRuleComboBox.SelectedIndexChanged += new System.EventHandler(this.CarCreationRuleComboBox_SelectedIndexChanged);
+            //
             // EditYmapCarGenPanel
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(553, 407);
+            this.Controls.Add(this.CarCreationRuleComboBox);
+            this.Controls.Add(this.label45);
             this.Controls.Add(this.CarFlagsCheckedListBox);
             this.Controls.Add(this.CarDeleteButton);
             this.Controls.Add(this.CarAddToProjectButton);
@@ -441,5 +480,7 @@
         private System.Windows.Forms.Button CarGoToButton;
         private System.Windows.Forms.TextBox CarPositionTextBox;
         private System.Windows.Forms.Label label31;
+        private System.Windows.Forms.ComboBox CarCreationRuleComboBox;
+        private System.Windows.Forms.Label label45;
     }
 }

@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35527.113
@@ -19,6 +19,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeWalker", "CodeWalker\Co
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeWalker.Peds", "CodeWalker.Peds\CodeWalker.Peds.csproj", "{F029235F-38A7-463F-ADB6-80261375AF8A}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeWalker.ParticleEditorWpf", "CodeWalker.ParticleEditorWpf\CodeWalker.ParticleEditorWpf.csproj", "{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeWalker.RPFExplorer", "CodeWalker.RPFExplorer\CodeWalker.RPFExplorer.csproj", "{C6C8D7EB-CBF5-4748-B438-1EA3415C7DD5}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeWalker.Vehicles", "CodeWalker.Vehicles\CodeWalker.Vehicles.csproj", "{F5A776B0-2F1A-4C36-87B3-86206AC4B439}"
@@ -30,6 +32,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CodeWalker.NVTT", "CodeWalker.NVTT\CodeWalker.NVTT.vcxproj", "{8A2B7A2E-5D1C-4F3E-9B8A-1C2D3E4F5A6B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeWalker.Extractor", "CodeWalker.Extractor\CodeWalker.Extractor.csproj", "{1A8438F2-884C-4DA3-AF17-93CF28548E8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeWalker.Profiler", "CodeWalker.Profiler\CodeWalker.Profiler.csproj", "{760C9CAE-CA02-4857-9775-DDCA6A68824B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -112,6 +116,18 @@ Global
 		{F029235F-38A7-463F-ADB6-80261375AF8A}.Release|x64.Build.0 = Release|Any CPU
 		{F029235F-38A7-463F-ADB6-80261375AF8A}.Release|x86.ActiveCfg = Release|Any CPU
 		{F029235F-38A7-463F-ADB6-80261375AF8A}.Release|x86.Build.0 = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|x64.Build.0 = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Debug|x86.Build.0 = Debug|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|x64.ActiveCfg = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|x64.Build.0 = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|x86.ActiveCfg = Release|Any CPU
+		{B1E5C3A2-4F7D-4E8B-9C1A-2D3E4F5A6B7C}.Release|x86.Build.0 = Release|Any CPU
 		{C6C8D7EB-CBF5-4748-B438-1EA3415C7DD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C6C8D7EB-CBF5-4748-B438-1EA3415C7DD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C6C8D7EB-CBF5-4748-B438-1EA3415C7DD5}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -182,6 +198,18 @@ Global
 		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x64.Build.0 = Release|Any CPU
 		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x86.ActiveCfg = Release|Any CPU
 		{1A8438F2-884C-4DA3-AF17-93CF28548E8C}.Release|x86.Build.0 = Release|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|x64.ActiveCfg = Debug|x64
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|x64.Build.0 = Debug|x64
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Debug|x86.Build.0 = Debug|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|x64.ActiveCfg = Release|x64
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|x64.Build.0 = Release|x64
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|x86.ActiveCfg = Release|Any CPU
+		{760C9CAE-CA02-4857-9775-DDCA6A68824B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

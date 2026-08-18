@@ -285,19 +285,19 @@ float3 BasicLighting(float4 lightcolour, float4 ambcolour, float pclit)
 
 float3 AmbientLight(float3 diff, float normz, float4 upcolour, float4 downcolour, float amount)
 {
-    float bf = normz*0.5 + 0.5;
-    float3 upval = upcolour.rgb*saturate(1.0-bf);
-    float3 downval = downcolour.rgb*saturate(bf);
-    return diff*(upval + downval)*amount;
-    //return (float3)0;
+    float ambientDownWrap = downcolour.a;
+    float ooOnePlusWrap = (ambientDownWrap > 0.0) ? (1.0 / (1.0 + ambientDownWrap)) : 1.0;
+    float downMult = max(0.0, (normz + ambientDownWrap) * ooOnePlusWrap);
+    float3 ambient = downcolour.rgb * downMult + upcolour.rgb;
+    return diff * ambient * amount;
 }
 
 float3 GlobalLighting(float3 diff, float3 norm, float4 vc0, float lf, uniform ShaderGlobalLightParams globalLights)
 {
     float3 c = saturate(diff);
     float3 fc = c;
-    float naturalDiffuseFactor = vc0.r;
-    float artificialDiffuseFactor = saturate(vc0.g);
+    float naturalDiffuseFactor = vc0.r * vc0.r;
+    float artificialDiffuseFactor = saturate(vc0.g) * saturate(vc0.g);
     c *= BasicLighting(globalLights.LightDirColour, globalLights.LightDirAmbColour, lf);
     c += AmbientLight(fc, norm.z, globalLights.LightNaturalAmbUp, globalLights.LightNaturalAmbDown, naturalDiffuseFactor);
     c += AmbientLight(fc, norm.z, globalLights.LightArtificialAmbUp, globalLights.LightArtificialAmbDown, artificialDiffuseFactor);

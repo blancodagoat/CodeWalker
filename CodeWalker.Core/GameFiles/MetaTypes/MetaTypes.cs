@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -5197,6 +5198,7 @@ namespace CodeWalker.GameFiles
                         e.NodeIndexTo = (ushort)e.NodeTo.NodeIndex;
                     }
 
+                    UpdateNodesHaveEdges();
                 }
             }
             return r;
@@ -5224,6 +5226,7 @@ namespace CodeWalker.GameFiles
                     Edges = newedges.ToArray();
 
                     var remchains = new List<MCScenarioChain>();
+                    var splitchains = new List<MCScenarioChain>();
                     foreach (var c in Chains)
                     {
                         if (c == null) continue;
@@ -5233,15 +5236,205 @@ namespace CodeWalker.GameFiles
                             {
                                 remchains.Add(c);
                             }
+                            else
+                            {
+                                // Check if removing this edge split the chain into disconnected subgraphs.
+                                var splitResult = TrySplitChain(c);
+                                if (splitResult != null)
+                                {
+                                    splitchains.AddRange(splitResult);
+                                }
+                            }
                         }
                     }
                     foreach (var c in remchains)
                     {
                         RemoveChain(c);
                     }
+                    foreach (var sc in splitchains)
+                    {
+                        AddChain(sc);
+                    }
+
+                    RemoveLooseNodes();
+                    UpdateNodesHaveEdges();
                 }
             }
             return r;
+        }
+
+        private List<MCScenarioChain> TrySplitChain(MCScenarioChain chain)
+        {
+            var edges = chain.Edges;
+            if (edges == null || edges.Length <= 1) return null;
+
+            // BFS from the first edge's nodes to find all reachable edges
+            var reachableNodes = new HashSet<MCScenarioChainingNode>();
+            var reachableEdges = new HashSet<MCScenarioChainingEdge>();
+            var queue = new Queue<MCScenarioChainingNode>();
+
+            // Seed BFS from first edge
+            var firstEdge = edges[0];
+            reachableEdges.Add(firstEdge);
+            if (firstEdge.NodeFrom != null)
+            {
+                reachableNodes.Add(firstEdge.NodeFrom);
+                queue.Enqueue(firstEdge.NodeFrom);
+            }
+            if (firstEdge.NodeTo != null)
+            {
+                reachableNodes.Add(firstEdge.NodeTo);
+                queue.Enqueue(firstEdge.NodeTo);
+            }
+
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                foreach (var edge in edges)
+                {
+                    if (reachableEdges.Contains(edge)) continue;
+                    if (edge.NodeFrom == node || edge.NodeTo == node)
+                    {
+                        reachableEdges.Add(edge);
+                        if (edge.NodeFrom != null && reachableNodes.Add(edge.NodeFrom))
+                        {
+                            queue.Enqueue(edge.NodeFrom);
+                        }
+                        if (edge.NodeTo != null && reachableNodes.Add(edge.NodeTo))
+                        {
+                            queue.Enqueue(edge.NodeTo);
+                        }
+                    }
+                }
+            }
+
+            // If all edges are reachable, the chain is still connected
+            if (reachableEdges.Count == edges.Length) return null;
+
+            // Split: keep reachable edges in the original chain, create new chain(s) for the rest
+            var unreachableEdges = new List<MCScenarioChainingEdge>();
+            foreach (var edge in edges)
+            {
+                if (!reachableEdges.Contains(edge))
+                {
+                    unreachableEdges.Add(edge);
+                }
+            }
+
+            // Remove unreachable edges from the original chain
+            foreach (var ue in unreachableEdges)
+            {
+                chain.RemoveEdge(ue);
+            }
+
+            // Group remaining unreachable edges into connected components via BFS
+            var newChains = new List<MCScenarioChain>();
+            var remaining = new HashSet<MCScenarioChainingEdge>(unreachableEdges);
+
+            while (remaining.Count > 0)
+            {
+                var component = new List<MCScenarioChainingEdge>();
+                var compNodes = new HashSet<MCScenarioChainingNode>();
+                var compQueue = new Queue<MCScenarioChainingNode>();
+
+                var seed = remaining.First();
+                remaining.Remove(seed);
+                component.Add(seed);
+                if (seed.NodeFrom != null) { compNodes.Add(seed.NodeFrom); compQueue.Enqueue(seed.NodeFrom); }
+                if (seed.NodeTo != null) { compNodes.Add(seed.NodeTo); compQueue.Enqueue(seed.NodeTo); }
+
+                while (compQueue.Count > 0)
+                {
+                    var cn = compQueue.Dequeue();
+                    var toRemove = new List<MCScenarioChainingEdge>();
+                    foreach (var re in remaining)
+                    {
+                        if (re.NodeFrom == cn || re.NodeTo == cn)
+                        {
+                            component.Add(re);
+                            toRemove.Add(re);
+                            if (re.NodeFrom != null && compNodes.Add(re.NodeFrom)) compQueue.Enqueue(re.NodeFrom);
+                            if (re.NodeTo != null && compNodes.Add(re.NodeTo)) compQueue.Enqueue(re.NodeTo);
+                        }
+                    }
+                    foreach (var tr in toRemove) remaining.Remove(tr);
+                }
+
+                // Create a new chain for this component
+                var newChain = new MCScenarioChain();
+                newChain.Region = chain.Region;
+                newChain._Data.Unk_1156691834 = chain._Data.Unk_1156691834; // copy MaxUsers
+                foreach (var ce in component)
+                {
+                    newChain.AddEdge(ce);
+                }
+                newChains.Add(newChain);
+            }
+
+            return newChains;
+        }
+
+        public int RemoveLooseNodes()
+        {
+            if (Nodes == null || Edges == null) return 0;
+
+            int totalRemoved = 0;
+            bool found = true;
+            while (found)
+            {
+                found = false;
+                foreach (var node in Nodes)
+                {
+                    bool referenced = false;
+                    foreach (var edge in Edges)
+                    {
+                        if (edge.NodeFrom == node || edge.NodeTo == node)
+                        {
+                            referenced = true;
+                            break;
+                        }
+                    }
+                    if (!referenced)
+                    {
+                        // Remove just the node (not cascading to edges since it has none)
+                        List<MCScenarioChainingNode> newnodes = new();
+                        foreach (var nn in Nodes)
+                        {
+                            if (nn != node)
+                            {
+                                nn.NodeIndex = newnodes.Count;
+                                newnodes.Add(nn);
+                            }
+                        }
+                        Nodes = newnodes.ToArray();
+                        foreach (var e in Edges)
+                        {
+                            e.NodeIndexFrom = (ushort)e.NodeFrom.NodeIndex;
+                            e.NodeIndexTo = (ushort)e.NodeTo.NodeIndex;
+                        }
+                        totalRemoved++;
+                        found = true;
+                        break; // restart iteration since array changed
+                    }
+                }
+            }
+            return totalRemoved;
+        }
+
+        public void UpdateNodesHaveEdges()
+        {
+            if (Nodes == null) return;
+            foreach (var node in Nodes)
+            {
+                node.HasIncomingEdges = false;
+                node.HasOutgoingEdges = false;
+            }
+            if (Edges == null) return;
+            foreach (var edge in Edges)
+            {
+                if (edge.NodeFrom != null) edge.NodeFrom.HasOutgoingEdges = true;
+                if (edge.NodeTo != null) edge.NodeTo.HasIncomingEdges = true;
+            }
         }
         public bool RemoveChain(MCScenarioChain c)
         {

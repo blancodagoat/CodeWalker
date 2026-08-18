@@ -3000,7 +3000,7 @@ namespace CodeWalker.GameFiles
         public uint padding04 { get; set; }
         public ResourcePointerList64<ParticleKeyframeProp> KeyframeProps { get; set; }
         public ulong padding05 { get; set; }
-        public ulong oadding06 { get; set; }
+        public ulong padding06 { get; set; }
 
         public override void Read(ResourceDataReader reader, params object[] parameters)
         {
@@ -3024,7 +3024,7 @@ namespace CodeWalker.GameFiles
             padding04 = reader.ReadUInt32();
             KeyframeProps = reader.ReadBlock<ResourcePointerList64<ParticleKeyframeProp>>();
             padding05 = reader.ReadUInt64();
-            oadding06 = reader.ReadUInt64();
+            padding06 = reader.ReadUInt64();
 
         }
         public override void Write(ResourceDataWriter writer, params object[] parameters)
@@ -3049,7 +3049,7 @@ namespace CodeWalker.GameFiles
             writer.Write(padding04);
             writer.WriteBlock(KeyframeProps);
             writer.Write(padding05);
-            writer.Write(oadding06);
+            writer.Write(padding06);
         }
         public virtual void WriteXml(StringBuilder sb, int indent)
         {

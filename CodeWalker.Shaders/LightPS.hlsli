@@ -96,19 +96,38 @@ float4 GetLineSegmentNearestPoint(float3 v, float3 a, float3 b)
     }
 }
 
+float __powapprox(float a, float b)
+{
+    return a / ((1.0 - b) * a + b);
+}
+
 float GetAttenuation(float ldist, float falloff, float falloffExponent)
 {
-    float d = ldist / falloff;
-    return saturate((1 - d) / (1 + d*d*falloffExponent));
+    float distSqr = ldist * ldist;
+    float invSqrFalloff = 1.0 / (falloff * falloff);
+    float t = saturate(1.0 - distSqr * invSqrFalloff);
+    return __powapprox(t, falloffExponent);
+}
+
+float GetSpotAngularAttenuation(float3 surfaceToLightDir, float3 lightDirection,
+                                float cosInnerAngle, float cosOuterAngle)
+{
+    float cosAngle = dot(surfaceToLightDir, -lightDirection);
+    float spotScale = 1.0 / max(cosInnerAngle - cosOuterAngle, 0.000001);
+    float spotOffset = -cosOuterAngle * spotScale;
+    return saturate(cosAngle * spotScale + spotOffset);
 }
 
 
 float3 DeferredDirectionalLight(float3 camRel, float3 norm, float4 diffuse, float4 specular, float4 irradiance)
 {
-    float3 refl = GetReflectedDir(camRel, norm);
-    float specb = saturate(dot(refl, GlobalLights.LightDir));
-    float specp = max(exp(specb * 10) - 1, 0);
-    float3 spec = GlobalLights.LightDirColour.rgb * 0.00006 * specp * specular.r;
+    float3 lightDir = GlobalLights.LightDir;
+    float3 viewDir = normalize(-camRel);
+    float3 halfVec = normalize(lightDir + viewDir);
+    float NdotH = saturate(dot(norm, halfVec));
+    float specExponent = max(specular.g * 512.0, 1.0);
+    float specp = pow(NdotH + 1e-8, specExponent + 1e-8);
+    float3 spec = GlobalLights.LightDirColour.rgb * specp * specular.r;
     float4 lightspacepos;
     float shadowdepth = ShadowmapSceneDepth(camRel, lightspacepos);
     float3 c = FullLighting(diffuse.rgb, spec, norm, irradiance, GlobalLights, EnableShadows, shadowdepth, lightspacepos);
@@ -144,26 +163,25 @@ float4 DeferredLODLight(float3 camRel, float3 norm, float4 diffuse, float4 specu
     }
     else if (LightType == 2)//spot (cone)
     {
-        float ang = acos(-dot(ldir, lodlight.Direction));
-        float iang = lodlight.InnerAngle;
-        float oang = lodlight.OuterAngleOrCapExt;
-        if (ang > oang) return 0;
-        lamt *= saturate(1 - ((ang - iang) / (oang - iang)));
+        float cosInner = cos(lodlight.InnerAngle);
+        float cosOuter = cos(lodlight.OuterAngleOrCapExt);
+        lamt *= GetSpotAngularAttenuation(ldir, lodlight.Direction, cosInner, cosOuter);
         lamt *= GetAttenuation(ldist, lodlight.Falloff, lodlight.FalloffExponent);
     }
     else if (LightType == 4)//capsule
     {
-        lamt *= GetAttenuation(ldist, lodlight.Falloff, lodlight.FalloffExponent); //TODO! proper capsule lighting... (use point-line dist!)
+        lamt *= GetAttenuation(ldist, lodlight.Falloff, lodlight.FalloffExponent);
     }
-    
+
     pclit *= lamt;
-    
+
     if (pclit <= 0) return 0;
-    
-    float3 refl = GetReflectedDir(camRel, norm);
-    float specb = saturate(dot(refl, ldir));
-    float specp = max(exp(specb * 10) - 1, 0);
-    float3 spec = lcol * (0.00006 * specp * specular.r * lamt);
+
+    float3 halfVec = normalize(ldir + normalize(-camRel));
+    float NdotH = saturate(dot(norm, halfVec));
+    float specExponent = max(specular.g * 512.0, 1.0);
+    float specp = pow(NdotH + 1e-8, specExponent + 1e-8);
+    float3 spec = lcol * (specp * specular.r * lamt);
 
     lcol = lcol * diffuse.rgb * pclit + spec;
 
@@ -200,26 +218,25 @@ float4 DeferredLight(float3 camRel, float3 norm, float4 diffuse, float4 specular
     }
     else if (InstType == 2)//spot (cone)
     {
-        float ang = acos(-dot(ldir, InstDirection));
-        float iang = InstConeInnerAngle;
-        float oang = InstConeOuterAngle;
-        if (ang > oang) return 0;
-        lamt *= saturate(1 - ((ang - iang) / (oang - iang)));
+        float cosInner = cos(InstConeInnerAngle);
+        float cosOuter = cos(InstConeOuterAngle);
+        lamt *= GetSpotAngularAttenuation(ldir, InstDirection, cosInner, cosOuter);
         lamt *= GetAttenuation(ldist, InstFalloff, InstFalloffExponent);
     }
     else if (InstType == 4)//capsule
     {
         lamt *= GetAttenuation(ldist, InstFalloff, InstFalloffExponent);
     }
-    
+
     pclit *= lamt;
-    
+
     if (pclit <= 0) return 0;
-    
-    float3 refl = GetReflectedDir(camRel, norm);
-    float specb = saturate(dot(refl, ldir));
-    float specp = max(exp(specb * 10) - 1, 0);
-    float3 spec = lcol * (0.00006 * specp * specular.r * lamt);
+
+    float3 halfVec = normalize(ldir + normalize(-camRel));
+    float NdotH = saturate(dot(norm, halfVec));
+    float specExponent = max(specular.g * 512.0, 1.0);
+    float specp = pow(NdotH + 1e-8, specExponent + 1e-8);
+    float3 spec = lcol * (specp * specular.r * lamt);
 
     lcol = lcol * diffuse.rgb * pclit + spec;
 

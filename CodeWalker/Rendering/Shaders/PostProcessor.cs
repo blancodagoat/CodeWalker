@@ -149,7 +149,7 @@ namespace CodeWalker.Rendering
         int Height = 0;
         ViewportF Viewport;
         bool Multisampled = false;
-        bool EnableBloom = true;
+        public bool EnableBloom = true;
         float ElapsedTime = 0.0f;
         public float LumBlendSpeed = 1.0f;
 
@@ -417,14 +417,15 @@ namespace CodeWalker.Rendering
             WindowSizeVramUsage = 0;
         }
 
+        // Default sky-blue clear (unchanged for the main renderer, which draws the sky over it anyway). The
+        // particle preview overrides this to a near-black backdrop so HDR auto-exposure keys off the fire
+        // (high contrast, sharp flames) instead of a bright sky that washes it out.
+        public Color4 ClearColour = new Color4(0.2f, 0.4f, 0.6f, 0.0f);
+
         public void Clear(DeviceContext context)
         {
             if (Primary == null) return;
-            
-            Color4 clearColour = new Color4(0.2f, 0.4f, 0.6f, 0.0f);
-            //Color4 clearColour = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
-
-            Primary.Clear(context, clearColour);
+            Primary.Clear(context, ClearColour);
         }
         public void ClearDepth(DeviceContext context)
         {
@@ -458,7 +459,8 @@ namespace CodeWalker.Rendering
 
             context.OutputMerger.SetRenderTargets((RenderTargetView)null);
 
-            ProcessLuminance(context);
+            if (FixedAvgLuminance.HasValue) WriteFixedLuminance(context, FixedAvgLuminance.Value);
+            else ProcessLuminance(context);
             ProcessBloom(context);
 
             dxman.SetDefaultRenderTarget(context);
@@ -466,6 +468,21 @@ namespace CodeWalker.Rendering
             FinalPass(context);
         }
 
+
+        // When set, the auto-exposure (eye adaptation) is bypassed and this fixed AVERAGE scene luminance is
+        // used instead - the final tonemap exposure becomes MIDDLE_GRAY/value. The particle preview pins this
+        // so a single bright fire on a near-black backdrop doesn't crank exposure ~3.6x (the min-lum clamp) and
+        // blow the flames + glow sprite into a frame-filling disc.
+        public float? FixedAvgLuminance = null;
+
+        private void WriteFixedLuminance(DeviceContext context, float avgLum)
+        {
+            // FinalPass computes fLum = lum[0] * invPixelCount (invPixelCount = 1/(81*81) here). To make the
+            // average read back as avgLum, store lum[0] = avgLum / invPixelCount into the 1-float buffer.
+            float inv = CS_FULL_PIXEL_REDUCTION ? (1.0f / (Width * Height)) : (1.0f / (81 * 81));
+            float val = avgLum / inv;
+            try { context.UpdateSubresource(new float[] { val }, LumBlendResult.Buffer); } catch { }
+        }
 
         private void ProcessLuminance(DeviceContext context)
         {

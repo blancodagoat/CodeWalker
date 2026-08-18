@@ -149,10 +149,10 @@
             this.SamplingDensityNumeric.Size = new System.Drawing.Size(80, 20);
             this.SamplingDensityNumeric.TabIndex = 54;
             this.SamplingDensityNumeric.Value = new decimal(new int[] {
-            5,
+            1,
             0,
             0,
-            65536});
+            0});
             // 
             // label4
             // 
@@ -218,7 +218,7 @@
             this.MaxSlopeAngleNumeric.Size = new System.Drawing.Size(80, 20);
             this.MaxSlopeAngleNumeric.TabIndex = 58;
             this.MaxSlopeAngleNumeric.Value = new decimal(new int[] {
-            45,
+            44,
             0,
             0,
             0});

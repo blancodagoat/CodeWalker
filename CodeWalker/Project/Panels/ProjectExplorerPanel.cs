@@ -581,20 +581,35 @@ namespace CodeWalker.Project.Panels
 
             node.Nodes.Clear();
 
-
-
             if ((ynd.Nodes != null) && (ynd.Nodes.Length > 0))
             {
-                var nodesnode = node.Nodes.Add("Nodes (" + ynd.Nodes.Length.ToString() + ")");
-                nodesnode.Name = "Nodes";
-                nodesnode.Tag = ynd;
-                var nodes = ynd.Nodes;
-                for (int i = 0; i < nodes.Length; i++)
+                var vehicleNodes = ynd.Nodes.Where(n => !n.IsPedNode).ToArray();
+                var pedNodes = ynd.Nodes.Where(n => n.IsPedNode).ToArray();
+
+                if (vehicleNodes.Length > 0)
                 {
-                    var ynode = nodes[i];
-                    var nnode = ynode.RawData;
-                    var tnode = nodesnode.Nodes.Add(nnode.ToString());
-                    tnode.Tag = ynode;
+                    var vnodesnode = node.Nodes.Add("Vehicle Nodes (" + vehicleNodes.Length.ToString() + ")");
+                    vnodesnode.Name = "VehicleNodes";
+                    vnodesnode.Tag = ynd;
+                    for (int i = 0; i < vehicleNodes.Length; i++)
+                    {
+                        var ynode = vehicleNodes[i];
+                        var tnode = vnodesnode.Nodes.Add(ynode.RawData.ToString());
+                        tnode.Tag = ynode;
+                    }
+                }
+
+                if (pedNodes.Length > 0)
+                {
+                    var pnodesnode = node.Nodes.Add("Pedestrian Nodes (" + pedNodes.Length.ToString() + ")");
+                    pnodesnode.Name = "PedNodes";
+                    pnodesnode.Tag = ynd;
+                    for (int i = 0; i < pedNodes.Length; i++)
+                    {
+                        var ynode = pedNodes[i];
+                        var tnode = pnodesnode.Nodes.Add(ynode.RawData.ToString());
+                        tnode.Tag = ynode;
+                    }
                 }
             }
 
@@ -1245,12 +1260,29 @@ namespace CodeWalker.Project.Panels
         {
             if (n == null) return null;
             TreeNode yndnode = FindYndTreeNode(n.Ynd);
-            var nodesnode = GetChildTreeNode(yndnode, "Nodes");
-            if (nodesnode == null) return null;
-            for (int i = 0; i < nodesnode.Nodes.Count; i++)
+            if (yndnode == null) return null;
+
+            // Search in the appropriate sub-group based on node type
+            var groupName = n.IsPedNode ? "PedNodes" : "VehicleNodes";
+            var groupNode = GetChildTreeNode(yndnode, groupName);
+            if (groupNode != null)
             {
-                TreeNode nnode = nodesnode.Nodes[i];
-                if (nnode.Tag == n) return nnode;
+                for (int i = 0; i < groupNode.Nodes.Count; i++)
+                {
+                    if (groupNode.Nodes[i].Tag == n) return groupNode.Nodes[i];
+                }
+            }
+
+            // Fallback: search all child groups (in case node type changed)
+            foreach (TreeNode child in yndnode.Nodes)
+            {
+                if (child.Name == "VehicleNodes" || child.Name == "PedNodes")
+                {
+                    for (int i = 0; i < child.Nodes.Count; i++)
+                    {
+                        if (child.Nodes[i].Tag == n) return child.Nodes[i];
+                    }
+                }
             }
             return null;
         }
@@ -2472,16 +2504,23 @@ namespace CodeWalker.Project.Panels
             if (node?.Ynd == null) return null;
             var yndnode = FindYndTreeNode(node.Ynd);
             if (yndnode == null) return null;
-            var nodesnode = GetChildTreeNode(yndnode, "Nodes");
+
+            var groupName = node.IsPedNode ? "PedNodes" : "VehicleNodes";
+            var groupLabel = node.IsPedNode ? "Pedestrian Nodes" : "Vehicle Nodes";
+            var count = node.IsPedNode
+                ? node.Ynd.Nodes.Count(n => n.IsPedNode)
+                : node.Ynd.Nodes.Count(n => !n.IsPedNode);
+
+            var nodesnode = GetChildTreeNode(yndnode, groupName);
             if (nodesnode == null)
             {
-                nodesnode = yndnode.Nodes.Add("Nodes (" + node.Ynd.Nodes.Length.ToString() + ")");
-                nodesnode.Name = "Nodes";
+                nodesnode = yndnode.Nodes.Add(groupLabel + " (" + count.ToString() + ")");
+                nodesnode.Name = groupName;
                 nodesnode.Tag = node.Ynd;
             }
             else
             {
-                nodesnode.Text = "Nodes (" + node.Ynd.Nodes.Length.ToString() + ")";
+                nodesnode.Text = groupLabel + " (" + count.ToString() + ")";
             }
             var nnode = nodesnode.Nodes.Add(node.RawData.ToString());
             nnode.Tag = node;
@@ -3104,8 +3143,14 @@ namespace CodeWalker.Project.Panels
             var tn = FindPathNodeTreeNode(node);
             if ((tn != null) && (tn.Parent != null))
             {
-                tn.Parent.Text = "Nodes (" + node.Ynd.Nodes.Length.ToString() + ")";
-                tn.Parent.Nodes.Remove(tn);
+                var parent = tn.Parent;
+                parent.Nodes.Remove(tn);
+                var groupLabel = parent.Name == "PedNodes" ? "Pedestrian Nodes" : "Vehicle Nodes";
+                parent.Text = groupLabel + " (" + parent.Nodes.Count.ToString() + ")";
+                if (parent.Nodes.Count == 0)
+                {
+                    parent.Parent?.Nodes.Remove(parent);
+                }
             }
         }
         public void RemoveTrainNodeTreeNode(TrainTrackNode node)

@@ -34,6 +34,8 @@ using System.Xml;
 
 namespace CodeWalker.GameFiles
 {
+    // CPathRegion : public pgBase
+    // Contains all path node data for a single map region (32x32 grid)
     [TypeConverter(typeof(ExpandableObjectConverter))] public class NodeDictionary : ResourceFileBase, IMetaXmlItem
     {
         public override long BlockLength
@@ -41,26 +43,26 @@ namespace CodeWalker.GameFiles
             get { return 112; }
         }
 
-        public ulong NodesPointer { get; set; }
-        public uint NodesCount { get; set; }
-        public uint NodesCountVehicle { get; set; }
-        public uint NodesCountPed { get; set; }
-        public uint Unk24 { get; set; } // 0x00000000
-        public ulong LinksPtr { get; set; }
-        public uint LinksCount { get; set; }
-        public uint Unk34 { get; set; } // 0x00000000
-        public ulong JunctionsPtr { get; set; }
-        public ulong JunctionHeightmapBytesPtr { get; set; }
-        public uint Unk48 { get; set; } = 1; // 0x00000001
-        public uint Unk4C { get; set; } // 0x00000000
-        public ulong JunctionRefsPtr { get; set; }
-        public ushort JunctionRefsCount0 { get; set; }
-        public ushort JunctionRefsCount1 { get; set; } // same as JunctionRefsCount0
-        public uint Unk5C { get; set; } // 0x00000000
-        public uint JunctionsCount { get; set; } // same as JunctionRefsCount0
-        public uint JunctionHeightmapBytesCount { get; set; }
-        public uint Unk68 { get; set; } // 0x00000000
-        public uint Unk6C { get; set; } // 0x00000000
+        public ulong NodesPointer { get; set; }            // CPathNode* aNodes
+        public uint NodesCount { get; set; }                // s32 NumNodes
+        public uint NodesCountVehicle { get; set; }         // s32 NumNodesCarNodes
+        public uint NodesCountPed { get; set; }             // s32 NumNodesPedNodes
+        public uint Padding24 { get; set; }                 // 0x00000000 (alignment padding)
+        public ulong LinksPtr { get; set; }                 // CPathNodeLink* aLinks
+        public uint LinksCount { get; set; }                // s32 NumLinks
+        public uint Padding34 { get; set; }                 // 0x00000000 (alignment padding)
+        public ulong JunctionsPtr { get; set; }             // CPathVirtualJunction* aVirtualJunctions
+        public ulong JunctionHeightmapBytesPtr { get; set; }// u8* aHeightSamples
+        public uint JunctionMapFlag { get; set; } = 1;      // JunctionMapContainer flag (always 1)
+        public uint JunctionMapPadding { get; set; }        // 0x00000000
+        public ulong JunctionRefsPtr { get; set; }          // atBinaryMap<s32,u32> data pointer (JunctionMap.JunctionMap)
+        public ushort JunctionRefsCount0 { get; set; }      // atBinaryMap count
+        public ushort JunctionRefsCount1 { get; set; }      // atBinaryMap capacity (same as Count0)
+        public uint JunctionMapPadding2 { get; set; }       // 0x00000000
+        public uint JunctionsCount { get; set; }            // s32 NumJunctions
+        public uint JunctionHeightmapBytesCount { get; set; }// u32 NumHeightSamples
+        public uint Padding68 { get; set; }                 // 0x00000000
+        public uint Padding6C { get; set; }                 // 0x00000000
 
         public Node[] Nodes { get; set; }
         public NodeLink[] Links { get; set; }
@@ -85,22 +87,22 @@ namespace CodeWalker.GameFiles
             this.NodesCount = reader.ReadUInt32();
             this.NodesCountVehicle = reader.ReadUInt32();
             this.NodesCountPed = reader.ReadUInt32();
-            this.Unk24 = reader.ReadUInt32();
+            this.Padding24 = reader.ReadUInt32();
             this.LinksPtr = reader.ReadUInt64();
             this.LinksCount = reader.ReadUInt32();
-            this.Unk34 = reader.ReadUInt32();
+            this.Padding34 = reader.ReadUInt32();
             this.JunctionsPtr = reader.ReadUInt64();
             this.JunctionHeightmapBytesPtr = reader.ReadUInt64();
-            this.Unk48 = reader.ReadUInt32();
-            this.Unk4C = reader.ReadUInt32();
+            this.JunctionMapFlag = reader.ReadUInt32();
+            this.JunctionMapPadding = reader.ReadUInt32();
             this.JunctionRefsPtr = reader.ReadUInt64();
             this.JunctionRefsCount0 = reader.ReadUInt16();
             this.JunctionRefsCount1 = reader.ReadUInt16();
-            this.Unk5C = reader.ReadUInt32();
+            this.JunctionMapPadding2 = reader.ReadUInt32();
             this.JunctionsCount = reader.ReadUInt32();
             this.JunctionHeightmapBytesCount = reader.ReadUInt32();
-            this.Unk68 = reader.ReadUInt32();
-            this.Unk6C = reader.ReadUInt32();
+            this.Padding68 = reader.ReadUInt32();
+            this.Padding6C = reader.ReadUInt32();
 
             this.Nodes = reader.ReadStructsAt<Node>(this.NodesPointer, this.NodesCount);
             this.Links = reader.ReadStructsAt<NodeLink>(this.LinksPtr, this.LinksCount);
@@ -125,7 +127,7 @@ namespace CodeWalker.GameFiles
             JunctionHeightmapBytesPtr = (ulong)(JunctionHeightmapBytesBlock?.FilePosition ?? 0);
             JunctionRefsPtr = (ulong)(JunctionRefsBlock?.FilePosition ?? 0);
             JunctionRefsCount0 = (ushort)(JunctionRefs?.Length ?? 0);
-            JunctionRefsCount1 = JunctionRefsCount1;
+            JunctionRefsCount1 = JunctionRefsCount0;
             JunctionsCount = (uint)(Junctions?.Length ?? 0);
             JunctionHeightmapBytesCount = (uint)(JunctionHeightmapBytes?.Length ?? 0);
 
@@ -135,22 +137,22 @@ namespace CodeWalker.GameFiles
             writer.Write(this.NodesCount);
             writer.Write(this.NodesCountVehicle);
             writer.Write(this.NodesCountPed);
-            writer.Write(this.Unk24);
+            writer.Write(this.Padding24);
             writer.Write(this.LinksPtr);
             writer.Write(this.LinksCount);
-            writer.Write(this.Unk34);
+            writer.Write(this.Padding34);
             writer.Write(this.JunctionsPtr);
             writer.Write(this.JunctionHeightmapBytesPtr);
-            writer.Write(this.Unk48);
-            writer.Write(this.Unk4C);
+            writer.Write(this.JunctionMapFlag);
+            writer.Write(this.JunctionMapPadding);
             writer.Write(this.JunctionRefsPtr);
             writer.Write(this.JunctionRefsCount0);
             writer.Write(this.JunctionRefsCount1);
-            writer.Write(this.Unk5C);
+            writer.Write(this.JunctionMapPadding2);
             writer.Write(this.JunctionsCount);
             writer.Write(this.JunctionHeightmapBytesCount);
-            writer.Write(this.Unk68);
-            writer.Write(this.Unk6C);
+            writer.Write(this.Padding68);
+            writer.Write(this.Padding6C);
         }
 
         public override IResourceBlock[] GetReferences()
@@ -337,41 +339,57 @@ namespace CodeWalker.GameFiles
         }
     }
 
+    // CPathNode (40 bytes on 64-bit)
+    // Serialized via DeclareStruct: m_address, m_streetNameHash, m_startIndexOfLinks, m_coorsX, m_coorsY, m_iAsInteger1, m_iAsInteger2
+    // m_pNext/m_pPrevious/m_distanceToTarget are runtime-only (STRUCT_IGNORE), zeroed in file
     [TypeConverter(typeof(ExpandableObjectConverter))] public struct Node
     {
-        public uint Unused0 { get; set; } // 0x00000000
-        public uint Unused1 { get; set; } // 0x00000000
-        public uint Unused2 { get; set; } // 0x00000000
-        public uint Unused3 { get; set; } // 0x00000000
-        public ushort AreaID { get; set; }
-        public ushort NodeID { get; set; }
-        public TextHash StreetName { get; set; }
-        public ushort Unused4 { get; set; }
-        public ushort LinkID { get; set; }
-        public short PositionX { get; set; }
-        public short PositionY { get; set; }
-        public FlagsByte Flags0 { get; set; }
-        public FlagsByte Flags1 { get; set; }
-        public short PositionZ { get; set; }
-        public FlagsByte Flags2 { get; set; }
-        public FlagsByte LinkCountFlags { get; set; }
-        public FlagsByte Flags3 { get; set; }
-        public FlagsByte Flags4 { get; set; }
+        public uint Unused0 { get; set; } // m_pNext (low 32 bits, runtime only, zero in file)
+        public uint Unused1 { get; set; } // m_pNext (high 32 bits)
+        public uint Unused2 { get; set; } // m_pPrevious (low 32 bits, runtime only, zero in file)
+        public uint Unused3 { get; set; } // m_pPrevious (high 32 bits)
+        public ushort AreaID { get; set; }      // CNodeAddress.m_region (u16)
+        public ushort NodeID { get; set; }      // CNodeAddress.m_Index (u16)
+        public TextHash StreetName { get; set; }// m_streetNameHash (u32)
+        public ushort DistanceToTarget { get; set; } // m_distanceToTarget (s16, runtime only, zero in file)
+        public ushort LinkID { get; set; }      // m_startIndexOfLinks (s16)
+        public short PositionX { get; set; }    // m_coorsX (s16) - divide by 4.0 for world coords (PATHCOORD_XYSHIFT)
+        public short PositionY { get; set; }    // m_coorsY (s16) - divide by 4.0 for world coords
+        // m_iAsInteger1 (u32) bitfield:
+        //   bits 0-2:   m_group (3)              - flood fill group
+        //   bit  3:     m_Offroad (1)
+        //   bit  4:     m_onPlayersRoad (1)      - runtime only
+        //   bit  5:     m_noBigVehicles (1)
+        //   bit  6:     m_cannotGoRight (1)
+        //   bit  7:     m_cannotGoLeft (1)
+        //   bit  8:     m_slipLane (1)
+        //   bit  9:     m_indicateKeepLeft (1)
+        //   bit  10:    m_indicateKeepRight (1)
+        //   bits 11-15: m_specialFunction (5)    - see PathNodeSpecialUse enum
+        //   bits 16-31: m_coorsZ (16)            - divide by 32.0 for world Z (PATHCOORD_ZSHIFT)
+        public uint Flags0 { get; set; }        // m_iAsInteger1
+        // m_iAsInteger2 (u32) bitfield:
+        //   bit  0:     m_noGps (1)
+        //   bit  1:     m_closeToCamera (1)      - runtime only
+        //   bit  2:     m_slipJunction (1)
+        //   bit  3:     m_alreadyFound (1)       - runtime only
+        //   bit  4:     m_switchedOffOriginal (1)
+        //   bit  5:     m_waterNode (1)
+        //   bit  6:     m_highwayOrLowBridge (1)
+        //   bit  7:     m_switchedOff (1)
+        //   bit  8:     m_qualifiesAsJunction (1)
+        //   bits 9-10:  m_speed (2)              - 0=slow, 1=normal, 2=fast, 3=double
+        //   bits 11-15: m_numLinks (5)
+        //   bit  16:    m_inTunnel (1)
+        //   bits 17-23: m_distanceHash (7)       - runtime spacing
+        //   bits 24-27: m_density (4)            - 0=empty, 15=normal
+        //   bits 28-30: m_deadEndness (3)
+        //   bit  31:    m_leftOnly (1)
+        public uint Flags1 { get; set; }        // m_iAsInteger2
 
         public override string ToString()
         {
-            //return Unused0.ToString() + ", " + Unused1.ToString() + ", " + Unused2.ToString() + ", " +
-            //       Unused3.ToString() + ", " + AreaID.ToString() + ", " + NodeID.ToString() + ", " +
-            //       UnknownInterp.ToString() + ", " + HeuristicCost.ToString() + ", " + LinkID.ToString() + ", " +
-            //       PositionX.ToString() + ", " + PositionY.ToString() + ", " + Unk20.ToString() + ", " + Unk21.ToString() + ", " + 
-            //       Unk22.ToString() + ", " + Unk24.ToString() + ", " + Unk26.ToString();
-
-            return AreaID.ToString() + ", " + NodeID.ToString() + ", " + StreetName.ToString();// + ", X:" +
-                                                                                               //PositionX.ToString() + ", Y:" + PositionY.ToString() + ", " + PositionZ.ToString();// + ", " + 
-                                                                                               //Flags0.ToString() + ", " + Flags1.ToString() + ", Z:" +
-                                                                                               //Flags2.ToString() + ", " + LinkCountFlags.ToString() + ", " + 
-                                                                                               //Flags3.ToString() + ", " + Flags4.ToString();
-
+            return AreaID.ToString() + ", " + NodeID.ToString() + ", " + StreetName.ToString();
         }
 
         public void WriteXml(StringBuilder sb, int indent, NodeLink[] allLinks)
@@ -379,19 +397,20 @@ namespace CodeWalker.GameFiles
             Vector3 p = new();
             p.X = PositionX / 4.0f;
             p.Y = PositionY / 4.0f;
-            p.Z = PositionZ / 32.0f;
-            int linkCount = LinkCountFlags.Value >> 3;
-            int linkCountUnk = LinkCountFlags.Value & 7;
+            p.Z = ((short)(Flags0 >> 16)) / 32.0f;
+            byte lcflags = (byte)((Flags1 >> 8) & 0xFF);
+            int linkCount = lcflags >> 3;
+            int linkCountUnk = lcflags & 7;
 
             YndXml.ValueTag(sb, indent, "AreaID", AreaID.ToString());
             YndXml.ValueTag(sb, indent, "NodeID", NodeID.ToString());
             YndXml.StringTag(sb, indent, "StreetName", YndXml.HashString(StreetName));
             YndXml.SelfClosingTag(sb, indent, "Position " + FloatUtil.GetVector3XmlString(p));
-            YndXml.ValueTag(sb, indent, "Flags0", Flags0.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags1", Flags1.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags2", Flags2.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags3", Flags3.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags4", Flags4.Value.ToString());
+            YndXml.ValueTag(sb, indent, "Flags0", (Flags0 & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags1", ((Flags0 >> 8) & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags2", (Flags1 & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags3", ((Flags1 >> 16) & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags4", ((Flags1 >> 24) & 0xFF).ToString());
             YndXml.ValueTag(sb, indent, "Flags5", linkCountUnk.ToString());
 
             NodeLink[] links = null;
@@ -414,13 +433,15 @@ namespace CodeWalker.GameFiles
             Vector3 p = Xml.GetChildVector3Attributes(node, "Position");
             PositionX = (short)(p.X * 4.0f);
             PositionY = (short)(p.Y * 4.0f);
-            PositionZ = (short)(p.Z * 32.0f);
-            Flags0 = (byte)Xml.GetChildUIntAttribute(node, "Flags0", "value");
-            Flags1 = (byte)Xml.GetChildUIntAttribute(node, "Flags1", "value");
-            Flags2 = (byte)Xml.GetChildUIntAttribute(node, "Flags2", "value");
-            Flags3 = (byte)Xml.GetChildUIntAttribute(node, "Flags3", "value");
-            Flags4 = (byte)Xml.GetChildUIntAttribute(node, "Flags4", "value");
+            ushort posZ = (ushort)(short)(p.Z * 32.0f);
+            byte f0 = (byte)Xml.GetChildUIntAttribute(node, "Flags0", "value");
+            byte f1 = (byte)Xml.GetChildUIntAttribute(node, "Flags1", "value");
+            byte f2 = (byte)Xml.GetChildUIntAttribute(node, "Flags2", "value");
+            byte f3 = (byte)Xml.GetChildUIntAttribute(node, "Flags3", "value");
+            byte f4 = (byte)Xml.GetChildUIntAttribute(node, "Flags4", "value");
             int linkCountUnk = (byte)Xml.GetChildUIntAttribute(node, "Flags5", "value");
+
+            Flags0 = (uint)f0 | ((uint)f1 << 8) | ((uint)posZ << 16);
 
             LinkID = (ushort)allLinksList.Count;
             int linkCount = 0;
@@ -436,53 +457,73 @@ namespace CodeWalker.GameFiles
                     linkCount++;
                 }
             }
-            LinkCountFlags = (byte)((linkCount << 3) + (linkCountUnk & 7));
+            byte lcflags = (byte)((linkCount << 3) + (linkCountUnk & 7));
+            Flags1 = (uint)f2 | ((uint)lcflags << 8) | ((uint)f3 << 16) | ((uint)f4 << 24);
         }
     }
 
+    // CPathNodeLink (8 bytes)
+    // Serialized via DeclareStruct: m_OtherNode (CNodeAddress), m_iAsInteger1 (u32 bitfield)
+    // m_iAsInteger1 bitfield:
+    //   bit  0:     m_bGpsCanGoBothWays (1)
+    //   bit  1:     m_bBlockIfNoLanes (1)
+    //   bits 2-6:   m_Tilt (5)
+    //   bits 7-8:   m_TiltFalloff (2)
+    //   bit  9:     m_NarrowRoad (1)
+    //   bit  10:    m_LeadsToDeadEnd (1)
+    //   bit  11:    m_LeadsFromDeadEnd (1)
+    //   bits 12-15: m_Width (4)                  - center road width in meters
+    //   bit  16:    m_bDontUseForNavigation (1)
+    //   bit  17:    m_bShortCut (1)
+    //   bits 18-20: m_LanesFromOtherNode (3)
+    //   bits 21-23: m_LanesToOtherNode (3)
+    //   bits 24-31: m_Distance (8)               - link distance in meters (u8)
     [TypeConverter(typeof(ExpandableObjectConverter))] public struct NodeLink : IMetaXmlItem
     {
-        public ushort AreaID { get; set; }
-        public ushort NodeID { get; set; }
-        public FlagsByte Flags0 { get; set; }
-        public FlagsByte Flags1 { get; set; }
-        public FlagsByte Flags2 { get; set; }
-        public FlagsByte LinkLength { get; set; }
+        public ushort AreaID { get; set; }          // CNodeAddress.m_region (u16) - m_OtherNode
+        public ushort NodeID { get; set; }          // CNodeAddress.m_Index (u16)
+        public uint Flags0 { get; set; }            // m_iAsInteger1 (u32 bitfield)
 
         public override string ToString()
         {
-            return AreaID.ToString() + ", " + NodeID.ToString() + ", " + Flags0.Value.ToString() + ", " + Flags1.Value.ToString() + ", " + Flags2.Value.ToString() + ", " + LinkLength.Value.ToString();
+            return AreaID.ToString() + ", " + NodeID.ToString() + ", " + (Flags0 & 0xFF).ToString() + ", " + ((Flags0 >> 8) & 0xFF).ToString() + ", " + ((Flags0 >> 16) & 0xFF).ToString() + ", " + ((Flags0 >> 24) & 0xFF).ToString();
         }
 
         public void WriteXml(StringBuilder sb, int indent)
         {
             YndXml.ValueTag(sb, indent, "ToAreaID", AreaID.ToString());
             YndXml.ValueTag(sb, indent, "ToNodeID", NodeID.ToString());
-            YndXml.ValueTag(sb, indent, "Flags0", Flags0.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags1", Flags1.Value.ToString());
-            YndXml.ValueTag(sb, indent, "Flags2", Flags2.Value.ToString());
-            YndXml.ValueTag(sb, indent, "LinkLength", LinkLength.Value.ToString());
+            YndXml.ValueTag(sb, indent, "Flags0", (Flags0 & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags1", ((Flags0 >> 8) & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "Flags2", ((Flags0 >> 16) & 0xFF).ToString());
+            YndXml.ValueTag(sb, indent, "LinkLength", ((Flags0 >> 24) & 0xFF).ToString());
         }
         public void ReadXml(XmlNode node)
         {
             AreaID = (ushort)Xml.GetChildUIntAttribute(node, "ToAreaID", "value");
             NodeID = (ushort)Xml.GetChildUIntAttribute(node, "ToNodeID", "value");
-            Flags0 = (byte)Xml.GetChildUIntAttribute(node, "Flags0", "value");
-            Flags1 = (byte)Xml.GetChildUIntAttribute(node, "Flags1", "value");
-            Flags2 = (byte)Xml.GetChildUIntAttribute(node, "Flags2", "value");
-            LinkLength = (byte)Xml.GetChildUIntAttribute(node, "LinkLength", "value");
+            byte f0 = (byte)Xml.GetChildUIntAttribute(node, "Flags0", "value");
+            byte f1 = (byte)Xml.GetChildUIntAttribute(node, "Flags1", "value");
+            byte f2 = (byte)Xml.GetChildUIntAttribute(node, "Flags2", "value");
+            byte dist = (byte)Xml.GetChildUIntAttribute(node, "LinkLength", "value");
+            Flags0 = (uint)f0 | ((uint)f1 << 8) | ((uint)f2 << 16) | ((uint)dist << 24);
         }
     }
 
+    // CPathVirtualJunction (12 bytes)
+    // Serialized via DeclareStruct: m_uMaxZ, m_iMinX, m_iMinY, m_nHeightBaseWorld,
+    //   m_nStartIndexOfHeightSamples, m_nXSamples, m_nYSamples
+    // XY coords use PATHCOORD_XYSHIFT (4.0), Z coords use PATHCOORD_ZSHIFT (32.0)
+    // Note: C++ stores MaxZ as u16 and MinZ as u16, but UINT16_TO_COORSZ casts to s16 for conversion
     [TypeConverter(typeof(ExpandableObjectConverter))] public struct NodeJunction
     {
-        public short MaxZ { get; set; }
-        public short PositionX { get; set; }
-        public short PositionY { get; set; }
-        public short MinZ { get; set; }
-        public ushort HeightmapPtr { get; set; }
-        public byte HeightmapDimX { get; set; }
-        public byte HeightmapDimY { get; set; }
+        public short MaxZ { get; set; }             // m_uMaxZ (u16) - max Z height of junction area
+        public short PositionX { get; set; }        // m_iMinX (s16) - min X of junction area
+        public short PositionY { get; set; }        // m_iMinY (s16) - min Y of junction area
+        public short MinZ { get; set; }             // m_nHeightBaseWorld (u16) - minimum height base for heightmap
+        public ushort HeightmapPtr { get; set; }    // m_nStartIndexOfHeightSamples (u16)
+        public byte HeightmapDimX { get; set; }     // m_nXSamples (u8)
+        public byte HeightmapDimY { get; set; }     // m_nYSamples (u8)
 
         public override string ToString()
         {
@@ -535,12 +576,15 @@ namespace CodeWalker.GameFiles
         }
     }
 
+    // Entry in atBinaryMap<s32, u32> JunctionMap
+    // Key = CNodeAddress (u32 packed as region:16 + index:16)
+    // Value = junction index (u32, only lower 16 bits used since max 256 junctions per region)
     [TypeConverter(typeof(ExpandableObjectConverter))] public struct NodeJunctionRef : IMetaXmlItem
     {
-        public ushort AreaID { get; set; }
-        public ushort NodeID { get; set; }
-        public ushort JunctionID { get; set; }
-        public ushort Unk0 { get; set; }
+        public ushort AreaID { get; set; }          // CNodeAddress.m_region (key high 16 bits)
+        public ushort NodeID { get; set; }          // CNodeAddress.m_Index (key low 16 bits)
+        public ushort JunctionID { get; set; }      // Junction index (value low 16 bits)
+        public ushort Padding0 { get; set; }        // Value high 16 bits (always 0)
 
         public override string ToString()
         {
@@ -552,14 +596,14 @@ namespace CodeWalker.GameFiles
             YndXml.ValueTag(sb, indent, "AreaID", AreaID.ToString());
             YndXml.ValueTag(sb, indent, "NodeID", NodeID.ToString());
             YndXml.ValueTag(sb, indent, "JunctionID", JunctionID.ToString());
-            YndXml.ValueTag(sb, indent, "Unk0", Unk0.ToString());
+            YndXml.ValueTag(sb, indent, "Padding0", Padding0.ToString());
         }
         public void ReadXml(XmlNode node)
         {
             AreaID = (ushort)Xml.GetChildUIntAttribute(node, "AreaID", "value");
             NodeID = (ushort)Xml.GetChildUIntAttribute(node, "NodeID", "value");
             JunctionID = (ushort)Xml.GetChildUIntAttribute(node, "JunctionID", "value");
-            Unk0 = (ushort)Xml.GetChildUIntAttribute(node, "Unk0", "value");
+            Padding0 = (ushort)Xml.GetChildUIntAttribute(node, "Padding0", "value");
         }
     }
 

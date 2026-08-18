@@ -397,8 +397,12 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     ynv.Nav.SetDefaults(false);
                     ynv.Nav.AABBSize = new Vector3(NavGrid.CellSize, NavGrid.CellSize, 0.0f);
                     ynv.Nav.SectorTree = new NavMeshSector();
-                    ynv.Nav.SectorTree.AABBMin = new Vector4(NavGrid.GetCellMin(cell), 0.0f);
-                    ynv.Nav.SectorTree.AABBMax = new Vector4(NavGrid.GetCellMax(cell), 0.0f);
+                    // R* sets initial Z bounds from exporter cutoffs: min=-500, max=1000
+                    // These get refined in FinalizeYnvs to match actual content
+                    var cellMin = NavGrid.GetCellMin(cell);
+                    var cellMax = NavGrid.GetCellMax(cell);
+                    ynv.Nav.SectorTree.AABBMin = new Vector4(cellMin.X, cellMin.Y, genParams.ExporterMinZCutoff, 0.0f);
+                    ynv.Nav.SectorTree.AABBMax = new Vector4(cellMax.X, cellMax.Y, genParams.ExporterMaxZCutoff, 0.0f);
                     ynv.AreaID = cell.X + cell.Y * 100;
                     ynv.Polys = new List<YnvPoly>();
                     ynv.HasChanged = true;//mark it for the project window
@@ -642,8 +646,9 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
             Log($"Query bounds: X=[{min.X:F1}, {max.X:F1}], Y=[{min.Y:F1}, {max.Y:F1}]", statusCallback);
 
-            var bmin = new Vector3(min, -1000f);
-            var bmax = new Vector3(max, 1000f);
+            // R* exporter Z cutoffs: min=-500, max=1000
+            var bmin = new Vector3(min, genParams.ExporterMinZCutoff);
+            var bmax = new Vector3(max, genParams.ExporterMaxZCutoff);
             var boundslist = boundsStore.GetItems(ref bmin, ref bmax);
 
             if (boundslist == null || boundslist.Count == 0)
@@ -1041,12 +1046,17 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             Log("", statusCallback);
             Log("PHASE 2: HEIGHT SAMPLING", statusCallback);
             Log("=".PadRight(80, '='), statusCallback);
-            
+
             if (collisionOctree == null)
             {
                 Log("Error: Collision octree not built. Call LoadCollisionGeometry first.", statusCallback);
                 return 0;
             }
+
+            // Ensure min < max on all axes
+            if (min.X > max.X) { float t = min.X; min.X = max.X; max.X = t; }
+            if (min.Y > max.Y) { float t = min.Y; min.Y = max.Y; max.Y = t; }
+            if (minZ > maxZ) { float t = minZ; minZ = maxZ; maxZ = t; }
 
             // Calculate grid dimensions based on sampling density
             float samplingDensity = genParams.SamplingDensity;
@@ -1258,7 +1268,8 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     IsInterior = tri.IsInterior,
                     IsRoad = tri.IsRoad,
                     IsTrainTracks = tri.IsTrainTracks,
-                    IsFlatGround = tri.IsFlatGround
+                    IsFlatGround = tri.IsFlatGround,
+                    IsShallowWater = tri.IsShallowWater
                 };
 
                 polygons.Add(poly);
@@ -1407,6 +1418,14 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             {
                 triangle.Material = MaterialType.Water;
                 triangle.IsWater = true;
+
+                // Check if any source collision triangle was shallow water
+                if (node.CollisionTriangle?.IsShallowWater == true ||
+                    adj1.CollisionTriangle?.IsShallowWater == true ||
+                    adj2.CollisionTriangle?.IsShallowWater == true)
+                {
+                    triangle.IsShallowWater = true;
+                }
             }
             else if (node.Material == MaterialType.Stairs || adj1.Material == MaterialType.Stairs || adj2.Material == MaterialType.Stairs)
             {
@@ -2326,7 +2345,8 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     IsInterior = tri.IsInterior,
                     IsRoad = tri.IsRoad,
                     IsTrainTracks = tri.IsTrainTracks,
-                    IsFlatGround = tri.IsFlatGround
+                    IsFlatGround = tri.IsFlatGround,
+                    IsShallowWater = tri.IsShallowWater
                 };
 
                 poly.CalculateNormalAndPlane();
@@ -3187,9 +3207,24 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 return null;
             }
 
-            // Set material from surrounding triangles (use most common)
-            newTriangle.Material = gap.Edge1.Triangle.Material;
-            newTriangle.IsWater = gap.Edge1.Triangle.IsWater || gap.Edge2.Triangle.IsWater;
+            // Set material and flags from surrounding triangles
+            var srcTri = gap.Edge1.Triangle;
+            newTriangle.Material = srcTri.Material;
+            newTriangle.IsWater = srcTri.IsWater || gap.Edge2.Triangle.IsWater;
+            newTriangle.IsShallowWater = srcTri.IsShallowWater || gap.Edge2.Triangle.IsShallowWater;
+            newTriangle.ProceduralId = srcTri.ProceduralId;
+            newTriangle.RoomId = srcTri.RoomId;
+            newTriangle.PedDensity = srcTri.PedDensity;
+            newTriangle.MaterialFlags = srcTri.MaterialFlags;
+            newTriangle.IsInterior = srcTri.IsInterior;
+            newTriangle.IsRoad = srcTri.IsRoad;
+            newTriangle.IsTrainTracks = srcTri.IsTrainTracks;
+
+            // Determine IsFlatGround based on slope
+            var upVec = new Vector3(0, 0, 1);
+            float flatDot = Vector3.Dot(newTriangle.Normal, upVec);
+            float flatAngle = (float)Math.Acos(Math.Clamp(flatDot, -1f, 1f)) * 180f / (float)Math.PI;
+            newTriangle.IsFlatGround = (flatAngle < 10.0f);
 
             // Check if triangle is too steep
             var upVector = new Vector3(0, 0, 1);
@@ -4008,8 +4043,24 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
             if (NavGrid == null)
             {
                 NavGrid = new SpaceNavGrid();
+                // Apply R* grid parameters: WorldMin=(-6000,-6000), CellSize=150 (SectorWidth * SectorsPerNavMesh)
                 NavGrid.CellSize = genParams.NavGridCellSize;
                 NavGrid.CellSizeInv = 1.0f / NavGrid.CellSize;
+                NavGrid.CornerX = genParams.WorldMinX;
+                NavGrid.CornerY = genParams.WorldMinY;
+                // Recalculate cell counts based on world extent (15000 / 150 = 100)
+                float worldExtent = 15000.0f; // -6000 to 9000
+                NavGrid.CellCountX = Math.Max(1, (int)(worldExtent / NavGrid.CellSize));
+                NavGrid.CellCountY = Math.Max(1, (int)(worldExtent / NavGrid.CellSize));
+                // Reinitialize cells array with correct dimensions
+                NavGrid.Cells = new SpaceNavGridCell[NavGrid.CellCountX, NavGrid.CellCountY];
+                for (int x = 0; x < NavGrid.CellCountX; x++)
+                {
+                    for (int y = 0; y < NavGrid.CellCountY; y++)
+                    {
+                        NavGrid.Cells[x, y] = new SpaceNavGridCell(x, y);
+                    }
+                }
             }
 
             statusCallback?.Invoke("Starting grid cell splitting...");
@@ -4090,13 +4141,22 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     }
                     else
                     {
-                        // Create two new polygons from the split
+                        // Create two new polygons from the split, preserving all flags
                         var poly1 = new NavSurfacePoly
                         {
                             Material = poly.Material,
                             IsWater = poly.IsWater,
                             IsTooSteep = poly.IsTooSteep,
                             PolyFlags = poly.PolyFlags,
+                            ProceduralId = poly.ProceduralId,
+                            RoomId = poly.RoomId,
+                            PedDensity = poly.PedDensity,
+                            MaterialFlags = poly.MaterialFlags,
+                            IsInterior = poly.IsInterior,
+                            IsRoad = poly.IsRoad,
+                            IsTrainTracks = poly.IsTrainTracks,
+                            IsFlatGround = poly.IsFlatGround,
+                            IsShallowWater = poly.IsShallowWater,
                             Vertices = new List<NavGenNode>()
                         };
 
@@ -4106,6 +4166,15 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                             IsWater = poly.IsWater,
                             IsTooSteep = poly.IsTooSteep,
                             PolyFlags = poly.PolyFlags,
+                            ProceduralId = poly.ProceduralId,
+                            RoomId = poly.RoomId,
+                            PedDensity = poly.PedDensity,
+                            MaterialFlags = poly.MaterialFlags,
+                            IsInterior = poly.IsInterior,
+                            IsRoad = poly.IsRoad,
+                            IsTrainTracks = poly.IsTrainTracks,
+                            IsFlatGround = poly.IsFlatGround,
+                            IsShallowWater = poly.IsShallowWater,
                             Vertices = new List<NavGenNode>()
                         };
 
@@ -4180,6 +4249,19 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 NavGrid = new SpaceNavGrid();
                 NavGrid.CellSize = genParams.NavGridCellSize;
                 NavGrid.CellSizeInv = 1.0f / NavGrid.CellSize;
+                NavGrid.CornerX = genParams.WorldMinX;
+                NavGrid.CornerY = genParams.WorldMinY;
+                float worldExtent = 15000.0f;
+                NavGrid.CellCountX = Math.Max(1, (int)(worldExtent / NavGrid.CellSize));
+                NavGrid.CellCountY = Math.Max(1, (int)(worldExtent / NavGrid.CellSize));
+                NavGrid.Cells = new SpaceNavGridCell[NavGrid.CellCountX, NavGrid.CellCountY];
+                for (int x = 0; x < NavGrid.CellCountX; x++)
+                {
+                    for (int y = 0; y < NavGrid.CellCountY; y++)
+                    {
+                        NavGrid.Cells[x, y] = new SpaceNavGridCell(x, y);
+                    }
+                }
             }
 
             YnvFiles = new List<YnvFile>();
@@ -4213,8 +4295,11 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                     ynv.Nav.SetDefaults(false);
                     ynv.Nav.AABBSize = new Vector3(NavGrid.CellSize, NavGrid.CellSize, 0.0f);
                     ynv.Nav.SectorTree = new NavMeshSector();
-                    ynv.Nav.SectorTree.AABBMin = new Vector4(NavGrid.GetCellMin(cell), 0.0f);
-                    ynv.Nav.SectorTree.AABBMax = new Vector4(NavGrid.GetCellMax(cell), 0.0f);
+                    // R* sets initial Z bounds from exporter cutoffs: min=-500, max=1000
+                    var cellMin = NavGrid.GetCellMin(cell);
+                    var cellMax = NavGrid.GetCellMax(cell);
+                    ynv.Nav.SectorTree.AABBMin = new Vector4(cellMin.X, cellMin.Y, genParams.ExporterMinZCutoff, 0.0f);
+                    ynv.Nav.SectorTree.AABBMax = new Vector4(cellMax.X, cellMax.Y, genParams.ExporterMaxZCutoff, 0.0f);
                     ynv.AreaID = cell.X + cell.Y * 100;
                     ynv.Polys = new List<YnvPoly>();
                     ynv.HasChanged = true;
@@ -4236,10 +4321,436 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
             statusCallback?.Invoke($"Converted {convertedCount} polygons into {YnvFiles.Count} YNV files");
 
+            // Link adjacent polygon edges (internal + cross-cell)
+            LinkEdges(statusCallback);
+
             // Finalize YNV files
             FinalizeYnvs(YnvFiles, false);
 
             return YnvFiles;
+        }
+
+        // ==========================================
+        // Edge linking methods
+        // ==========================================
+
+        /// <summary>
+        /// Quantize a vertex position to a string key for edge matching.
+        /// Uses 0.01 precision to handle floating point imprecision from polygon splitting.
+        /// </summary>
+        private static string VKey(Vector3 v)
+        {
+            return $"{Math.Round(v.X * 100)},{Math.Round(v.Y * 100)},{Math.Round(v.Z * 100)}";
+        }
+
+        private static string EKey(Vector3 v1, Vector3 v2)
+        {
+            return VKey(v1) + "|" + VKey(v2);
+        }
+
+        /// <summary>
+        /// Links all polygon edges: internal (within each YNV) and cross-cell (between generated YNVs).
+        /// Must be called after ConvertToYnvFiles populates YnvFiles but before FinalizeYnvs.
+        /// </summary>
+        private void LinkEdges(Action<string> statusCallback = null)
+        {
+            statusCallback?.Invoke("Linking polygon edges...");
+
+            // Phase 1: Link internal edges within each YNV
+            int totalInternal = 0;
+            foreach (var ynv in YnvFiles)
+            {
+                totalInternal += LinkInternalEdges(ynv);
+            }
+            statusCallback?.Invoke($"Linked {totalInternal} internal edge pairs across {YnvFiles.Count} YNV files");
+
+            // Phase 2: Link cross-cell edges between generated YNVs
+            int totalCrossCell = LinkCrossCellEdges();
+            statusCallback?.Invoke($"Linked {totalCrossCell} cross-cell edge pairs");
+        }
+
+        /// <summary>
+        /// Links edges between polygons within a single YNV file.
+        /// Two polygons share an edge if they have two consecutive vertices at the same positions
+        /// but in reverse winding order.
+        /// </summary>
+        private int LinkInternalEdges(YnvFile ynv)
+        {
+            if (ynv.Polys == null) return 0;
+
+            int linked = 0;
+            var edgeMap = new Dictionary<string, (YnvPoly poly, int edgeIdx)>();
+
+            foreach (var poly in ynv.Polys)
+            {
+                if (poly.Vertices == null || poly.Edges == null) continue;
+                if (poly.Edges.Length != poly.Vertices.Length) continue;
+
+                for (int i = 0; i < poly.Vertices.Length; i++)
+                {
+                    var v1 = poly.Vertices[i];
+                    var v2 = poly.Vertices[(i + 1) % poly.Vertices.Length];
+
+                    // Look for reverse edge (another polygon sharing this edge in opposite winding)
+                    var reverseKey = EKey(v2, v1);
+                    if (edgeMap.TryGetValue(reverseKey, out var match))
+                    {
+                        // Link both edges to each other's polygon
+                        poly.Edges[i].Poly1 = match.poly;
+                        poly.Edges[i].Poly2 = match.poly;
+                        poly.Edges[i].AreaID1 = match.poly.AreaID;
+                        poly.Edges[i].AreaID2 = match.poly.AreaID;
+
+                        match.poly.Edges[match.edgeIdx].Poly1 = poly;
+                        match.poly.Edges[match.edgeIdx].Poly2 = poly;
+                        match.poly.Edges[match.edgeIdx].AreaID1 = poly.AreaID;
+                        match.poly.Edges[match.edgeIdx].AreaID2 = poly.AreaID;
+
+                        edgeMap.Remove(reverseKey);
+                        linked++;
+                    }
+                    else
+                    {
+                        var forwardKey = EKey(v1, v2);
+                        edgeMap.TryAdd(forwardKey, (poly, i));
+                    }
+                }
+            }
+
+            return linked;
+        }
+
+        /// <summary>
+        /// Links edges between polygons in adjacent generated YNV files (different AreaIDs).
+        /// Only processes each cell pair once (East and North neighbors).
+        /// </summary>
+        private int LinkCrossCellEdges()
+        {
+            if (YnvFiles == null || YnvFiles.Count < 2) return 0;
+
+            int linked = 0;
+
+            // Build dictionary of generated YNVs by AreaID
+            var ynvByArea = new Dictionary<int, YnvFile>();
+            foreach (var ynv in YnvFiles)
+            {
+                ynvByArea[ynv.AreaID] = ynv;
+            }
+
+            // For each generated YNV, check East (+1) and North (+100) neighbors to avoid duplicates
+            var processed = new HashSet<(int, int)>();
+
+            foreach (var ynv in YnvFiles)
+            {
+                int areaID = ynv.AreaID;
+
+                foreach (int offset in new[] { 1, 100 })
+                {
+                    int neighborAreaID = areaID + offset;
+
+                    if (!ynvByArea.TryGetValue(neighborAreaID, out var neighborYnv))
+                        continue;
+
+                    var pair = (Math.Min(areaID, neighborAreaID), Math.Max(areaID, neighborAreaID));
+                    if (!processed.Add(pair)) continue;
+
+                    linked += LinkBoundaryEdgesBetweenYnvs(ynv, neighborYnv);
+                }
+            }
+
+            return linked;
+        }
+
+        /// <summary>
+        /// Links shared boundary edges between two YNV files using vertex position matching.
+        /// </summary>
+        private int LinkBoundaryEdgesBetweenYnvs(YnvFile ynv1, YnvFile ynv2)
+        {
+            if (ynv1.Polys == null || ynv2.Polys == null) return 0;
+
+            int linked = 0;
+
+            // Build edge map from ynv2's unlinked edges
+            var edgeMap = new Dictionary<string, (YnvPoly poly, int edgeIdx)>();
+
+            foreach (var poly in ynv2.Polys)
+            {
+                if (poly.Vertices == null || poly.Edges == null) continue;
+                if (poly.Edges.Length != poly.Vertices.Length) continue;
+
+                for (int i = 0; i < poly.Vertices.Length; i++)
+                {
+                    // Only consider edges that are still self-referencing (unlinked)
+                    if (poly.Edges[i].Poly1 != null && poly.Edges[i].Poly1 != poly)
+                        continue;
+
+                    var v1 = poly.Vertices[i];
+                    var v2 = poly.Vertices[(i + 1) % poly.Vertices.Length];
+                    var key = EKey(v1, v2);
+                    edgeMap.TryAdd(key, (poly, i));
+                }
+            }
+
+            // Match against ynv1's unlinked edges
+            foreach (var poly in ynv1.Polys)
+            {
+                if (poly.Vertices == null || poly.Edges == null) continue;
+                if (poly.Edges.Length != poly.Vertices.Length) continue;
+
+                for (int i = 0; i < poly.Vertices.Length; i++)
+                {
+                    if (poly.Edges[i].Poly1 != null && poly.Edges[i].Poly1 != poly)
+                        continue;
+
+                    var v1 = poly.Vertices[i];
+                    var v2 = poly.Vertices[(i + 1) % poly.Vertices.Length];
+                    var reverseKey = EKey(v2, v1);
+
+                    if (edgeMap.TryGetValue(reverseKey, out var match))
+                    {
+                        // Cross-cell link
+                        poly.Edges[i].Poly1 = match.poly;
+                        poly.Edges[i].Poly2 = match.poly;
+                        poly.Edges[i].AreaID1 = match.poly.AreaID;
+                        poly.Edges[i].AreaID2 = match.poly.AreaID;
+
+                        match.poly.Edges[match.edgeIdx].Poly1 = poly;
+                        match.poly.Edges[match.edgeIdx].Poly2 = poly;
+                        match.poly.Edges[match.edgeIdx].AreaID1 = poly.AreaID;
+                        match.poly.Edges[match.edgeIdx].AreaID2 = poly.AreaID;
+
+                        edgeMap.Remove(reverseKey);
+                        linked++;
+                    }
+                }
+            }
+
+            return linked;
+        }
+
+        /// <summary>
+        /// Stitches generated navmeshes to existing adjacent navmeshes (R* DLC-style join).
+        /// For boundary edges that face outside the generation area, loads the existing adjacent
+        /// YNV and sets up cross-boundary edge references so pathfinding works across the seam.
+        /// </summary>
+        public int StitchToExistingNavMeshes(GameFileCache gameFileCache, Action<string> statusCallback = null)
+        {
+            if (YnvFiles == null || YnvFiles.Count == 0 || NavGrid == null)
+                return 0;
+
+            statusCallback?.Invoke("Starting boundary stitching to existing navmeshes...");
+
+            // Build set of generated AreaIDs for quick lookup
+            var generatedAreaIDs = new HashSet<int>();
+            foreach (var ynv in YnvFiles)
+            {
+                generatedAreaIDs.Add(ynv.AreaID);
+            }
+
+            int totalStitched = 0;
+            // R* uses 0.125 for max dist from edge, 0.5 for segment distance - we use 0.5 for vertex tolerance
+            float boundaryTolerance = 0.5f;
+
+            foreach (var ynv in YnvFiles)
+            {
+                int areaID = ynv.AreaID;
+                int cellX = areaID % 100;
+                int cellY = areaID / 100;
+
+                // Check 4 cardinal neighbors
+                int[] neighborOffsets = { -1, 1, -100, 100 };  // West, East, South, North
+                foreach (int offset in neighborOffsets)
+                {
+                    int neighborAreaID = areaID + offset;
+                    int neighborX = neighborAreaID % 100;
+                    int neighborY = neighborAreaID / 100;
+
+                    // Skip if out of grid bounds
+                    if (neighborX < 0 || neighborX >= 100 || neighborY < 0 || neighborY >= 100)
+                        continue;
+
+                    // Skip if neighbor was also generated (already linked by LinkCrossCellEdges)
+                    if (generatedAreaIDs.Contains(neighborAreaID))
+                        continue;
+
+                    // Try to load existing adjacent YNV from game files
+                    YnvFile existingYnv = null;
+                    try
+                    {
+                        existingYnv = gameFileCache.GetYnv((uint)neighborAreaID);
+                        if (existingYnv != null && !existingYnv.Loaded)
+                        {
+                            int waitCount = 0;
+                            while (!existingYnv.Loaded && waitCount < 200)
+                            {
+                                System.Threading.Thread.Sleep(10);
+                                waitCount++;
+                            }
+                        }
+                    }
+                    catch { }
+
+                    if (existingYnv?.Nav == null || existingYnv.Polys == null || existingYnv.Polys.Count == 0)
+                    {
+                        statusCallback?.Invoke($"  No existing YNV found for neighbor AreaID {neighborAreaID}");
+                        continue;
+                    }
+
+                    // Determine which boundary we share
+                    var cellMin = NavGrid.GetCellMin(NavGrid.Cells[cellX, cellY]);
+                    var cellMax = NavGrid.GetCellMax(NavGrid.Cells[cellX, cellY]);
+
+                    float boundaryCoord;
+                    bool isXBoundary; // true = shared boundary is a vertical line (X=const), false = horizontal (Y=const)
+                    if (offset == -1) { boundaryCoord = cellMin.X; isXBoundary = true; }       // West
+                    else if (offset == 1) { boundaryCoord = cellMax.X; isXBoundary = true; }    // East
+                    else if (offset == -100) { boundaryCoord = cellMin.Y; isXBoundary = false; } // South
+                    else { boundaryCoord = cellMax.Y; isXBoundary = false; }                     // North
+
+                    int stitchedCount = StitchBoundaryEdges(ynv, existingYnv, boundaryCoord, isXBoundary, boundaryTolerance);
+                    totalStitched += stitchedCount;
+
+                    statusCallback?.Invoke($"  {(offset == -1 ? "West" : offset == 1 ? "East" : offset == -100 ? "South" : "North")} " +
+                        $"neighbor AreaID {neighborAreaID}: stitched {stitchedCount} edges");
+                }
+            }
+
+            statusCallback?.Invoke($"Boundary stitching complete: {totalStitched} edges connected to existing navmeshes");
+            return totalStitched;
+        }
+
+        /// <summary>
+        /// Stitches boundary edges between a new YNV and an existing adjacent YNV along a shared boundary.
+        /// For each unlinked edge on the boundary of the new YNV, finds the best overlapping polygon
+        /// edge in the existing YNV and creates a cross-boundary reference.
+        /// </summary>
+        private int StitchBoundaryEdges(YnvFile newYnv, YnvFile existingYnv, float boundaryCoord, bool isXBoundary, float tolerance)
+        {
+            int stitchedCount = 0;
+
+            // Pre-build list of existing boundary edges for faster matching
+            var existingBoundaryEdges = new List<(YnvPoly poly, int edgeIdx, Vector3 v1, Vector3 v2, float rangeMin, float rangeMax)>();
+
+            foreach (var existPoly in existingYnv.Polys)
+            {
+                if (existPoly.Vertices == null || existPoly.Vertices.Length < 3)
+                    continue;
+
+                for (int ei = 0; ei < existPoly.Vertices.Length; ei++)
+                {
+                    var ev1 = existPoly.Vertices[ei];
+                    var ev2 = existPoly.Vertices[(ei + 1) % existPoly.Vertices.Length];
+
+                    // Check if this edge is on the boundary
+                    float ec1 = isXBoundary ? ev1.X : ev1.Y;
+                    float ec2 = isXBoundary ? ev2.X : ev2.Y;
+
+                    if (Math.Abs(ec1 - boundaryCoord) > tolerance || Math.Abs(ec2 - boundaryCoord) > tolerance)
+                        continue;
+
+                    // Calculate range along the boundary axis
+                    float rangeMin, rangeMax;
+                    if (isXBoundary)
+                    {
+                        rangeMin = Math.Min(ev1.Y, ev2.Y);
+                        rangeMax = Math.Max(ev1.Y, ev2.Y);
+                    }
+                    else
+                    {
+                        rangeMin = Math.Min(ev1.X, ev2.X);
+                        rangeMax = Math.Max(ev1.X, ev2.X);
+                    }
+
+                    existingBoundaryEdges.Add((existPoly, ei, ev1, ev2, rangeMin, rangeMax));
+                }
+            }
+
+            if (existingBoundaryEdges.Count == 0)
+                return 0;
+
+            // Match our boundary edges to existing boundary edges
+            foreach (var poly in newYnv.Polys)
+            {
+                if (poly.Vertices == null || poly.Edges == null)
+                    continue;
+                if (poly.Edges.Length != poly.Vertices.Length)
+                    continue;
+
+                for (int edgeIdx = 0; edgeIdx < poly.Edges.Length; edgeIdx++)
+                {
+                    var edge = poly.Edges[edgeIdx];
+                    if (edge == null) continue;
+
+                    // Only process unlinked edges (self-referencing = no neighbor found yet)
+                    if (edge.Poly1 != null && edge.Poly1 != poly)
+                        continue;
+
+                    // Get edge vertices
+                    var v1 = poly.Vertices[edgeIdx];
+                    var v2 = poly.Vertices[(edgeIdx + 1) % poly.Vertices.Length];
+
+                    // Check if this edge lies on the shared boundary
+                    float coord1 = isXBoundary ? v1.X : v1.Y;
+                    float coord2 = isXBoundary ? v2.X : v2.Y;
+
+                    if (Math.Abs(coord1 - boundaryCoord) > tolerance || Math.Abs(coord2 - boundaryCoord) > tolerance)
+                        continue;
+
+                    // Get the range along the boundary (the non-boundary axis)
+                    float edgeMin, edgeMax;
+                    if (isXBoundary)
+                    {
+                        edgeMin = Math.Min(v1.Y, v2.Y);
+                        edgeMax = Math.Max(v1.Y, v2.Y);
+                    }
+                    else
+                    {
+                        edgeMin = Math.Min(v1.X, v2.X);
+                        edgeMax = Math.Max(v1.X, v2.X);
+                    }
+
+                    float edgeMidZ = (v1.Z + v2.Z) * 0.5f;
+
+                    // Find the best matching existing boundary edge
+                    YnvPoly bestMatch = null;
+                    float bestOverlap = 0;
+
+                    foreach (var (existPoly, ei, ev1, ev2, existMin, existMax) in existingBoundaryEdges)
+                    {
+                        // Check Z proximity
+                        float existMidZ = (ev1.Z + ev2.Z) * 0.5f;
+                        if (Math.Abs(edgeMidZ - existMidZ) > 2.0f)
+                            continue;
+
+                        // Calculate overlap along the boundary
+                        float overlapMin = Math.Max(edgeMin, existMin);
+                        float overlapMax = Math.Min(edgeMax, existMax);
+                        float overlap = overlapMax - overlapMin;
+
+                        if (overlap > bestOverlap)
+                        {
+                            bestOverlap = overlap;
+                            bestMatch = existPoly;
+                        }
+                    }
+
+                    if (bestMatch != null && bestOverlap > 0.01f)
+                    {
+                        // Set up cross-boundary edge reference
+                        edge.Poly1 = bestMatch;
+                        edge.Poly2 = bestMatch;
+                        edge.AreaID1 = bestMatch.AreaID;
+                        edge.AreaID2 = bestMatch.AreaID;
+                        edge._RawData._Poly1.Unk2 = 0;
+                        edge._RawData._Poly2.Unk2 = 0;
+                        edge._RawData._Poly2.Unk3 = 4;
+                        poly.B19_IsCellEdge = true;
+                        stitchedCount++;
+                    }
+                }
+            }
+
+            return stitchedCount;
         }
 
     }
@@ -4316,6 +4827,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public bool IsRoad { get; set; }
         public bool IsTrainTracks { get; set; }
         public bool IsFlatGround { get; set; }
+        public bool IsShallowWater { get; set; }
 
         public void CalculateNormal()
         {
@@ -4387,6 +4899,7 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public bool IsRoad { get; set; }
         public bool IsTrainTracks { get; set; }
         public bool IsFlatGround { get; set; }
+        public bool IsShallowWater { get; set; }
         public bool HasPathNode { get; set; }
 
         public void CalculateNormalAndPlane()
@@ -4444,34 +4957,33 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 AreaID = 0x3FFF // Will be set later based on grid position
             };
 
-            // B02_IsFootpath - Set for pavement/stairs
+            // === PolyFlags0 (bits 0-7) ===
+            // R* mapping: NSB_FLAG_PAVEMENT → OrFlags(NAVMESHPOLY_IS_PAVEMENT) = B02
             if (Material == MaterialType.Pavement || Material == MaterialType.Stairs)
             {
                 ynvPoly.B02_IsFootpath = true;
             }
-            // B03_IsUnderground - Set based on RoomId
-            if (IsInterior)
-            {
-                ynvPoly.B03_IsUnderground = true;
-            }
-            // B04_Unused, B05_Unused - leave as default
-            // B06_SteepSlope - Set for steep surfaces
+            // B03_IsUnderground = R*'s NAVMESHPOLY_IN_SHELTER (shelter from rain/weather)
+            // R* determines this via raycast analysis in NavGen_Analyse.cpp (SetIsSheltered),
+            // NOT from IsInterior. We don't have shelter detection, so only set for
+            // actual underground areas (RoomId > 0 AND not at surface level).
+            // For now, leave unset - shelter analysis would require upward raycasting.
+
+            // R* mapping: NSB_FLAG_TOOSTEEP → OrFlags(NAVMESHPOLY_TOO_STEEP_TO_WALK_ON) = B06
+            // R* uses: DotProduct(upVector, normal) < cos(44°) OR dot < 0
             if (IsTooSteep)
             {
                 ynvPoly.B06_SteepSlope = true;
             }
-            // B07_IsWater - Set for water surfaces
+            // R* mapping: NSB_FLAG_WATER → OrFlags(NAVMESHPOLY_IS_WATER) = B07
             if (IsWater)
             {
                 ynvPoly.B07_IsWater = true;
             }
 
-            // EXTENDED FLAGS (PolyFlags1 - bits 8-24)
-            // B08-B11: Underground flags - set based on interior status
-            if (IsInterior)
-            {
-                ynvPoly.B08_UndergroundUnk0 = true; // Interior flag 0
-            }
+            // === PolyFlags1 (bits 8-24) ===
+            // B08-B11: Underground level flags - these indicate underground depth levels,
+            // not generic interior status. Leave unset unless we can determine actual depth.
 
             // B13_HasPathNode - Indicate if this polygon should have path nodes
             if (HasPathNode)
@@ -4479,58 +4991,53 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
                 ynvPoly.B13_HasPathNode = true;
             }
 
-            // B14_IsInterior - Set based on RoomId
+            // R* mapping: NSB_FLAG_INTERIOR → SetIsInterior() = B14
             if (IsInterior)
             {
                 ynvPoly.B14_IsInterior = true;
             }
 
-            // B15_InteractionUnk - leave as default
-
-            // B17_IsFlatGround - Set for low-slope surfaces
+            // B17_IsFlatGround - Set for near-horizontal surfaces (< 10 degrees from horizontal)
             if (IsFlatGround)
             {
                 ynvPoly.B17_IsFlatGround = true;
             }
 
-            // B18_IsRoad - Set for road surfaces
+            // B18_IsRoad - Set from collision material IsThisSurfaceTypeRoad
             if (IsRoad)
             {
                 ynvPoly.B18_IsRoad = true;
             }
 
-            // B19_IsCellEdge - will be set during navmesh stitching
+            // B19_IsCellEdge - set during edge linking / navmesh stitching
 
-            // B20_IsTrainTrack - Set for train track surfaces
+            // B20_IsTrainTrack - Set from collision material IsThisSurfaceTypeTrainTracks
             if (IsTrainTracks)
             {
                 ynvPoly.B20_IsTrainTrack = true;
             }
 
-            // B21_IsShallowWater - Check material flags
-            if ((MaterialFlags & EBoundMaterialFlags.FLAG_STAIRS) != 0 && IsWater)
+            // B21_IsShallowWater - water that can be walked through
+            if (IsWater && IsShallowWater)
             {
-                ynvPoly.B21_IsShallowWater = true; // Shallow water can be walked through
+                ynvPoly.B21_IsShallowWater = true;
             }
 
-            // B22-B24: Footpath flags - leave as default for now
-
-            // SLOPE DIRECTION FLAGS (PolyFlags2 - bits 25-32)
-            // Calculate slope direction based on normal vector
+            // === PolyFlags2 (bits 25-32): Slope direction flags ===
+            // Set slope direction based on the horizontal projection of the surface normal.
+            // Only set for surfaces with significant slope (steep or slope material).
             if (IsTooSteep || Material == MaterialType.Slope)
             {
-                // Project normal onto horizontal plane to get slope direction
                 var horizontalNormal = new Vector3(Normal.X, Normal.Y, 0);
                 if (horizontalNormal.LengthSquared() > 0.01f)
                 {
                     horizontalNormal.Normalize();
 
-                    // Calculate angle from north (0, 1, 0)
+                    // Calculate angle from north (0, 1, 0) - the direction the slope faces
                     float angle = (float)Math.Atan2(horizontalNormal.X, horizontalNormal.Y) * 180f / (float)Math.PI;
                     if (angle < 0) angle += 360f;
 
                     // Map to 8 compass directions (45-degree sectors)
-                    // North: 337.5-22.5, NE: 22.5-67.5, East: 67.5-112.5, etc.
                     if (angle >= 337.5f || angle < 22.5f)
                         ynvPoly.B29_SlopeNorth = true;
                     else if (angle >= 22.5f && angle < 67.5f)
@@ -5077,21 +5584,21 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
 
     public class NavGenParams
     {
-        // Sampling
-        public float SamplingDensity { get; set; } = 0.5f; // meters between samples
-        public float MinZDistBetweenSamples { get; set; } = 0.5f;
-        public bool JitterSamples { get; set; } = false; // Enable jittering to reduce grid aliasing artifacts
-        public float JitterAmount { get; set; } = 0.3f; // Jitter magnitude as fraction of sampling density
+        // Sampling (R* ref: fwNavGenConfig, NavMeshMaker.h)
+        public float SamplingDensity { get; set; } = 1.0f; // R* m_SampleResolutionDefault = 1.0f
+        public float MinZDistBetweenSamples { get; set; } = 2.0f; // R* m_MinimumVerticalDistanceBetweenNodes = 2.0f
+        public bool JitterSamples { get; set; } = false;
+        public float JitterAmount { get; set; } = 0.3f;
 
-        // Triangulation
+        // Triangulation (R* ref: fwNavGenConfig)
         public float TriangulationMaxHeightDiff { get; set; } = 2.0f;
-        public float HeightAboveNodeBase { get; set; } = 0.5f; // Reduced from 1.0 to sample closer to surface
-        public float MaxHeightChangeUnderEdge { get; set; } = 0.3f; // Reduced from 0.5 for stricter validation
-        public float TestClearHeight { get; set; } = 1.8f; // Required clearance above triangles (ped height)
+        public float HeightAboveNodeBase { get; set; } = 1.0f; // Height above surface for sampling ray origin
+        public float MaxHeightChangeUnderEdge { get; set; } = 0.4f; // R* m_MaxHeightChangeUnderTriangleEdge = 0.4f
+        public float TestClearHeight { get; set; } = 1.8f; // R* m_TestClearHeightInTriangulation = 1.8f
 
-        // Slope Detection
-        public float MaxAngleForWalkable { get; set; } = 45.0f; // degrees
-        public float AngleForTooSteep { get; set; } = 60.0f;
+        // Slope Detection (R* ref: fwNavGenConfig)
+        public float MaxAngleForWalkable { get; set; } = 44.0f; // R* m_AngleForNavMeshPolyToBeTooSteep = 44.0f
+        public float AngleForTooSteep { get; set; } = 60.0f; // R* m_MaxAngleForPolyToBeInNavMesh = 60.0f
 
         // Optimization
         public float MaxQuadricErrorMetric { get; set; } = 0.25f;
@@ -5103,11 +5610,19 @@ namespace CodeWalker.Core.GameFiles.FileTypes.Builders
         public float MinTriangleAngle { get; set; } = 15.0f; // degrees
 
         // Merging
-        public float CoplanarPlaneTestEps { get; set; } = 0.5f; // Increased from 0.25 to allow more merging
-        public float ConvexPlaneTestEps { get; set; } = 0.05f; // Increased from 0.01 to be less strict
+        public float CoplanarPlaneTestEps { get; set; } = 0.25f; // Coplanarity tolerance for polygon merging
+        public float ConvexPlaneTestEps { get; set; } = 0.01f; // Convexity tolerance for polygon merging
         public int MaxPolygonVertices { get; set; } = 8;
 
-        // Grid
-        public float NavGridCellSize { get; set; } = 150.0f; // meters per YNV file
+        // Grid (R* ref: CPathServerExtents)
+        // R* uses: WorldMin=(-6000,-6000), SectorWidth=50, SectorsPerNavMesh=3, NavMeshSize=150
+        // Grid: 100x100 navmeshes, total world = 15000x15000 (-6000 to 9000)
+        public float NavGridCellSize { get; set; } = 150.0f; // meters per YNV file (SectorWidth * SectorsPerNavMesh)
+        public float WorldMinX { get; set; } = -6000.0f; // R* m_WorldMinX
+        public float WorldMinY { get; set; } = -6000.0f; // R* m_WorldMinY
+        public int NumSectorsPerNavMesh { get; set; } = 3; // R* m_iNumSectorsPerNavMesh
+        public float ExporterMinZCutoff { get; set; } = -500.0f; // R* m_ExporterMinZCutoff
+        public float ExporterMaxZCutoff { get; set; } = 1000.0f; // R* m_ExporterMaxZCutoff
+        public float PedRadius { get; set; } = 0.35f; // R* m_PedRadius
     }
 }

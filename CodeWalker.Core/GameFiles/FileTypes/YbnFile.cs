@@ -56,8 +56,11 @@ namespace CodeWalker.GameFiles
 
             Bounds = rd.ReadBlock<Bounds>();
 
-            Bounds.OwnerYbn = this;
-            Bounds.OwnerName = entry.Name;
+            if (Bounds != null)
+            {
+                Bounds.OwnerYbn = this;
+                Bounds.OwnerName = entry.Name;
+            }
 
 #if DEBUG
             Analyzer = new ResourceAnalyzer(rd);

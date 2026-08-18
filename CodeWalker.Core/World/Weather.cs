@@ -523,6 +523,7 @@ namespace CodeWalker.World
         public Vector4 lightNaturalAmbDown;
         public Vector4 lightNaturalAmbUp;
         public float lightNaturalAmbUpIntensityMult;
+        public float lightAmbDownWrap;
         public Vector4 lightArtificialIntDown;
         public Vector4 lightArtificialIntUp;
         public Vector4 lightArtificialExtDown;
@@ -562,6 +563,7 @@ namespace CodeWalker.World
             lightNaturalAmbDown = w.GetDynamicRGBA("light_natural_amb_down_col_r", "light_natural_amb_down_col_g", "light_natural_amb_down_col_b", "light_natural_amb_down_intensity");
             lightNaturalAmbUp = w.GetDynamicRGBA("light_natural_amb_up_col_r", "light_natural_amb_up_col_g", "light_natural_amb_up_col_b", "light_natural_amb_up_intensity");
             lightNaturalAmbUpIntensityMult = w.GetDynamicValue("light_natural_amb_up_intensity_mult");
+            lightAmbDownWrap = w.GetDynamicValue("light_amb_down_wrap");
             lightArtificialIntDown = w.GetDynamicRGBA("light_artificial_int_down_col_r", "light_artificial_int_down_col_g", "light_artificial_int_down_col_b", "light_artificial_int_down_intensity");
             lightArtificialIntUp = w.GetDynamicRGBA("light_artificial_int_up_col_r", "light_artificial_int_up_col_g", "light_artificial_int_up_col_b", "light_artificial_int_up_intensity");
             lightArtificialExtDown = w.GetDynamicRGBA("light_artificial_ext_down_col_r", "light_artificial_ext_down_col_g", "light_artificial_ext_down_col_b", "light_artificial_ext_down_intensity");

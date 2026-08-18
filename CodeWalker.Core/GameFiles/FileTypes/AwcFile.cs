@@ -44,10 +44,11 @@ namespace CodeWalker.GameFiles
         {
             // Rockstar's modified version of XXTEA
             var key = GTA5Keys.PC_AWC_KEY;
-            uint[] blocks = new uint[data.Length / 4];
-            Buffer.BlockCopy(data, 0, blocks, 0, data.Length);
+            int block_count = data.Length / 4;
+            int byte_count = block_count * 4;
+            uint[] blocks = new uint[block_count];
+            Buffer.BlockCopy(data, 0, blocks, 0, byte_count);
 
-            int block_count = blocks.Length;
             uint a, b = blocks[0], i;
 
             i = (uint)(0x9E3779B9 * (6 + 52 / block_count));
@@ -61,7 +62,7 @@ namespace CodeWalker.GameFiles
                 i -= 0x9E3779B9;
             } while (i != 0);
 
-            Buffer.BlockCopy(blocks, 0, data, 0, data.Length);
+            Buffer.BlockCopy(blocks, 0, data, 0, byte_count);
         }
 
         public static void Encrypt_RSXXTEA(byte[] data)
@@ -75,10 +76,11 @@ namespace CodeWalker.GameFiles
             //TODO: update the Decrypt method to use the "clarified" version without undefined behaviour?
 
             var key = GTA5Keys.PC_AWC_KEY;
-            uint[] blocks = new uint[data.Length / 4];
-            Buffer.BlockCopy(data, 0, blocks, 0, data.Length);
+            int n = data.Length / 4;
+            int byte_count = n * 4;
+            uint[] blocks = new uint[n];
+            Buffer.BlockCopy(data, 0, blocks, 0, byte_count);
 
-            int n = blocks.Length;
             int rounds = 6 + (52 / n);
             uint sum = 0;
             uint y, z = blocks[n - 1];
@@ -93,7 +95,7 @@ namespace CodeWalker.GameFiles
                 }
             } while ((--rounds) != 0);
 
-            Buffer.BlockCopy(blocks, 0, data, 0, data.Length);
+            Buffer.BlockCopy(blocks, 0, data, 0, byte_count);
         }
 
 

@@ -87,6 +87,7 @@
             this.YmapNewEntityMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.YmapNewCarGenMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.YmapNewGrassBatchMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.YmapLodHierarchyMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator12 = new System.Windows.Forms.ToolStripSeparator();
             this.YmapAddToProjectMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.YmapRemoveFromProjectMenu = new System.Windows.Forms.ToolStripMenuItem();
@@ -654,6 +655,7 @@
             this.YmapNewEntityMenu,
             this.YmapNewCarGenMenu,
             this.YmapNewGrassBatchMenu,
+            this.YmapLodHierarchyMenu,
             this.toolStripSeparator12,
             this.YmapAddToProjectMenu,
             this.YmapRemoveFromProjectMenu});
@@ -697,9 +699,17 @@
             this.YmapNewGrassBatchMenu.Size = new System.Drawing.Size(199, 22);
             this.YmapNewGrassBatchMenu.Text = "New Grass Batch";
             this.YmapNewGrassBatchMenu.Click += new System.EventHandler(this.YmapNewGrassBatchMenu_Click);
-            // 
+            //
+            // YmapLodHierarchyMenu
+            //
+            this.YmapLodHierarchyMenu.Enabled = false;
+            this.YmapLodHierarchyMenu.Name = "YmapLodHierarchyMenu";
+            this.YmapLodHierarchyMenu.Size = new System.Drawing.Size(199, 22);
+            this.YmapLodHierarchyMenu.Text = "LOD Hierarchy...";
+            this.YmapLodHierarchyMenu.Click += new System.EventHandler(this.YmapLodHierarchyMenu_Click);
+            //
             // toolStripSeparator12
-            // 
+            //
             this.toolStripSeparator12.Name = "toolStripSeparator12";
             this.toolStripSeparator12.Size = new System.Drawing.Size(196, 6);
             // 
@@ -1837,6 +1847,7 @@
         private System.Windows.Forms.ToolStripMenuItem ToolsExportFiveMJsonMenu;
         private System.Windows.Forms.ToolStripMenuItem ToolsGlobalTimecycleMenu;
         private System.Windows.Forms.ToolStripMenuItem YmapMenu;
+        private System.Windows.Forms.ToolStripMenuItem YmapLodHierarchyMenu;
         private System.Windows.Forms.ToolStripMenuItem YtypMenu;
         private System.Windows.Forms.ToolStripMenuItem YndMenu;
         private System.Windows.Forms.ToolStripMenuItem YnvMenu;

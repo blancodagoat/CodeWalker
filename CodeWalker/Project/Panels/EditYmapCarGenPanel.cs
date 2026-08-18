@@ -72,6 +72,7 @@ namespace CodeWalker.Project.Panels
                 {
                     CarFlagsCheckedListBox.SetItemCheckState(i, CheckState.Unchecked);
                 }
+                CarCreationRuleComboBox.SelectedIndex = -1;
             }
             else
             {
@@ -99,6 +100,8 @@ namespace CodeWalker.Project.Panels
                     var cv = ((c.flags & (1u << i)) > 0);
                     CarFlagsCheckedListBox.SetItemCheckState(i, cv ? CheckState.Checked : CheckState.Unchecked);
                 }
+                int crule = (int)((c.flags >> 28) & 0xF); //creation rule packed into top 4 bits
+                CarCreationRuleComboBox.SelectedIndex = (crule < CarCreationRuleComboBox.Items.Count) ? crule : -1;
                 populatingui = false;
 
                 if (ProjectForm.WorldForm != null)
@@ -205,6 +208,8 @@ namespace CodeWalker.Project.Panels
                 var c = ((flags & (1u << i)) > 0);
                 CarFlagsCheckedListBox.SetItemCheckState(i, c ? CheckState.Checked : CheckState.Unchecked);
             }
+            int crule = (int)((flags >> 28) & 0xF);
+            CarCreationRuleComboBox.SelectedIndex = (crule < CarCreationRuleComboBox.Items.Count) ? crule : -1;
             populatingui = false;
             lock (ProjectForm.ProjectSyncRoot)
             {
@@ -220,7 +225,9 @@ namespace CodeWalker.Project.Panels
         {
             if (populatingui) return;
             if (CurrentCarGen == null) return;
-            uint flags = 0;
+            //preserve all non-checkbox bits (e.g. creation rule in bits 28-31), only rebuild bits 0..Count-1
+            uint mask = (1u << CarFlagsCheckedListBox.Items.Count) - 1;
+            uint flags = CurrentCarGen._CCarGen.flags & ~mask;
             for (int i = 0; i < CarFlagsCheckedListBox.Items.Count; i++)
             {
                 if (e.Index == i)
@@ -238,6 +245,26 @@ namespace CodeWalker.Project.Panels
                     }
                 }
             }
+            populatingui = true;
+            CarFlagsTextBox.Text = flags.ToString();
+            populatingui = false;
+            lock (ProjectForm.ProjectSyncRoot)
+            {
+                if (CurrentCarGen._CCarGen.flags != flags)
+                {
+                    CurrentCarGen._CCarGen.flags = flags;
+                    ProjectForm.SetYmapHasChanged(true);
+                }
+            }
+        }
+
+        private void CarCreationRuleComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (populatingui) return;
+            if (CurrentCarGen == null) return;
+            int idx = CarCreationRuleComboBox.SelectedIndex;
+            if (idx < 0) return;
+            uint flags = (CurrentCarGen._CCarGen.flags & 0x0FFFFFFFu) | ((uint)(idx & 0xF) << 28);
             populatingui = true;
             CarFlagsTextBox.Text = flags.ToString();
             populatingui = false;
