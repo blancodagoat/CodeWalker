@@ -196,6 +196,21 @@ namespace CodeWalker.GameFiles
             }
         }
 
+        public void EnsureLegacy()
+        {
+            FileVFT = 0;
+            FileUnknown = 1;
+
+            //make sure textures don't carry gen9-only blocks into a legacy save
+            var texs = Textures?.data_items;
+            if (texs == null) return;
+            foreach (var tex in texs)
+            {
+                if (tex == null) continue;
+                tex.EnsureLegacy();
+            }
+        }
+
     }
 
     [TypeConverter(typeof(ExpandableObjectConverter))] public class TextureBase : ResourceSystemBlock
@@ -702,6 +717,29 @@ namespace CodeWalker.GameFiles
                     G9_SRV.Dimension = ShaderResourceViewDimensionG9.Texture2DArray;
                     //TODO: handle Texture3D!
                 }
+            }
+        }
+
+        public void EnsureLegacy()
+        {
+            //inverse of EnsureGen9 - drop the gen9 SRV (GetParts would write it over the legacy
+            //Format/Levels region at offset 88!) and fill the legacy fields the gen9 reader skips.
+            VFT = 0;
+            Unknown_4h = 1;
+            G9_SRV = null;
+
+            if (this is Texture)
+            {
+                Stride = CalculateStride();
+                Unknown_44h = 0;
+            }
+            else
+            {
+                //shader param texture ref
+                Unknown_32h = 2;
+                UsageData = 0;
+                Unknown_44h = 0;
+                ExtraFlags = 0;
             }
         }
 

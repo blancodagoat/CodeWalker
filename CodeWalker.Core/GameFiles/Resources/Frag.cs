@@ -758,6 +758,38 @@ namespace CodeWalker.GameFiles
 
         }
 
+        public void EnsureLegacy()
+        {
+
+            Drawable?.EnsureLegacy();
+            DrawableCloth?.EnsureLegacy();
+
+            if (DrawableArray?.data_items != null)
+            {
+                foreach (var arrd in DrawableArray.data_items)
+                {
+                    arrd?.EnsureLegacy();
+                }
+            }
+
+            void ensure(FragPhysicsLOD lod)
+            {
+                var children = lod?.Children?.data_items;
+                if (children == null) return;
+                for (int i = 0; i < children.Length; i++)
+                {
+                    var child = children[i];
+                    child?.Drawable1?.EnsureLegacy();
+                    child?.Drawable2?.EnsureLegacy();
+                }
+            };
+
+            ensure(PhysicsLODGroup?.PhysicsLOD1);
+            ensure(PhysicsLODGroup?.PhysicsLOD2);
+            ensure(PhysicsLODGroup?.PhysicsLOD3);
+
+        }
+
 
         public override IResourceBlock[] GetReferences()
         {

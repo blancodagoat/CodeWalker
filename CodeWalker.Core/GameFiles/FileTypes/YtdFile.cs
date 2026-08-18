@@ -60,18 +60,18 @@ namespace CodeWalker.GameFiles
 
             ResourceDataReader rd = new(resentry, data);
             
-            if (rd.IsGen9)
+            //drive the read mode from the file's own RSC7 version, both directions,
+            //so gen9 files load correctly even when the global RpfManager.IsGen9 flag doesn't match.
+            switch (resentry.Version)
             {
-                switch (resentry.Version)
-                {
-                    case 5:
-                        break;
-                    case 13:
-                        rd.IsGen9 = false;
-                        break;
-                    default:
-                        break;
-                }
+                case 5:
+                    rd.IsGen9 = true;
+                    break;
+                case 13:
+                    rd.IsGen9 = false;
+                    break;
+                default:
+                    break;
             }
 
 
@@ -104,18 +104,16 @@ namespace CodeWalker.GameFiles
                 
                 ResourceDataReader rd = new(resentry, data);
                 
-                if (rd.IsGen9)
+                switch (resentry.Version)
                 {
-                    switch (resentry.Version)
-                    {
-                        case 5:
-                            break;
-                        case 13:
-                            rd.IsGen9 = false;
-                            break;
-                        default:
-                            break;
-                    }
+                    case 5:
+                        rd.IsGen9 = true;
+                        break;
+                    case 13:
+                        rd.IsGen9 = false;
+                        break;
+                    default:
+                        break;
                 }
 
                 progress?.Report(0.7f);
@@ -131,6 +129,10 @@ namespace CodeWalker.GameFiles
             if (gen9)
             {
                 TextureDict?.EnsureGen9();
+            }
+            else
+            {
+                TextureDict?.EnsureLegacy();
             }
 
             byte[] data = ResourceBuilder.Build(TextureDict, GetVersion(gen9), true, gen9);

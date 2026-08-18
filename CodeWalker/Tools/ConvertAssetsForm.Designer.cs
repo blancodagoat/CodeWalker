@@ -42,6 +42,7 @@
             this.LogTextBox = new System.Windows.Forms.TextBox();
             this.FolderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.ConvertProgressBar = new System.Windows.Forms.ProgressBar();
+            this.DirectionComboBox = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
             // 
             // label1
@@ -107,9 +108,20 @@
             this.label3.AutoSize = true;
             this.label3.Location = new System.Drawing.Point(12, 12);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(331, 13);
+            this.label3.Size = new System.Drawing.Size(52, 13);
             this.label3.TabIndex = 0;
-            this.label3.Text = "Convert files from GTAV Legacy formats to GTAV Enhanced formats.";
+            this.label3.Text = "Direction:";
+            //
+            // DirectionComboBox
+            //
+            this.DirectionComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.DirectionComboBox.Location = new System.Drawing.Point(92, 9);
+            this.DirectionComboBox.Name = "DirectionComboBox";
+            this.DirectionComboBox.Size = new System.Drawing.Size(280, 21);
+            this.DirectionComboBox.TabIndex = 12;
+            this.DirectionComboBox.Items.AddRange(new object[] {
+            "GTAV Legacy (gen8)  ->  GTAV Enhanced (gen9)",
+            "GTAV Enhanced (gen9)  ->  GTAV Legacy (gen8)"});
             // 
             // SubfoldersCheckbox
             // 
@@ -173,6 +185,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(634, 293);
+            this.Controls.Add(this.DirectionComboBox);
             this.Controls.Add(this.ConvertProgressBar);
             this.Controls.Add(this.LogTextBox);
             this.Controls.Add(this.ProcessButton);
@@ -208,5 +221,6 @@
         private System.Windows.Forms.TextBox LogTextBox;
         private System.Windows.Forms.FolderBrowserDialog FolderBrowserDialog;
         private System.Windows.Forms.ProgressBar ConvertProgressBar;
+        private System.Windows.Forms.ComboBox DirectionComboBox;
     }
 }
