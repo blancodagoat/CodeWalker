@@ -97,6 +97,21 @@ namespace CodeWalker.Forms
         List<VertexTypePC> gridVerts = new();
         object gridSyncRoot = new object();
 
+        //particle effect preview (.ypt)
+        ParticleEffectInst particleEffect = null;
+        volatile bool particleEffectDirty = false;
+        int particleEffectIndex = -1;
+        volatile bool particlePlaying = true;
+        float particleTimeScale = 1.0f;
+        volatile bool particleRestart = false;
+        bool particleUIInited = false;
+        TabPage ParticlesTabPage;
+        ComboBox ParticleEffectComboBox;
+        Button ParticlePlayButton;
+        Button ParticleRestartButton;
+        TrackBar ParticleSpeedTrackBar;
+        Label ParticleStatsLabel;
+
         GameFileCache gameFileCache = null;
         Archetype currentArchetype = null;
         bool updateArchetypeStatus = true;
@@ -124,10 +139,6 @@ namespace CodeWalker.Forms
         MetaHash ModelHash;
         Archetype ModelArchetype = null;
         bool EnableRootMotion = false;
-
-        YptParticleSimulator ParticleSim = null;
-        bool AnimateParticles = false;
-        float lastFrameElapsed = 0.0f;
 
         private TextureDictionary ExternalTexDict;
         private Texture ExternalDiffuseOverride;
@@ -275,7 +286,6 @@ namespace CodeWalker.Forms
         {
             float elapsed = (float)frametimer.Elapsed.TotalSeconds;
             frametimer.Restart();
-            lastFrameElapsed = elapsed;
 
             if (pauserendering) return;
 
@@ -290,6 +300,8 @@ namespace CodeWalker.Forms
 
             UpdateWidgets();
 
+            UpdateParticles(elapsed);
+
             Renderer.BeginRender(context);
 
             Renderer.RenderSkyAndClouds();
@@ -302,7 +314,17 @@ namespace CodeWalker.Forms
 
             RenderLightSelection();
 
+            if (particleEffect != null)
+            {
+                Renderer.RenderParticleModels(particleEffect);
+            }
+
             Renderer.RenderQueued();
+
+            if (particleEffect != null)
+            {
+                Renderer.RenderParticleEffect(particleEffect);
+            }
 
             Renderer.RenderSelectionGeometry(MapSelectionMode.Entity);
 
@@ -714,29 +736,17 @@ namespace CodeWalker.Forms
             }
             else if (Ypt != null)
             {
-                if ((Ypt.Loaded) && (Ypt.DrawableDict != null))
+                //hide the file's static drawable assets while previewing a particle effect (they're
+                //particle models, not meant to be shown overlapping at the origin) - pick "(none)" to see them.
+                if ((Ypt.Loaded) && (Ypt.DrawableDict != null) && (particleEffect == null))
                 {
-                    if (AnimateParticles && ParticleSim != null)
+                    foreach (var kvp in Ypt.DrawableDict)
                     {
-                        // Tick the simulation using the last frame time (captured in RenderScene).
-                        ParticleSim.Update(lastFrameElapsed);
-
-                        // Emit each live particle as an ephemeral per-instance draw.
-                        ParticleSim.EnqueueDraws((drawable, ent) =>
+                        if (!DrawableDrawFlags.ContainsKey(kvp.Value))//only render if it's checked...
                         {
-                            Renderer.RenderDrawable(drawable, null, ent, 0, null, null, null);
-                        });
-                    }
-                    else
-                    {
-                        foreach (var kvp in Ypt.DrawableDict)
-                        {
-                            if (!DrawableDrawFlags.ContainsKey(kvp.Value))//only render if it's checked...
-                            {
-                                ModelArchetype ??= TryGetArchetype(kvp.Key);
+                            ModelArchetype ??= TryGetArchetype(kvp.Key);
 
-                                Renderer.RenderDrawable(kvp.Value, ModelArchetype, null, kvp.Key, null, null, AnimClip);
-                            }
+                            Renderer.RenderDrawable(kvp.Value, ModelArchetype, null, kvp.Key, null, null, AnimClip);
                         }
                     }
                 }
@@ -942,21 +952,173 @@ namespace CodeWalker.Forms
 
             UpdateModelsUI(ypt.DrawableDict);
 
-            // Build a runtime particle simulator for this YPT. Cheap (no GPU work) and
-            // used only when the user toggles "Animate particles" on.
-            ParticleSim = new YptParticleSimulator(ypt);
+            InitParticleUI();
+            PopulateParticleEffects(ypt);
 
             DetailsPropertyGrid.SelectedObject = ypt;//.PtfxList;
         }
 
-        private void AnimateParticlesCheckBox_CheckedChanged(object sender, EventArgs e)
+        private void UpdateParticles(float elapsed)
         {
-            AnimateParticles = AnimateParticlesCheckBox.Checked;
-            if (AnimateParticles)
+            //runs on the render thread (inside RenderSyncRoot)
+            if (Ypt == null) { particleEffect = null; return; }
+
+            if (particleEffectDirty)
             {
-                ParticleSim?.Reset();
+                particleEffectDirty = false;
+                var effs = Ypt.AllEffects;
+                if ((effs != null) && (particleEffectIndex >= 0) && (particleEffectIndex < effs.Length))
+                {
+                    ParticleClipRegions.EnsureLoaded(gameFileCache);
+                    particleEffect = new ParticleEffectInst(effs[particleEffectIndex], Ypt, gameFileCache);
+                }
+                else
+                {
+                    particleEffect = null;
+                }
+            }
+
+            if (particleEffect != null)
+            {
+                if (particleRestart)
+                {
+                    particleRestart = false;
+                    particleEffect.Reset();
+                }
+                particleEffect.Playing = particlePlaying;
+                particleEffect.TimeScale = particleTimeScale;
+                particleEffect.Update(elapsed);
+
+                if (ParticleStatsLabel != null)
+                {
+                    int count = particleEffect.TotalParticleCount();
+                    try { BeginInvoke(new Action(() => { ParticleStatsLabel.Text = "Particles: " + count.ToString(); })); }
+                    catch { }
+                }
             }
         }
+
+        private void InitParticleUI()
+        {
+            if (particleUIInited) return;
+            particleUIInited = true;
+
+            ParticlesTabPage = new TabPage();
+            ParticlesTabPage.Text = "Particles";
+            ParticlesTabPage.UseVisualStyleBackColor = true;
+            ParticlesTabPage.BackColor = System.Drawing.SystemColors.ControlDarkDark;
+
+            var effectLabel = new Label();
+            effectLabel.AutoSize = true;
+            effectLabel.ForeColor = System.Drawing.SystemColors.ControlLightLight;
+            effectLabel.Location = new System.Drawing.Point(6, 9);
+            effectLabel.Text = "Effect:";
+
+            ParticleEffectComboBox = new ComboBox();
+            ParticleEffectComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            ParticleEffectComboBox.Location = new System.Drawing.Point(6, 27);
+            ParticleEffectComboBox.Width = 220;
+            ParticleEffectComboBox.SelectedIndexChanged += ParticleEffectComboBox_SelectedIndexChanged;
+
+            ParticlePlayButton = new Button();
+            ParticlePlayButton.Location = new System.Drawing.Point(6, 56);
+            ParticlePlayButton.Width = 90;
+            ParticlePlayButton.Text = "Pause";
+            ParticlePlayButton.Click += ParticlePlayButton_Click;
+
+            ParticleRestartButton = new Button();
+            ParticleRestartButton.Location = new System.Drawing.Point(102, 56);
+            ParticleRestartButton.Width = 90;
+            ParticleRestartButton.Text = "Restart";
+            ParticleRestartButton.Click += ParticleRestartButton_Click;
+
+            var speedLabel = new Label();
+            speedLabel.AutoSize = true;
+            speedLabel.ForeColor = System.Drawing.SystemColors.ControlLightLight;
+            speedLabel.Location = new System.Drawing.Point(6, 90);
+            speedLabel.Text = "Speed:";
+
+            ParticleSpeedTrackBar = new TrackBar();
+            ParticleSpeedTrackBar.Location = new System.Drawing.Point(50, 86);
+            ParticleSpeedTrackBar.Width = 176;
+            ParticleSpeedTrackBar.Minimum = 1;
+            ParticleSpeedTrackBar.Maximum = 400;
+            ParticleSpeedTrackBar.TickFrequency = 50;
+            ParticleSpeedTrackBar.Value = 100;
+            ParticleSpeedTrackBar.Scroll += ParticleSpeedTrackBar_Scroll;
+
+            ParticleStatsLabel = new Label();
+            ParticleStatsLabel.AutoSize = true;
+            ParticleStatsLabel.ForeColor = System.Drawing.SystemColors.ControlLightLight;
+            ParticleStatsLabel.Location = new System.Drawing.Point(6, 140);
+            ParticleStatsLabel.Text = "Particles: 0";
+
+            ParticlesTabPage.Controls.Add(effectLabel);
+            ParticlesTabPage.Controls.Add(ParticleEffectComboBox);
+            ParticlesTabPage.Controls.Add(ParticlePlayButton);
+            ParticlesTabPage.Controls.Add(ParticleRestartButton);
+            ParticlesTabPage.Controls.Add(speedLabel);
+            ParticlesTabPage.Controls.Add(ParticleSpeedTrackBar);
+            ParticlesTabPage.Controls.Add(ParticleStatsLabel);
+
+            ToolsTabControl.TabPages.Add(ParticlesTabPage);
+        }
+
+        private void PopulateParticleEffects(YptFile ypt)
+        {
+            if (ParticleEffectComboBox == null) return;
+            ParticleEffectComboBox.Items.Clear();
+            ParticleEffectComboBox.Items.Add("(none - show drawables)");
+            var effs = ypt?.AllEffects;
+            if (effs != null)
+            {
+                for (int i = 0; i < effs.Length; i++)
+                {
+                    var e = effs[i];
+                    var name = e?.Name?.Value;
+                    if (string.IsNullOrEmpty(name)) name = "Effect " + i.ToString();
+                    ParticleEffectComboBox.Items.Add(name);
+                }
+            }
+            particlePlaying = true;
+            if (ParticlePlayButton != null) ParticlePlayButton.Text = "Pause";
+            if ((effs != null) && (effs.Length > 0))
+            {
+                ParticleEffectComboBox.SelectedIndex = 1; //first effect (index 0 is "(none)")
+            }
+            else
+            {
+                ParticleEffectComboBox.SelectedIndex = 0;
+                particleEffectIndex = -1;
+                particleEffectDirty = true;
+            }
+        }
+
+        private void ParticleEffectComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            particleEffectIndex = ParticleEffectComboBox.SelectedIndex - 1; //index 0 is "(none)" -> -1
+            particleRestart = true;
+            particleEffectDirty = true;
+        }
+
+        private void ParticlePlayButton_Click(object sender, EventArgs e)
+        {
+            particlePlaying = !particlePlaying;
+            ParticlePlayButton.Text = particlePlaying ? "Pause" : "Play";
+        }
+
+        private void ParticleRestartButton_Click(object sender, EventArgs e)
+        {
+            particleRestart = true;
+            particlePlaying = true;
+            ParticlePlayButton.Text = "Pause";
+        }
+
+        private void ParticleSpeedTrackBar_Scroll(object sender, EventArgs e)
+        {
+            particleTimeScale = ParticleSpeedTrackBar.Value / 100.0f;
+        }
+
         public void LoadNavmesh(YnvFile ynv)
         {
             if (ynv == null) return;

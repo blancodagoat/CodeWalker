@@ -135,7 +135,8 @@ PS_OUTPUT main(VS_OUTPUT input)
 
         float r1y = norm.z - 0.35;
 
-        float3 globalScalars = float3(0.5, 0.5, 0.5);
+        // x=globalAlpha, y=artificialAmbientScale, z=naturalAmbientScale, w=emissiveScale
+        float3 globalScalars = float3(1.0, 1.0, 1.0);
         float globalScalars2z = 1; // 0.65; //wet darkness?
         float wetness = 0; // 10.0;
 
@@ -169,7 +170,9 @@ PS_OUTPUT main(VS_OUTPUT input)
     }
 
 
-    float emiss = (IsEmissive == 1) ? 1.0 : 0.0;
+    // emissiveIntensity *= surface_baseColor.b
+    // Vertex COLOR0.b modulates the emissive intensity
+    float emiss = (IsEmissive == 1) ? input.Colour0.b : 0.0;
 
     c.a = saturate(c.a);
     
@@ -183,7 +186,8 @@ PS_OUTPUT main(VS_OUTPUT input)
     output.Diffuse = float4(c.rgb, a.x);
     output.Normal = float4(saturate(norm * 0.5 + 0.5), a.y);
     output.Specular = float4(spec, a.z);
-    output.Irradiance = float4(input.Colour0.rg, emiss, a.w);
+    float2 irr = sqrt(input.Colour0.rg * 0.5);
+    output.Irradiance = float4(irr, emiss, a.w);
 
     return output;
 }

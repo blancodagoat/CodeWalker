@@ -621,7 +621,7 @@ namespace CodeWalker
             dGeom.IndicesCount = (uint)iList.Count;
             dGeom.TrianglesCount = (uint)iList.Count / 3;
             dGeom.VerticesCount = (ushort)vList.Count;
-            dGeom.Unknown_62h = 3; //indices per triangle..?
+            dGeom.IndicesPerPrimitive = 3; //indices per triangle..?
             dGeom.VertexStride = vStride;
             dGeom.BoneIdsCount = 0;//todo: bones
 
@@ -778,7 +778,7 @@ namespace CodeWalker
             }
             var texParam = new TextureBase();
             texParam.Unknown_4h = 1;
-            texParam.Unknown_30h = 1;// 131073;//wtf is this? 2x shorts, 0x00020001
+            texParam.RefCount = 1;// 131073;//wtf is this? 2x shorts, 0x00020001
             texParam.Unknown_32h = 2;
             texParam.Name = name;
             texParam.NameHash = JenkHash.GenHash(name.ToLowerInvariant());

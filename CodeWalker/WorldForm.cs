@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -49,10 +50,17 @@ namespace CodeWalker
 
         bool MouseLButtonDown = false;
         bool MouseRButtonDown = false;
+        bool MouseMButtonDown = false;
         int MouseX;
         int MouseY;
         System.Drawing.Point MouseDownPoint;
         System.Drawing.Point MouseLastPoint;
+
+        bool BoxSelectActive = false;
+        bool BoxSelectPending = false;
+        System.Drawing.Point BoxSelectStart;
+        System.Drawing.Point BoxSelectEnd;
+        const int BoxSelectThreshold = 5;
 
         bool rendermaps = false;
         bool renderworld = false;
@@ -2668,6 +2676,8 @@ namespace CodeWalker
 
             Renderer.RenderFinalPass();
 
+            RenderEntityOutlines();
+
             RenderMarkers();
 
             RenderWidgets();
@@ -3475,7 +3485,7 @@ namespace CodeWalker
             foreach (string lod in ymaplist)
             {
                 uint hash = JenkHash.GenHash(lod);
-                YmapFile ymap = gameFileCache.GetYmap(hash);
+                YmapFile ymap = gameFileCache.GetYmap(hash, true); //explicitly named ymaps, active or not
                 Renderer.RenderYmap(ymap);
 
                 UpdateMouseHits(ymap);
@@ -3603,6 +3613,10 @@ namespace CodeWalker
             }
 
 
+            // Skip bounding box for entities with drawables - outline shader handles them
+            if (CurMouseHit.Drawable != null && CurMouseHit.EntityDef != null)
+                return;
+
             Renderer.RenderMouseHit(mode, ref camrel, ref bbmin, ref bbmax, ref scale, ref ori, bsphrad);
         }
 
@@ -3621,6 +3635,59 @@ namespace CodeWalker
                 RenderSelection(ref SelectedItem);
             }
         }
+        private void RenderEntityOutlines()
+        {
+            // Render outline around hovered entity
+            if (CurMouseHit.HasHit && CurMouseHit.EntityDef != null && CurMouseHit.Drawable != null)
+            {
+                var renderable = Renderer.RenderableCache?.GetRenderable(CurMouseHit.Drawable);
+                if (renderable != null && renderable.IsLoaded)
+                {
+                    var scale = CurMouseHit.EntityDef.Scale;
+                    var ori = CurMouseHit.EntityDef.Orientation;
+                    var camrel = CurMouseHit.CamRel;
+                    var colour = new SharpDX.Vector4(1.0f, 1.0f, 1.0f, 0.8f); // white outline for hover
+                    Renderer.RenderEntityOutline(renderable, camrel, ori, scale, colour, 3);
+                }
+            }
+
+            // Render outline around selected entity
+            if (SelectedItem.EntityDef != null && SelectedItem.Drawable != null)
+            {
+                var renderable = Renderer.RenderableCache?.GetRenderable(SelectedItem.Drawable);
+                if (renderable != null && renderable.IsLoaded)
+                {
+                    var scale = SelectedItem.EntityDef.Scale;
+                    var ori = SelectedItem.EntityDef.Orientation;
+                    var camrel = SelectedItem.CamRel;
+                    // Update camrel for current camera position
+                    camrel = SelectedItem.EntityDef.Position - camera.Position;
+                    var colour = new SharpDX.Vector4(0.0f, 1.0f, 0.5f, 0.9f); // green outline for selection
+                    Renderer.RenderEntityOutline(renderable, camrel, ori, scale, colour, 4);
+                }
+            }
+
+            // Render outlines for multiple selection
+            if (SelectedItem.MultipleSelectionItems != null)
+            {
+                foreach (var item in SelectedItem.MultipleSelectionItems)
+                {
+                    if (item.EntityDef != null && item.Drawable != null)
+                    {
+                        var renderable = Renderer.RenderableCache?.GetRenderable(item.Drawable);
+                        if (renderable != null && renderable.IsLoaded)
+                        {
+                            var scale = item.EntityDef.Scale;
+                            var ori = item.EntityDef.Orientation;
+                            var camrel = item.EntityDef.Position - camera.Position;
+                            var colour = new SharpDX.Vector4(0.0f, 1.0f, 0.5f, 0.9f);
+                            Renderer.RenderEntityOutline(renderable, camrel, ori, scale, colour, 4);
+                        }
+                    }
+                }
+            }
+        }
+
         private void RenderSelection(ref MapSelection selectionItem)
         {
             //immediately render the bounding box of the current selection. also, arrows.
@@ -4030,6 +4097,10 @@ namespace CodeWalker
                 camrel += ori.Multiply(selectionItem.BBOffset);
                 ori = ori * selectionItem.BBOrientation;
             }
+
+            // Skip bounding box/sphere for entities with drawables - outline shader handles them
+            if (selectionItem.Drawable != null && selectionItem.EntityDef != null)
+                return;
 
             if (mode == BoundsShaderMode.Box)
             {
@@ -4895,7 +4966,7 @@ namespace CodeWalker
 
             }
         }
-        private float GetGeometryTriangleIntersection(DrawableGeometry geom, Ray ray, Vector3 scale)
+        private float GetGeometryTriangleIntersection(DrawableGeometry geom, Ray ray, Vector3 scale, Matrix? modelTransform = null)
         {
             // this method attempts to find the closest triangle intersection
             // returns the hit distance, or -1 if no hit
@@ -4903,59 +4974,74 @@ namespace CodeWalker
             {
                 var vb = geom.VertexBuffer;
                 var ib = geom.IndexBuffer;
-                
+
                 if ((vb?.Data1?.VertexBytes == null) || (ib?.Indices == null)) return -1;
-                
+
                 // get vertex stride and position offset
                 int stride = vb.VertexStride;
                 if (stride <= 0 || stride < 12) return -1; // need at least 12 bytes for position
-                
+
                 var vertices = vb.Data1.VertexBytes;
                 var indices = ib.Indices;
-                
+
                 // early bounds check
                 if (vertices.Length < stride * 3 || indices.Length < 3) return -1;
-                
+
+                bool hasTransform = modelTransform.HasValue;
+                Matrix mtx = hasTransform ? modelTransform.Value : Matrix.Identity;
+
                 float closestHit = float.MaxValue;
                 bool hasHit = false;
-                
-                // limit triangle processing for performance
-                int maxTriangles = Math.Min(indices.Length / 3, 1000); // Limit to 1000 triangles max
-                
-                // pocess triangles
+
+                int maxTriangles = indices.Length / 3;
+
+                // process triangles
                 for (int triIndex = 0; triIndex < maxTriangles; triIndex++)
                 {
                     int baseIndex = triIndex * 3;
                     if (baseIndex + 2 >= indices.Length) break;
-                    
+
                     int i1 = indices[baseIndex];
                     int i2 = indices[baseIndex + 1];
                     int i3 = indices[baseIndex + 2];
-                    
+
                     // bounds check
                     int maxVertexIndex = Math.Max(Math.Max(i1, i2), i3);
                     if (maxVertexIndex * stride + 12 > vertices.Length) continue;
-                    
+
                     // extract vertex positions
                     int offset1 = i1 * stride;
                     int offset2 = i2 * stride;
                     int offset3 = i3 * stride;
-                    
+
                     Vector3 v1 = new Vector3(
                         BitConverter.ToSingle(vertices, offset1),
                         BitConverter.ToSingle(vertices, offset1 + 4),
-                        BitConverter.ToSingle(vertices, offset1 + 8)) * scale;
-                    
+                        BitConverter.ToSingle(vertices, offset1 + 8));
+
                     Vector3 v2 = new Vector3(
                         BitConverter.ToSingle(vertices, offset2),
                         BitConverter.ToSingle(vertices, offset2 + 4),
-                        BitConverter.ToSingle(vertices, offset2 + 8)) * scale;
-                    
+                        BitConverter.ToSingle(vertices, offset2 + 8));
+
                     Vector3 v3 = new Vector3(
                         BitConverter.ToSingle(vertices, offset3),
                         BitConverter.ToSingle(vertices, offset3 + 4),
-                        BitConverter.ToSingle(vertices, offset3 + 8)) * scale;
-                    
+                        BitConverter.ToSingle(vertices, offset3 + 8));
+
+                    // apply bone/fragment model transform if present
+                    if (hasTransform)
+                    {
+                        v1 = Vector3.TransformCoordinate(v1, mtx);
+                        v2 = Vector3.TransformCoordinate(v2, mtx);
+                        v3 = Vector3.TransformCoordinate(v3, mtx);
+                    }
+
+                    // apply entity scale
+                    v1 *= scale;
+                    v2 *= scale;
+                    v3 *= scale;
+
                     // ray triangle intersection test
                     float hitDist;
                     if (ray.Intersects(ref v1, ref v2, ref v3, out hitDist))
@@ -4964,18 +5050,125 @@ namespace CodeWalker
                         {
                             closestHit = hitDist;
                             hasHit = true;
-                            
+
                             // Early exit if we found a very close hit
                             if (hitDist < 0.1f) break;
                         }
                     }
                 }
-                
+
                 return hasHit ? closestHit : -1;
             }
             catch
             {
                 // if triangle intersection fails, return -1 to fall back to bounding box
+                return -1;
+            }
+        }
+
+        private float GetCableLineIntersection(DrawableGeometry geom, Ray ray, Vector3 scale, Matrix? modelTransform = null, float cableRadius = 0.05f)
+        {
+            // Ray-line segment proximity test for cable geometries (LineList topology)
+            // Returns the ray hit distance if the ray passes within cableRadius of any line segment, or -1
+            try
+            {
+                var vb = geom.VertexBuffer;
+                var ib = geom.IndexBuffer;
+
+                if ((vb?.Data1?.VertexBytes == null) || (ib?.Indices == null)) return -1;
+
+                int stride = vb.VertexStride;
+                if (stride <= 0 || stride < 12) return -1;
+
+                var vertices = vb.Data1.VertexBytes;
+                var indices = ib.Indices;
+
+                if (vertices.Length < stride * 2 || indices.Length < 2) return -1;
+
+                bool hasTransform = modelTransform.HasValue;
+                Matrix mtx = hasTransform ? modelTransform.Value : Matrix.Identity;
+
+                float closestHit = float.MaxValue;
+                bool hasHit = false;
+                float radiusSq = cableRadius * cableRadius;
+
+                int lineCount = indices.Length / 2;
+
+                for (int li = 0; li < lineCount; li++)
+                {
+                    int idx0 = indices[li * 2];
+                    int idx1 = indices[li * 2 + 1];
+
+                    int maxIdx = Math.Max(idx0, idx1);
+                    if (maxIdx * stride + 12 > vertices.Length) continue;
+
+                    int off0 = idx0 * stride;
+                    int off1 = idx1 * stride;
+
+                    Vector3 p0 = new Vector3(
+                        BitConverter.ToSingle(vertices, off0),
+                        BitConverter.ToSingle(vertices, off0 + 4),
+                        BitConverter.ToSingle(vertices, off0 + 8));
+                    Vector3 p1 = new Vector3(
+                        BitConverter.ToSingle(vertices, off1),
+                        BitConverter.ToSingle(vertices, off1 + 4),
+                        BitConverter.ToSingle(vertices, off1 + 8));
+
+                    if (hasTransform)
+                    {
+                        p0 = Vector3.TransformCoordinate(p0, mtx);
+                        p1 = Vector3.TransformCoordinate(p1, mtx);
+                    }
+
+                    p0 *= scale;
+                    p1 *= scale;
+
+                    // Compute closest approach between ray and line segment
+                    Vector3 u = ray.Direction;
+                    Vector3 v = p1 - p0;
+                    Vector3 w = ray.Position - p0;
+
+                    float a = Vector3.Dot(u, u);
+                    float b = Vector3.Dot(u, v);
+                    float c = Vector3.Dot(v, v);
+                    float d = Vector3.Dot(u, w);
+                    float e = Vector3.Dot(v, w);
+                    float denom = a * c - b * b;
+
+                    float sc, tc;
+                    if (denom < 1e-8f)
+                    {
+                        sc = 0;
+                        tc = (b > c) ? d / b : e / c;
+                    }
+                    else
+                    {
+                        sc = (b * e - c * d) / denom;
+                        tc = (a * e - b * d) / denom;
+                    }
+
+                    // Clamp tc to [0,1] (segment bounds)
+                    tc = Math.Max(0, Math.Min(1, tc));
+                    // Recompute sc for clamped tc
+                    sc = (b * tc - d) / a;
+
+                    if (sc <= 0) continue; // Behind ray origin
+
+                    Vector3 closestOnRay = ray.Position + u * sc;
+                    Vector3 closestOnSeg = p0 + v * tc;
+                    float distSq = (closestOnRay - closestOnSeg).LengthSquared();
+
+                    if (distSq < radiusSq && sc < closestHit)
+                    {
+                        closestHit = sc;
+                        hasHit = true;
+                    }
+                }
+
+                return hasHit ? closestHit : -1;
+            }
+            catch
+            {
                 return -1;
             }
         }
@@ -5129,54 +5322,79 @@ namespace CodeWalker
                 DrawableGeometry bestGeometry = null;
                 BoundingBox bestAABB = new();
                 int bestGeomIndex = 0;
-                
+
+                // Get renderable to access per-model bone/fragment transforms
+                Rendering.Renderable rndbl = Renderer.RenderableCache?.GetRenderable(drawable);
+
                 for (int i = 0; i < dmodels.Length; i++)
                 {
                     var m = dmodels[i];
                     if ((m.Geometries == null) || (m.BoundsData == null)) continue;
-                    
-                    int gbbcount = m.BoundsData.Length;
-                    for (int j = 0; j < gbbcount; j++)
+
+                    // Get the corresponding RenderableModel's transform if available
+                    Matrix? modelTransform = null;
+                    if (rndbl?.HDModels != null && i < rndbl.HDModels.Length)
                     {
-                        var gbox = m.BoundsData[j];
+                        var rm = rndbl.HDModels[i];
+                        if (rm != null && rm.UseTransform)
+                        {
+                            modelTransform = rm.Transform;
+                        }
+                    }
+
+                    // BoundsData may have a leading model-level box (boffset=1) or one box per geometry (boffset=0).
+                    // Map geometry j -> BoundsData[j + boffset]; test every geometry box independently (no early break).
+                    int geomcount = m.Geometries.Length;
+                    int boffset = (m.BoundsData.Length > geomcount) ? 1 : 0;
+                    for (int j = 0; j < geomcount; j++)
+                    {
+                        int bidx = j + boffset;
+                        if (bidx >= m.BoundsData.Length) break;
+                        var gbox = m.BoundsData[bidx];
                         gbbox.Minimum = gbox.Min.XYZ();
                         gbbox.Maximum = gbox.Max.XYZ();
-                        bbox.Minimum = gbbox.Minimum * scale;
-                        bbox.Maximum = gbbox.Maximum * scale;
-                        
-                        // First check bounding box intersection
-                        if (mraytrn.Intersects(ref bbox, out hitdist))
+
+                        // Transform bounds by model transform for proper bounding box test
+                        if (modelTransform.HasValue)
                         {
-                            if ((j == 0) && (gbbcount > 1)) continue; // Skip model-level bounding box
-                            
-                            int gind = (j > 0) ? j - 1 : 0;
-                            if (gind >= m.Geometries.Length) continue;
-                            
-                            var geom = m.Geometries[gind];
-                            if (geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
+                            var tmin = Vector3.TransformCoordinate(gbbox.Minimum, modelTransform.Value);
+                            var tmax = Vector3.TransformCoordinate(gbbox.Maximum, modelTransform.Value);
+                            bbox.Minimum = Vector3.Min(tmin, tmax) * scale;
+                            bbox.Maximum = Vector3.Max(tmin, tmax) * scale;
+                        }
+                        else
+                        {
+                            bbox.Minimum = gbbox.Minimum * scale;
+                            bbox.Maximum = gbbox.Maximum * scale;
+                        }
+
+                        // skip geometries whose box isn't under the cursor
+                        if (!mraytrn.Intersects(ref bbox, out hitdist)) continue;
+
+                        var geom = m.Geometries[j];
+                        bool isTreesLod = (geom?.Shader?.FileName == 4113118754); // trees_lod2.sps - vertices are billboard roots, shader generates geometry
+                        if (!isTreesLod && geom?.VertexBuffer?.Data1?.VertexBytes != null && geom?.IndexBuffer?.Indices != null)
+                        {
+                            // Use cable line intersection for cable.sps, triangle intersection for everything else
+                            bool isCable = (geom.Shader?.FileName == 3854885487); // cable.sps
+                            float triangleHitDist = isCable
+                                ? GetCableLineIntersection(geom, mraytrn, scale, modelTransform)
+                                : GetGeometryTriangleIntersection(geom, mraytrn, scale, modelTransform);
+                            if (triangleHitDist > 0 && triangleHitDist < ghitdist)
                             {
-                                // Try to get actual triangle intersection
-                                float triangleHitDist = GetGeometryTriangleIntersection(geom, mraytrn, scale);
-                                if (triangleHitDist > 0 && triangleHitDist < ghitdist)
-                                {
-                                    ghitdist = triangleHitDist;
-                                    bestGeometry = geom;
-                                    bestAABB = gbbox;
-                                    bestGeomIndex = gind;
-                                }
-                            }
-                            else if (hitdist > 0.0f && hitdist < ghitdist)
-                            {
-                                // Fallback to bounding box if no vertex data available
-                                ghitdist = hitdist;
+                                ghitdist = triangleHitDist;
                                 bestGeometry = geom;
                                 bestAABB = gbbox;
-                                bestGeomIndex = gind;
+                                bestGeomIndex = j;
                             }
                         }
-                        else if (j == 0)
+                        else if (hitdist > 0.0f && hitdist < ghitdist)
                         {
-                            break; // No hit on model box, skip this model
+                            // Fallback to bounding box if no vertex data available
+                            ghitdist = hitdist;
+                            bestGeometry = geom;
+                            bestAABB = gbbox;
+                            bestGeomIndex = j;
                         }
                     }
                 }
@@ -5201,18 +5419,18 @@ namespace CodeWalker
                     if (firsthit || (hitdist > 0.0f)) //ignore when inside the box..
                     {
                         bool nearer = (hitdist < CurMouseHit.HitDist);  //closer than the last..
-                        bool radsm = true;
-                        if ((CurMouseHit.Archetype != null) && (arche != null)) //compare hit archetype sizes...
+                        if (nearer)
                         {
-                            //var b1 = (arche.BBMax - arche.BBMin) * scale;
-                            //var b2 = (mousehit.Archetype.BBMax - mousehit.Archetype.BBMin) * scale;
-                            float r1 = arche.BSRadius;
-                            float r2 = CurMouseHit.Archetype.BSRadius;
-                            radsm = (r1 <= (r2));// * 0.5f)); //prefer selecting smaller things
+                            outerhit = true; //closer always wins - select the thing in front
                         }
-                        if ((nearer&&radsm) || radsm)
+                        else if (Math.Abs(hitdist - CurMouseHit.HitDist) < 0.1f) //near-equal depth: tie-break by size
                         {
-                            outerhit = true;
+                            bool radsm = true;
+                            if ((CurMouseHit.Archetype != null) && (arche != null)) //compare hit archetype sizes...
+                            {
+                                radsm = (arche.BSRadius <= CurMouseHit.Archetype.BSRadius); //prefer selecting smaller things
+                            }
+                            outerhit = radsm;
                         }
                     }
                 }
@@ -6271,10 +6489,152 @@ namespace CodeWalker
 
             SelectItem(LastMouseHit, Input.CtrlPressed, true);
         }
+        private void PerformBoxSelect()
+        {
+            float minSX = Math.Min(BoxSelectStart.X, BoxSelectEnd.X);
+            float maxSX = Math.Max(BoxSelectStart.X, BoxSelectEnd.X);
+            float minSY = Math.Min(BoxSelectStart.Y, BoxSelectEnd.Y);
+            float maxSY = Math.Max(BoxSelectStart.Y, BoxSelectEnd.Y);
+
+            var items = new List<MapSelection>();
+            RenderedDrawable[] drawableSnapshot = null;
+
+            try
+            {
+                var list = Renderer.RenderedDrawables;
+                if (list != null)
+                {
+                    int count = list.Count;
+                    drawableSnapshot = new RenderedDrawable[count];
+                    for (int i = 0; i < count && i < list.Count; i++)
+                    {
+                        drawableSnapshot[i] = list[i];
+                    }
+                }
+            }
+            catch { }
+
+            if (drawableSnapshot != null)
+            {
+                var viewDir = camera.ViewDirection;
+                var camPos = camera.Position;
+                var vpMatrix = camera.ViewProjMatrix;
+                float camW = camera.Width;
+                float camH = camera.Height;
+
+                foreach (var rd in drawableSnapshot)
+                {
+                    if (rd.Entity == null) continue;
+
+                    var camrel = rd.Entity.Position - camPos;
+
+                    // Must be in front of camera
+                    if (Vector3.Dot(camrel, viewDir) <= 0) continue;
+
+                    // Project to screen pixel coordinates
+                    var ndc = vpMatrix.MultiplyW(camrel);
+                    float sx = (ndc.X * 0.5f + 0.5f) * camW;
+                    float sy = (-ndc.Y * 0.5f + 0.5f) * camH;
+
+                    if (sx >= minSX && sx <= maxSX && sy >= minSY && sy <= maxSY)
+                    {
+                        var item = new MapSelection();
+                        item.EntityDef = rd.Entity;
+                        item.Archetype = rd.Archetype;
+                        item.Drawable = rd.Drawable;
+                        item.HitDist = camrel.Length();
+                        item.CamRel = camrel;
+                        if (rd.Archetype != null)
+                        {
+                            item.AABB = new BoundingBox(rd.Archetype.BBMin * rd.Entity.Scale, rd.Archetype.BBMax * rd.Entity.Scale);
+                            item.BSphere = new BoundingSphere(Vector3.Zero, rd.Archetype.BSRadius);
+                        }
+                        items.Add(item);
+                    }
+                }
+            }
+
+            if (SelectionMode == MapSelectionMode.Scenario)
+            {
+                var scenarioList = new List<YmtFile>();
+                if (scenarios.Inited)
+                {
+                    scenarioList.AddRange(scenarios.ScenarioRegions);
+                }
+                if (ProjectForm != null)
+                {
+                    ProjectForm.GetVisibleScenarios(camera, scenarioList);
+                }
+
+                var viewDir = camera.ViewDirection;
+                var camPos = camera.Position;
+                var vpMatrix = camera.ViewProjMatrix;
+                float camW = camera.Width;
+                float camH = camera.Height;
+
+                foreach (var scenario in scenarioList)
+                {
+                    var sr = scenario.ScenarioRegion;
+                    if (sr?.BVH != null)
+                    {
+                        BoxSelectScenarioBVH(sr.BVH, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+                    }
+                }
+            }
+
+            if (items.Count > 0)
+            {
+                bool addToSelection = Input.CtrlPressed;
+                SelectMulti(items.ToArray(), addToSelection);
+            }
+            else if (!Input.CtrlPressed)
+            {
+                SelectItem(null); // clear selection if nothing was in the box
+            }
+        }
+        private void BoxSelectScenarioBVH(PathBVHNode bvhnode, ref Vector3 viewDir, ref Vector3 camPos, ref Matrix vpMatrix, float camW, float camH, float minSX, float maxSX, float minSY, float maxSY, List<MapSelection> items)
+        {
+            // Quick reject: check if the BVH node's bounding box is entirely behind the camera or off-screen
+            if ((bvhnode.Node1 != null) && (bvhnode.Node2 != null))
+            {
+                BoxSelectScenarioBVH(bvhnode.Node1, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+                BoxSelectScenarioBVH(bvhnode.Node2, ref viewDir, ref camPos, ref vpMatrix, camW, camH, minSX, maxSX, minSY, maxSY, items);
+            }
+            else if (bvhnode.Nodes != null)
+            {
+                BoundingBox nbox = new();
+                nbox.Minimum = new Vector3(-0.5f);
+                nbox.Maximum = new Vector3(0.5f);
+
+                foreach (var n in bvhnode.Nodes)
+                {
+                    var sn = n as ScenarioNode;
+                    if (sn == null) continue;
+
+                    var camrel = sn.Position - camPos;
+                    if (Vector3.Dot(camrel, viewDir) <= 0) continue;
+
+                    var ndc = vpMatrix.MultiplyW(camrel);
+                    float sx = (ndc.X * 0.5f + 0.5f) * camW;
+                    float sy = (-ndc.Y * 0.5f + 0.5f) * camH;
+
+                    if (sx >= minSX && sx <= maxSX && sy >= minSY && sy <= maxSY)
+                    {
+                        var item = new MapSelection();
+                        item.ScenarioNode = sn;
+                        item.HitDist = camrel.Length();
+                        item.CamRel = camrel;
+                        item.AABB = nbox;
+                        items.Add(item);
+                    }
+                }
+            }
+        }
         private void UpdateSelectionUI(bool wait)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     if (wait)
@@ -6297,6 +6657,8 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void SetSelectionUI(MapSelection item)
         {
@@ -6946,6 +7308,8 @@ namespace CodeWalker
                 {
                     try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting DLC level: {ex.Message}"); })); }
                     catch (ObjectDisposedException) { }
+                    catch (Win32Exception) { }
+                    catch (InvalidOperationException) { }
                 }
             });
         }
@@ -6975,6 +7339,8 @@ namespace CodeWalker
                 {
                     try { Invoke(new Action(() => { Cursor = Cursors.Default; MessageBox.Show($"Error setting mods enabled: {ex.Message}"); })); }
                     catch (ObjectDisposedException) { }
+                    catch (Win32Exception) { }
+                    catch (InvalidOperationException) { }
                 }
             });
         }
@@ -7087,13 +7453,30 @@ namespace CodeWalker
 
 
 
+        private volatile string pendingStatusText;
+        private int statusUpdatePending; //0 = no marshal in flight, 1 = one queued
+
         private void UpdateStatus(string text)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
-                    BeginInvoke(new Action(() => { UpdateStatus(text); }));
+                    //Coalesce status updates: during loading this is called per-entry from worker
+                    //threads (hundreds of thousands of times). Queuing a BeginInvoke for each one
+                    //floods the UI message pump. Instead keep at most one marshal in flight and let
+                    //it pick up the most recent text, so we never drop the final value.
+                    pendingStatusText = text;
+                    if (Interlocked.Exchange(ref statusUpdatePending, 1) == 0)
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            Interlocked.Exchange(ref statusUpdatePending, 0);
+                            if (IsDisposed) return;
+                            StatusLabel.Text = pendingStatusText;
+                        }));
+                    }
                 }
                 else
                 {
@@ -7101,11 +7484,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void UpdateMousedLabel(string text)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateMousedLabel(text); }));
@@ -7116,11 +7502,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void UpdateWeatherTypesComboBox(Weather weather)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateWeatherTypesComboBox(weather); }));
@@ -7142,11 +7531,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void UpdateCloudTypesComboBox(Clouds clouds)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateCloudTypesComboBox(clouds); }));
@@ -7170,11 +7562,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void UpdateDlcListComboBox(List<string> dlcnames)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateDlcListComboBox(dlcnames); }));
@@ -7198,12 +7593,15 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
 
         private void LogError(string text)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     Invoke(new Action(() => { LogError(text); }));
@@ -7215,6 +7613,8 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
 
 
@@ -7224,6 +7624,7 @@ namespace CodeWalker
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateMarkerSelectionPanel(); }));
@@ -7234,6 +7635,8 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void UpdateMarkerSelectionPanel()
         {
@@ -7688,6 +8091,7 @@ namespace CodeWalker
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { EnableCacheDependentUI(); }));
@@ -7705,11 +8109,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void EnableDLCModsUI()
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { EnableDLCModsUI(); }));
@@ -7724,6 +8131,8 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
 
 
@@ -8659,6 +9068,7 @@ namespace CodeWalker
 
         public void ShowSubtitle(string text, float duration)
         {
+            if (IsDisposed || IsHandleCreated == false) return;
             if (InvokeRequired)
             {
                 try
@@ -8666,6 +9076,8 @@ namespace CodeWalker
                     BeginInvoke(new Action(() => { ShowSubtitle(text, duration); }));
                 }
                 catch (ObjectDisposedException) { }
+                catch (Win32Exception) { }
+                catch (InvalidOperationException) { }
                 return;
             }
 
@@ -8806,6 +9218,7 @@ namespace CodeWalker
             {
                 case MouseButtons.Left: MouseLButtonDown = true; break;
                 case MouseButtons.Right: MouseRButtonDown = true; break;
+                case MouseButtons.Middle: MouseMButtonDown = true; break;
             }
 
             if (!ToolsPanelShowButton.Focused)
@@ -8901,6 +9314,7 @@ namespace CodeWalker
             {
                 case MouseButtons.Left: MouseLButtonDown = false; break;
                 case MouseButtons.Right: MouseRButtonDown = false; break;
+                case MouseButtons.Middle: MouseMButtonDown = false; break;
             }
 
             Input.CtrlPressed = (ModifierKeys & Keys.Control) > 0;
@@ -8911,10 +9325,20 @@ namespace CodeWalker
                 MouseControlButtons &= ~e.Button;
             }
 
-
-
             if (e.Button == MouseButtons.Left)
             {
+                if (BoxSelectActive)
+                {
+                    BoxSelectEnd = e.Location;
+                    PerformBoxSelect();
+                    BoxSelectActive = false;
+                    BoxSelectPending = false;
+                    ControlBrushTimer = 0;
+                    return;
+                }
+                BoxSelectActive = false;
+                BoxSelectPending = false;
+
                 GrabbedMarker = null;
                 if (GrabbedWidget != null)
                 {
@@ -8947,10 +9371,43 @@ namespace CodeWalker
                 dy = -dy;
             }
 
+            bool altPressed = (ModifierKeys & Keys.Alt) > 0;
+
             if (ControlMode == WorldControlMode.Free && !ControlBrushEnabled)
             {
-                if (MouseLButtonDown)
+                if (MouseLButtonDown && altPressed && GrabbedWidget == null && GrabbedMarker == null)
                 {
+                    // Alt+Left drag: box selection (suppresses camera rotation)
+                    if (!BoxSelectPending && !BoxSelectActive)
+                    {
+                        // First time detecting Alt during this drag - initialize
+                        BoxSelectPending = true;
+                        BoxSelectStart = MouseDownPoint;
+                        BoxSelectEnd = e.Location;
+                    }
+                    else
+                    {
+                        BoxSelectEnd = e.Location;
+                    }
+                    if (BoxSelectPending)
+                    {
+                        int adx = Math.Abs(e.Location.X - BoxSelectStart.X);
+                        int ady = Math.Abs(e.Location.Y - BoxSelectStart.Y);
+                        if (adx > BoxSelectThreshold || ady > BoxSelectThreshold)
+                        {
+                            BoxSelectActive = true;
+                            BoxSelectPending = false;
+                        }
+                    }
+                }
+                else if (MouseLButtonDown)
+                {
+                    if (BoxSelectActive || BoxSelectPending)
+                    {
+                        // Alt was released during drag - cancel box select
+                        BoxSelectActive = false;
+                        BoxSelectPending = false;
+                    }
                     RotateCam(dx, dy);
                 }
                 if (MouseRButtonDown)

@@ -397,6 +397,13 @@ namespace CodeWalker.Project
                 (panel) => { panel.SetYmap(CurrentYmapFile); }, //updateFunc
                 (panel) => { return panel.Ymap == CurrentYmapFile; }); //findFunc
         }
+        public void ShowYmapLodHierarchyPanel(bool promote)
+        {
+            ShowPanel(promote,
+                () => { return new EditYmapLodHierarchyPanel(this); }, //createFunc
+                (panel) => { panel.SetYmap(CurrentYmapFile); }, //updateFunc
+                (panel) => { return true; }); //findFunc - single instance
+        }
         public void ShowEditYmapEntityPanel(bool promote)
         {
             ShowPanel(promote,
@@ -2131,6 +2138,10 @@ namespace CodeWalker.Project
         }
         public void AddYmapToProject(YmapFile ymap)
         {
+            AddYmapToProject(ymap, true, true);
+        }
+        public void AddYmapToProject(YmapFile ymap, bool markChanged, bool select)
+        {
             if (ymap == null) return;
             if (CurrentProjectFile == null)
             {
@@ -2139,10 +2150,14 @@ namespace CodeWalker.Project
             if (YmapExistsInProject(ymap)) return;
             if (CurrentProjectFile.AddYmapFile(ymap))
             {
-                ymap.HasChanged = true;
+                if (markChanged)
+                {
+                    ymap.HasChanged = true;
+                }
                 CurrentProjectFile.HasChanged = true;
                 ProjectExplorer?.AddYmapFileTreeNode(ymap);
             }
+            if (!select) return;
             CurrentYmapFile = ymap;
             RefreshUI();
             if (CurrentEntity != null)
@@ -2188,11 +2203,92 @@ namespace CodeWalker.Project
             if (autoymapflags)
             {
                 CurrentYmapFile.CalcFlags();
+                AutoCalcCarGenAlignment();
             }
             var panel = FindPanel((EditYmapPanel p) => p.Tag == CurrentYmapFile);
             if (panel != null)
             {
                 panel.SetYmap(CurrentYmapFile);
+            }
+        }
+
+        // Auto-derive cargen CARGEN_ALIGN_LEFT(128)/CARGEN_ALIGN_RIGHT(256) flags from nearby road path nodes.
+        // The game shifts the spawned car toward whichever side these flags pick (cargen.cpp BuildCreationMatrix),
+        // so we pick the side that pushes the car AWAY from the road centreline (toward the curb).
+        // ponytail: O(cargens * nodes) scan, fine at save-time; only runs when ynd nodes are loaded near the cargen.
+        private void AutoCalcCarGenAlignment()
+        {
+            const uint ALIGN_LEFT = 128, ALIGN_RIGHT = 256;
+            const float MaxRoadDist = 30.0f;   // cargen must be within this of a road link to align
+            const float MinSideOffset = 1.0f;  // must sit at least this far off the centreline
+            const float MinSideCos = 0.34f;    // offset must be ~across the road (>~70deg), not along it
+
+            var cargens = CurrentYmapFile?.CarGenerators;
+            if ((cargens == null) || (cargens.Length == 0)) return;
+
+            // Gather candidate path nodes: project-loaded ynds + whatever the world has streamed into the node grid.
+            var ynds = new HashSet<YndFile>();
+            if (CurrentProjectFile?.YndFiles != null)
+            {
+                foreach (var ynd in CurrentProjectFile.YndFiles) { if (ynd != null) ynds.Add(ynd); }
+            }
+            var cells = WorldForm?.Space?.NodeGrid?.Cells;
+            if (cells != null)
+            {
+                foreach (var cell in cells) { if (cell?.Ynd != null) ynds.Add(cell.Ynd); }
+            }
+            if (ynds.Count == 0) return;
+
+            foreach (var cg in cargens)
+            {
+                var ox = cg._CCarGen.orientX;
+                var oy = cg._CCarGen.orientY;
+                var olen = (float)Math.Sqrt(ox * ox + oy * oy);
+                if (olen < 0.0001f) continue;
+                ox /= olen; oy /= olen;             // forward (vec1)
+                float rx = oy, ry = -ox;            // right axis (vec2), matches CCarGenerator::Setup
+
+                var p = cg.Position;
+                float bestDist = MaxRoadDist;
+                float bestOffX = 0, bestOffY = 0;
+                bool found = false;
+
+                foreach (var ynd in ynds)
+                {
+                    if (ynd.Nodes == null) continue;
+                    foreach (var node in ynd.Nodes)
+                    {
+                        if (node?.Links == null) continue;
+                        foreach (var link in node.Links)
+                        {
+                            var n2 = link?.Node2;
+                            if (n2 == null) continue;
+                            var a = node.Position; var b = n2.Position;
+                            float abx = b.X - a.X, aby = b.Y - a.Y;
+                            float ablen2 = abx * abx + aby * aby;
+                            if (ablen2 < 0.0001f) continue;
+                            float t = ((p.X - a.X) * abx + (p.Y - a.Y) * aby) / ablen2;
+                            t = Math.Max(0.0f, Math.Min(1.0f, t));
+                            float offX = p.X - (a.X + t * abx);
+                            float offY = p.Y - (a.Y + t * aby);
+                            float d = (float)Math.Sqrt(offX * offX + offY * offY);
+                            if (d < bestDist)
+                            {
+                                bestDist = d; bestOffX = offX; bestOffY = offY; found = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!found) continue;
+                float offLen = (float)Math.Sqrt(bestOffX * bestOffX + bestOffY * bestOffY);
+                if (offLen < MinSideOffset) continue;          // basically on the centreline, ambiguous
+                float ax = bestOffX / offLen, ay = bestOffY / offLen; // unit "away from road"
+                float dot = ax * rx + ay * ry;                  // component along the cargen's right axis
+                if (Math.Abs(dot) < MinSideCos) continue;       // offset runs along the road, not across it
+
+                cg._CCarGen.flags &= ~(ALIGN_LEFT | ALIGN_RIGHT);
+                cg._CCarGen.flags |= (dot > 0) ? ALIGN_RIGHT : ALIGN_LEFT;
             }
         }
 
@@ -2333,62 +2429,72 @@ namespace CodeWalker.Project
         private bool DeleteYmapEntity()
         {
             if (CurrentEntity.Ymap != CurrentYmapFile) return false;
-            if (CurrentYmapFile.AllEntities == null) return false; //nothing to delete..
-            if (CurrentYmapFile.RootEntities == null) return false; //nothing to delete..
 
-            if (CurrentEntity._CEntityDef.numChildren != 0)
+            var children = CurrentEntity.ChildrenMerged ?? CurrentEntity.Children;
+            if ((children != null) && (children.Length > 0))
             {
-                MessageBox.Show("This entity's numChildren is not 0 - deleting entities with children is not currently supported by CodeWalker.");
-                return true;
-            }
-
-            int idx = CurrentEntity.Index;
-            for (int i = idx + 1; i < CurrentYmapFile.AllEntities.Length; i++)
-            {
-                var ent = CurrentYmapFile.AllEntities[i];
-                if (ent._CEntityDef.numChildren != 0)
+                if (MessageBox.Show("This entity has " + children.Length.ToString() + " LOD child entities, which will be orphaned by deleting it.\nUse the LOD Hierarchy panel (Ymap menu) to manage or delete LOD children.\n\nDelete this entity and orphan its children?", "Confirm delete", MessageBoxButtons.YesNo) != DialogResult.Yes)
                 {
-                    MessageBox.Show("There are other entities present in this .ymap that have children. Deleting this entity is not currently supported by CodeWalker.");
                     return true;
                 }
             }
 
-            //if (MessageBox.Show("Are you sure you want to delete this entity?\n" + CurrentEntity._CEntityDef.archetypeName.ToString() + "\n" + CurrentEntity.Position.ToString() + "\n\nThis operation cannot be undone. Continue?", "Confirm delete", MessageBoxButtons.YesNo) != DialogResult.Yes)
-            //{
-            //    return true;
-            //}
+            return DeleteYmapEntity(CurrentEntity, false);
+        }
+
+        public bool DeleteYmapEntity(YmapEntityDef ent, bool deleteChildren)
+        {
+            var ymap = ent?.Ymap;
+            if (ymap == null) return false;
+            if (ymap.AllEntities == null) return false; //nothing to delete..
+            if (ymap.RootEntities == null) return false; //nothing to delete..
+
+            if (deleteChildren)
+            {
+                var children = ent.ChildrenMerged ?? ent.Children;
+                if (children != null)
+                {
+                    foreach (var child in children.ToArray()) //copy, since delete mutates the arrays
+                    {
+                        if (child != null)
+                        {
+                            DeleteYmapEntity(child, true);
+                        }
+                    }
+                }
+            }
 
             bool res = false;
             if (WorldForm != null)
             {
                 lock (WorldForm.RenderSyncRoot) //don't try to do this while rendering...
                 {
-                    res = CurrentYmapFile.RemoveEntity(CurrentEntity);
+                    res = ymap.RemoveEntity(ent);
                     //WorldForm.SelectItem(null, null, null);
                 }
             }
             else
             {
-                res = CurrentYmapFile.RemoveEntity(CurrentEntity);
+                res = ymap.RemoveEntity(ent);
             }
             if (!res)
             {
                 MessageBox.Show("Entity.Index didn't match the index of the entity in the ymap. This shouldn't happen, check LOD linkages!");
             }
 
-            var delent = CurrentEntity;
-            var delymap = CurrentYmapFile;
+            ProjectExplorer?.RemoveEntityTreeNode(ent);
+            ProjectExplorer?.SetYmapHasChanged(ymap, true);
 
-            ProjectExplorer?.RemoveEntityTreeNode(delent);
-            ProjectExplorer?.SetYmapHasChanged(delymap, true);
+            ClosePanel((EditYmapEntityPanel p) => { return p.Tag == ent; });
 
-            ClosePanel((EditYmapEntityPanel p) => { return p.Tag == delent; });
-
-            CurrentEntity = null;
-
-            if (WorldForm != null)
+            if (CurrentEntity == ent)
             {
-                WorldForm.SelectItem(null);
+                CurrentEntity = null;
+
+                if (WorldForm != null)
+                {
+                    WorldForm.SelectItem(null);
+                }
             }
 
             return true;
@@ -5144,11 +5250,9 @@ namespace CodeWalker.Project
             }
             if (copy != null)
             {
-                n.Flags0 = copy.Flags0;
+                // Copy flag bits from m_iAsInteger1 (bits 0-15 only, preserve coorsZ in bits 16-31)
+                n.Flags0 = (n.Flags0 & 0xFFFF0000u) | (copy.Flags0 & 0x0000FFFFu);
                 n.Flags1 = copy.Flags1;
-                n.Flags2 = copy.Flags2;
-                n.Flags3 = copy.Flags3;
-                n.Flags4 = copy.Flags4;
                 n.LinkCountUnk = copy.LinkCountUnk;
             }
 
@@ -9160,7 +9264,7 @@ namespace CodeWalker.Project
 
             if ((GameFileCache != null) && (GameFileCache.IsInited))
             {
-                return GameFileCache.GetYmapEntry(hash);
+                return GameFileCache.GetYmapEntry(hash, true); //project mode wants any ymap, active or not
             }
 
             return null;
@@ -9411,6 +9515,7 @@ namespace CodeWalker.Project
             YmapNewEntityMenu.Enabled = enable && inproj;
             YmapNewCarGenMenu.Enabled = enable && inproj;
             YmapNewGrassBatchMenu.Enabled = enable && inproj;
+            YmapLodHierarchyMenu.Enabled = enable;
 
             if (CurrentYmapFile != null)
             {
@@ -9986,6 +10091,10 @@ namespace CodeWalker.Project
         private void YmapNewGrassBatchMenu_Click(object sender, EventArgs e)
         {
             NewGrassBatch();
+        }
+        private void YmapLodHierarchyMenu_Click(object sender, EventArgs e)
+        {
+            ShowYmapLodHierarchyPanel(true);
         }
         private void YmapAddToProjectMenu_Click(object sender, EventArgs e)
         {

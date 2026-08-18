@@ -47,7 +47,7 @@ struct VS_OUTPUT
     float4 Bitangent   : TEXCOORD7;
     float3 CamRelPos   : TEXCOORD8;
     float  ViewDistance : TEXCOORD9;  // Distance from camera for POM fade
-    float2 EdgeWeight : TEXCOORD10;   // x=POM edge fade, y=zLimit adjustment (GTA V style)
+    float2 EdgeWeight : TEXCOORD10;   // x=POM edge fade, y=zLimit adjustment
 };
 
 Texture2D<float4> TintPalette : register(t0);

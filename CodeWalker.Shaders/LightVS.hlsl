@@ -40,22 +40,26 @@ cbuffer VSLightInstVars : register(b1)
 VS_Output main(float4 ipos : POSITION, uint iid : SV_InstanceID)
 {
     float3 opos = 0;
-    
+
     float extent = InstFalloff;
     if (InstType == 1)//point (sphere)
     {
-        opos = ipos.xyz * extent;
+        float extraRadius = extent * 0.058; // point light volume padding
+        opos = ipos.xyz * (extent + extraRadius);
     }
     else if (InstType == 2)//spot (cone)
     {
+        float extraRadius = extent * 0.029; // spot light volume padding
         float arads = InstConeOuterAngle;
         float3 tpos = (ipos.xyz * sin(arads)) + float3(0, 0, ipos.w * cos(arads));
-        float3 cpos = ((ipos.w > 0) ? normalize(tpos) : tpos) * extent;
+        float3 cpos = ((ipos.w > 0) ? normalize(tpos) : tpos) * (extent + extraRadius * 2.0);
         opos = (cpos.x * InstTangentX) + (cpos.y * InstTangentY) + (cpos.z * InstDirection);
+        opos -= InstDirection * extraRadius; //offset back from light direction
     }
     else if (InstType == 4)//capsule
     {
-        float3 cpos = ipos.xyz * extent;
+        float extraRadius = extent * 0.029; // capsule light volume padding
+        float3 cpos = ipos.xyz * (extent + extraRadius);
         cpos.y += abs(InstCapsuleExtent.x) * (ipos.w - 0.5);
         opos = (cpos.x * InstTangentX.xyz) + (cpos.y * InstDirection.xyz) + (cpos.z * InstTangentY.xyz);
     }

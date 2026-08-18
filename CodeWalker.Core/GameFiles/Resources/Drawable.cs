@@ -448,7 +448,7 @@ namespace CodeWalker.GameFiles
             pinfos.NumSamplers = (byte)sc;
             pinfos.Unknown0 = (byte)0x00;
             pinfos.Unknown1 = (byte)0x01;
-            pinfos.Unknown2 = (byte)multi;
+            pinfos.BufferCopyMultiplier = (byte)multi;
 
 
             var ptrslen = pinfos.NumBuffers * 8 * multi;
@@ -667,7 +667,7 @@ namespace CodeWalker.GameFiles
                 var paramap = dc?.ParamsMapGen9ToLegacy;
 
                 G9_ParamInfos = Owner.G9_ParamInfos;
-                var multi = (int)G9_ParamInfos.Unknown2;//12  ... wtf
+                var multi = (int)G9_ParamInfos.BufferCopyMultiplier;//12
                 var mult = (uint)multi;
 
                 var bcnt = G9_ParamInfos.NumBuffers;
@@ -896,7 +896,7 @@ namespace CodeWalker.GameFiles
                 var paramap = dc?.ParamsMapLegacyToGen9;
 
                 if (G9_ParamInfos == null) G9_ParamInfos = Owner.G9_ParamInfos;
-                var multi = (int)G9_ParamInfos.Unknown2;
+                var multi = (int)G9_ParamInfos.BufferCopyMultiplier;
                 var mult = (uint)multi;
                 var bcnt = G9_ParamInfos.NumBuffers;
                 var tcnt = G9_ParamInfos.NumTextures;
@@ -1298,7 +1298,7 @@ namespace CodeWalker.GameFiles
         public byte NumParams { get; set; }
         public byte Unknown0 { get; set; }
         public byte Unknown1 { get; set; }
-        public byte Unknown2 { get; set; } = 0xc;//12  threads buffer copy count..?
+        public byte BufferCopyMultiplier { get; set; } = 0xc;//12  Gen9 constant-buffer copy count
         public ShaderParamInfoG9[] Params { get; set; }
 
         public override void Read(ResourceDataReader reader, params object[] parameters)
@@ -1310,14 +1310,14 @@ namespace CodeWalker.GameFiles
             NumParams = reader.ReadByte();
             Unknown0 = reader.ReadByte();
             Unknown1 = reader.ReadByte();
-            Unknown2 = reader.ReadByte();
+            BufferCopyMultiplier = reader.ReadByte();
             Params = reader.ReadStructs<ShaderParamInfoG9>(NumParams);
 
             if (Unknown0 != 0)
             { }
             if (Unknown1 != 0)
             { }
-            if (Unknown2 != 0xc)
+            if (BufferCopyMultiplier != 0xc)
             { }
         }
 
@@ -1330,7 +1330,7 @@ namespace CodeWalker.GameFiles
             writer.Write(NumParams);
             writer.Write(Unknown0);
             writer.Write(Unknown1);
-            writer.Write(Unknown2);
+            writer.Write(BufferCopyMultiplier);
             writer.WriteStructs(Params);
         }
 
@@ -3707,26 +3707,26 @@ namespace CodeWalker.GameFiles
         public ulong Unknown_8h; // 0x0000000000000000
         public ulong Unknown_10h; // 0x0000000000000000
         public ulong VertexBufferPointer { get; set; }
-        public ulong Unknown_20h; // 0x0000000000000000
-        public ulong Unknown_28h; // 0x0000000000000000
-        public ulong Unknown_30h; // 0x0000000000000000
+        public ulong VertexBuffer2Pointer; // grmGeometryQB::m_VB[1] (multi-buffer slot, normally 0)
+        public ulong VertexBuffer3Pointer; // grmGeometryQB::m_VB[2]
+        public ulong VertexBuffer4Pointer; // grmGeometryQB::m_VB[3]
         public ulong IndexBufferPointer { get; set; }
-        public ulong Unknown_40h; // 0x0000000000000000
-        public ulong Unknown_48h; // 0x0000000000000000
-        public ulong Unknown_50h; // 0x0000000000000000
+        public ulong IndexBuffer2Pointer; // grmGeometryQB::m_IB[1] (multi-buffer slot, normally 0)
+        public ulong IndexBuffer3Pointer; // grmGeometryQB::m_IB[2]
+        public ulong IndexBuffer4Pointer; // grmGeometryQB::m_IB[3]
         public uint IndicesCount { get; set; }
         public uint TrianglesCount { get; set; }
         public ushort VerticesCount { get; set; }
-        public ushort Unknown_62h = 3; // 0x0003 // indices per primitive (triangle)
+        public ushort IndicesPerPrimitive = 3; // 0x0003 // grmGeometryQB primitive type (3 = triangle list)
         public uint Unknown_64h; // 0x00000000
         public ulong BoneIdsPointer { get; set; }
         public ushort VertexStride { get; set; }
         public ushort BoneIdsCount { get; set; }
         public uint Unknown_74h; // 0x00000000
         public ulong VertexDataPointer { get; set; }
-        public ulong Unknown_80h; // 0x0000000000000000
-        public ulong Unknown_88h; // 0x0000000000000000
-        public ulong Unknown_90h; // 0x0000000000000000
+        public ulong VertexDeclOffsetPointer; // grmGeometryQB::m_VtxDeclOffset
+        public ulong OffsetBufferPointer; // grmGeometryQB::m_OffsetBuffer
+        public ulong IndexOffset; // grmGeometryQB::m_IndexOffset
 
         // reference data
         public VertexBuffer VertexBuffer { get; set; }
@@ -3749,26 +3749,26 @@ namespace CodeWalker.GameFiles
             this.Unknown_8h = reader.ReadUInt64();
             this.Unknown_10h = reader.ReadUInt64();
             this.VertexBufferPointer = reader.ReadUInt64();
-            this.Unknown_20h = reader.ReadUInt64();
-            this.Unknown_28h = reader.ReadUInt64();
-            this.Unknown_30h = reader.ReadUInt64();
+            this.VertexBuffer2Pointer = reader.ReadUInt64();
+            this.VertexBuffer3Pointer = reader.ReadUInt64();
+            this.VertexBuffer4Pointer = reader.ReadUInt64();
             this.IndexBufferPointer = reader.ReadUInt64();
-            this.Unknown_40h = reader.ReadUInt64();
-            this.Unknown_48h = reader.ReadUInt64();
-            this.Unknown_50h = reader.ReadUInt64();
+            this.IndexBuffer2Pointer = reader.ReadUInt64();
+            this.IndexBuffer3Pointer = reader.ReadUInt64();
+            this.IndexBuffer4Pointer = reader.ReadUInt64();
             this.IndicesCount = reader.ReadUInt32();
             this.TrianglesCount = reader.ReadUInt32();
             this.VerticesCount = reader.ReadUInt16();
-            this.Unknown_62h = reader.ReadUInt16();
+            this.IndicesPerPrimitive = reader.ReadUInt16();
             this.Unknown_64h = reader.ReadUInt32();
             this.BoneIdsPointer = reader.ReadUInt64();
             this.VertexStride = reader.ReadUInt16();
             this.BoneIdsCount = reader.ReadUInt16();
             this.Unknown_74h = reader.ReadUInt32();
             this.VertexDataPointer = reader.ReadUInt64();
-            this.Unknown_80h = reader.ReadUInt64();
-            this.Unknown_88h = reader.ReadUInt64();
-            this.Unknown_90h = reader.ReadUInt64();
+            this.VertexDeclOffsetPointer = reader.ReadUInt64();
+            this.OffsetBufferPointer = reader.ReadUInt64();
+            this.IndexOffset = reader.ReadUInt64();
 
             // read reference data
             this.VertexBuffer = reader.ReadBlockAt<VertexBuffer>(
@@ -3875,26 +3875,26 @@ namespace CodeWalker.GameFiles
             writer.Write(this.Unknown_8h);
             writer.Write(this.Unknown_10h);
             writer.Write(this.VertexBufferPointer);
-            writer.Write(this.Unknown_20h);
-            writer.Write(this.Unknown_28h);
-            writer.Write(this.Unknown_30h);
+            writer.Write(this.VertexBuffer2Pointer);
+            writer.Write(this.VertexBuffer3Pointer);
+            writer.Write(this.VertexBuffer4Pointer);
             writer.Write(this.IndexBufferPointer);
-            writer.Write(this.Unknown_40h);
-            writer.Write(this.Unknown_48h);
-            writer.Write(this.Unknown_50h);
+            writer.Write(this.IndexBuffer2Pointer);
+            writer.Write(this.IndexBuffer3Pointer);
+            writer.Write(this.IndexBuffer4Pointer);
             writer.Write(this.IndicesCount);
             writer.Write(this.TrianglesCount);
             writer.Write(this.VerticesCount);
-            writer.Write(this.Unknown_62h);
+            writer.Write(this.IndicesPerPrimitive);
             writer.Write(this.Unknown_64h);
             writer.Write(this.BoneIdsPointer);
             writer.Write(this.VertexStride);
             writer.Write(this.BoneIdsCount);
             writer.Write(this.Unknown_74h);
             writer.Write(this.VertexDataPointer);
-            writer.Write(this.Unknown_80h);
-            writer.Write(this.Unknown_88h);
-            writer.Write(this.Unknown_90h);
+            writer.Write(this.VertexDeclOffsetPointer);
+            writer.Write(this.OffsetBufferPointer);
+            writer.Write(this.IndexOffset);
 
             if (BoneIds != null)
             {
@@ -5986,9 +5986,9 @@ namespace CodeWalker.GameFiles
         public Vector3 BoundingCenter { get; set; }
         public float BoundingSphereRadius { get; set; }
         public Vector3 BoundingBoxMin { get; set; }
-        public uint Unknown_3Ch { get; set; } = 0x7f800001;
+        public uint BoundingBoxMinW { get; set; } = 0x7f800001; // rmcLodGroup m_BoundingBoxMin.w (W pad)
         public Vector3 BoundingBoxMax { get; set; }
-        public uint Unknown_4Ch { get; set; } = 0x7f800001;
+        public uint BoundingBoxMaxW { get; set; } = 0x7f800001; // rmcLodGroup m_BoundingBoxMax.w (W pad)
         public ulong DrawableModelsHighPointer { get; set; }
         public ulong DrawableModelsMediumPointer { get; set; }
         public ulong DrawableModelsLowPointer { get; set; }
@@ -6002,8 +6002,8 @@ namespace CodeWalker.GameFiles
         public uint RenderMaskFlagsLow { get; set; }
         public uint RenderMaskFlagsVlow { get; set; }
         public ulong JointsPointer { get; set; }
-        public ushort Unknown_98h { get; set; } // 0x0000
-        public ushort DrawableModelsBlocksSize { get; set; } // divided by 16
+        public ushort HandleIndex { get; set; } // rmcDrawable::m_HandleIndex
+        public ushort DrawableModelsBlocksSize { get; set; } // m_ContainerSizeQW (divided by 16)
         public uint Unknown_9Ch { get; set; } // 0x00000000
         public ulong DrawableModelsPointer { get; set; }
 
@@ -6095,9 +6095,9 @@ namespace CodeWalker.GameFiles
             this.BoundingCenter = reader.ReadVector3();
             this.BoundingSphereRadius = reader.ReadSingle();
             this.BoundingBoxMin = reader.ReadVector3();
-            this.Unknown_3Ch = reader.ReadUInt32();
+            this.BoundingBoxMinW = reader.ReadUInt32();
             this.BoundingBoxMax = reader.ReadVector3();
-            this.Unknown_4Ch = reader.ReadUInt32();
+            this.BoundingBoxMaxW = reader.ReadUInt32();
             this.DrawableModelsHighPointer = reader.ReadUInt64();
             this.DrawableModelsMediumPointer = reader.ReadUInt64();
             this.DrawableModelsLowPointer = reader.ReadUInt64();
@@ -6111,7 +6111,7 @@ namespace CodeWalker.GameFiles
             this.RenderMaskFlagsLow = reader.ReadUInt32();
             this.RenderMaskFlagsVlow = reader.ReadUInt32();
             this.JointsPointer = reader.ReadUInt64();
-            this.Unknown_98h = reader.ReadUInt16();
+            this.HandleIndex = reader.ReadUInt16();
             this.DrawableModelsBlocksSize = reader.ReadUInt16();
             this.Unknown_9Ch = reader.ReadUInt32();
             this.DrawableModelsPointer = reader.ReadUInt64();
@@ -6323,9 +6323,9 @@ namespace CodeWalker.GameFiles
             writer.Write(this.BoundingCenter);
             writer.Write(this.BoundingSphereRadius);
             writer.Write(this.BoundingBoxMin);
-            writer.Write(this.Unknown_3Ch);
+            writer.Write(this.BoundingBoxMinW);
             writer.Write(this.BoundingBoxMax);
-            writer.Write(this.Unknown_4Ch);
+            writer.Write(this.BoundingBoxMaxW);
             writer.Write(this.DrawableModelsHighPointer);
             writer.Write(this.DrawableModelsMediumPointer);
             writer.Write(this.DrawableModelsLowPointer);
@@ -6339,7 +6339,7 @@ namespace CodeWalker.GameFiles
             writer.Write(this.RenderMaskFlagsLow);
             writer.Write(this.RenderMaskFlagsVlow);
             writer.Write(this.JointsPointer);
-            writer.Write(this.Unknown_98h);
+            writer.Write(this.HandleIndex);
             writer.Write(this.DrawableModelsBlocksSize);
             writer.Write(this.Unknown_9Ch);
             writer.Write(this.DrawableModelsPointer);
@@ -6606,7 +6606,7 @@ namespace CodeWalker.GameFiles
                 r.RenderMaskFlagsMed = RenderMaskFlagsMed;
                 r.RenderMaskFlagsLow = RenderMaskFlagsLow;
                 r.RenderMaskFlagsVlow = RenderMaskFlagsVlow;
-                r.Unknown_98h = Unknown_98h;
+                r.HandleIndex = HandleIndex;
                 r.DrawableModelsBlocksSize = DrawableModelsBlocksSize;
                 r.ShaderGroup = ShaderGroup;
                 r.Skeleton = Skeleton?.Clone();
@@ -6630,8 +6630,8 @@ namespace CodeWalker.GameFiles
         {
             FileVFT = 1079456120;
             FileUnknown = 1;
-            Unknown_3Ch = 0x7f800001;
-            Unknown_4Ch = 0x7f800001;
+            BoundingBoxMinW = 0x7f800001;
+            BoundingBoxMaxW = 0x7f800001;
 
             if (Skeleton != null)
             {

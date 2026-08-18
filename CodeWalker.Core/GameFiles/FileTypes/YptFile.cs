@@ -54,18 +54,19 @@ namespace CodeWalker.GameFiles
 
             ResourceDataReader rd = new(resentry, data);
 
-            if (rd.IsGen9)
+            //drive the read mode from the file's own RSC7 version, both directions, so a raw disk load
+            //(e.g. the particle editor's File>Open) reads the graphics block - the embedded texture dict -
+            //with the right layout even when the global RpfManager.IsGen9 flag doesn't match this file.
+            switch (resentry.Version)
             {
-                switch (resentry.Version)
-                {
-                    case 71:
-                        break;
-                    case 68:
-                        rd.IsGen9 = false;
-                        break;
-                    default:
-                        break;
-                }
+                case 71:
+                    rd.IsGen9 = true;
+                    break;
+                case 68:
+                    rd.IsGen9 = false;
+                    break;
+                default:
+                    break;
             }
 
             //MemoryUsage = 0;
@@ -122,6 +123,13 @@ namespace CodeWalker.GameFiles
 
 
 
+
+        public void RebuildDicts()
+        {
+            //call after editing the PtfxList dictionaries to refresh the lookup tables used by the UI/preview
+            BuildDrawableDict();
+            BuildParticleDict();
+        }
 
         private void BuildDrawableDict()
         {

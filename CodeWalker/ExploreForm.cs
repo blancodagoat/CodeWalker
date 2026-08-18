@@ -824,6 +824,7 @@ namespace CodeWalker
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateStatus(text); }));
@@ -834,11 +835,14 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         public void UpdateErrorLog(string text)
         {
             try
             {
+                if (IsDisposed || IsHandleCreated == false) return;
                 if (InvokeRequired)
                 {
                     BeginInvoke(new Action(() => { UpdateErrorLog(text); }));
@@ -849,6 +853,8 @@ namespace CodeWalker
                 }
             }
             catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
 
 
@@ -1744,14 +1750,21 @@ namespace CodeWalker
 
         public void RefreshMainListViewInvoke()
         {
-            if (InvokeRequired)
+            try
             {
-                BeginInvoke(new Action(() => { RefreshMainListView(); }));
+                if (IsDisposed || IsHandleCreated == false) return;
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(() => { RefreshMainListView(); }));
+                }
+                else
+                {
+                    RefreshMainListView();
+                }
             }
-            else
-            {
-                RefreshMainListView();
-            }
+            catch (ObjectDisposedException) { }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
         }
         private void RefreshMainListView()
         {
@@ -4412,7 +4425,10 @@ namespace CodeWalker
             CleanupDropFolder();
             CleanupFileWatcher();
             SaveSettings();
-            Environment.Exit(0);
+            if (Owner == null)
+            {
+                Environment.Exit(0);
+            }
         }
 
         private void MainTreeView_AfterSelect(object sender, TreeViewEventArgs e)

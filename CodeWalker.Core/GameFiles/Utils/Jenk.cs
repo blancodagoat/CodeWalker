@@ -224,6 +224,19 @@ namespace CodeWalker.GameFiles
             return true;
         }
 
+        public static void EnsureRange(IReadOnlyDictionary<uint, string> items)
+        {
+            //bulk merge used by the parallel jenk-index build: take the lock once and add many.
+            //First-write-wins (matches Ensure), so already-present hashes are left untouched.
+            lock (syncRoot)
+            {
+                foreach (var kvp in items)
+                {
+                    Index.TryAdd(kvp.Key, kvp.Value);
+                }
+            }
+        }
+
         public static string GetString(uint hash)
         {
             string res;

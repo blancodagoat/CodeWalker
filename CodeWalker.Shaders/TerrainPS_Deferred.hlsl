@@ -54,7 +54,7 @@ float2 CalculateTerrainParallaxOffset(float4 layerBlends, float2 texCoord, float
     tanEyePos.z = dot(normal.xyz, viewDir.xyz);
     tanEyePos = normalize(tanEyePos);
 
-    // Dynamic zLimit from vertex edge weight (GTA V style)
+    // Dynamic zLimit from vertex edge weight
     // Higher edgeWeightData.y = lower zLimit = allow steeper angles
     float zLimit = 1.0f - clamp(edgeWeightData.y, 0.1f, 1.0f);
     zLimit = max(zLimit, 0.1f); // Ensure minimum zLimit
@@ -68,7 +68,7 @@ float2 CalculateTerrainParallaxOffset(float4 layerBlends, float2 texCoord, float
     float closeBoost = saturate(1.0f - viewDistance / POM_CLOSE_DISTANCE);
     numberOfSteps *= lerp(1.0f, POM_CLOSE_STEP_MULTIPLIER, closeBoost);
 
-    // Distance-based fade (GTA V style) - reduces noise at steep angles/far distances
+    // Distance-based fade, reduces noise at steep angles/far distances
     float distanceBlend = saturate((viewDistance - POM_DISTANCE_START) / (POM_DISTANCE_END - POM_DISTANCE_START));
     float distanceFade = ComputePOMDistanceFade(distanceBlend);
 
@@ -192,7 +192,7 @@ PS_OUTPUT main(VS_OUTPUT input)
     layerBlends.z = vc1.g * (1.0f - vc1.b);
     layerBlends.w = vc1.g * vc1.b;
 
-    // Calculate single parallax offset using blended heights (GTA V approach)
+    // Calculate single parallax offset using blended heights
     if (EnableHeightMap && RenderMode == 0)
     {
         float3 viewDir = -normalize(input.CamRelPos); // Negate to get direction FROM surface TO camera
@@ -399,7 +399,8 @@ PS_OUTPUT main(VS_OUTPUT input)
     output.Diffuse = tv;
     output.Normal = float4(saturate(norm * 0.5 + 0.5), tv.a);
     output.Specular = float4(spec, tv.a);
-    output.Irradiance = float4(input.Colour0.rg, 0, tv.a);
+    float2 terrIrr = sqrt(float2(input.Colour0.r, input.Colour0.g) * 0.5);
+    output.Irradiance = float4(terrIrr, 0, tv.a);
 
     return output;
 }

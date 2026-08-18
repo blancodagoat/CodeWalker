@@ -62,6 +62,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         if (IsDistMap) c = float4(c.rgb*2, (c.r+c.g+c.b) - 1);
         if ((IsDecal == 0) && (c.a <= 0.33)) discard;
         if ((IsDecal == 1) && (c.a <= 0.0)) discard;
+        if ((IsDecal >= 3) && (c.a <= 0.0)) discard;
         if(IsDecal==0) c.a = 1;
 		if (IsDecal == 2)
 		{
@@ -134,7 +135,8 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
         float r1y = norm.z - 0.35;    ////r1.y = r0.w*r1.x - 0.35;    //mad r1.y, r0.w, r1.x, l(-0.350000)
 
-        float3 globalScalars = float3(0.5, 0.5, 0.5);
+        // x=globalAlpha, y=artificialAmbientScale, z=naturalAmbientScale, w=emissiveScale
+        float3 globalScalars = float3(1.0, 1.0, 1.0);
         float globalScalars2z = 1;// 0.65; //wet darkness?
         float wetness = 0;// 10.0;
 
@@ -163,11 +165,12 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         float3 tc = c.rgb * r0.x;
         c.rgb = tc * r0.z; //diffuse factors...
 
-        float3 incident = normalize(input.CamRelPos);
-        float3 refl = normalize(reflect(incident, norm));
-        float specb = saturate(dot(refl, GlobalLights.LightDir));
-        float specp = max(exp(specb * 10) - 1, 0);
-        spec += GlobalLights.LightDirColour.rgb * 0.00006 * specp * r0.z * sv.x * specularIntensityMult;// ((specularIntensityMult != 0) ? 1 : 0);
+        float3 viewDir = normalize(-input.CamRelPos);
+        float3 halfVec = normalize(GlobalLights.LightDir + viewDir);
+        float NdotH = saturate(dot(norm, halfVec));
+        float specExponent = max(sv.y * 512.0, 1.0);
+        float specp = pow(NdotH + 1e-8, specExponent + 1e-8);
+        spec += GlobalLights.LightDirColour.rgb * specp * r0.z * sv.x * specularIntensityMult;
 
         if (SpecOnly == 1)
         {
@@ -192,6 +195,7 @@ float4 main(VS_OUTPUT input) : SV_TARGET
 
     //c.rgb = max(c.rgb, 0);
     c.a = saturate(c.a);
+    if (IsDecal == 3) c.a = 0;
     return c;
 }
 

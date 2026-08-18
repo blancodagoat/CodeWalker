@@ -379,7 +379,7 @@ namespace CodeWalker.World
                         else
                         {
                             var ybn = GameFileCache.RpfMan.GetFile<YbnFile>(entry);
-                            if (ybn != null)
+                            if (ybn?.Bounds != null)
                             {
                                 var ehash = new MetaHash(entry.ShortNameHash);
                                 var item = new BoundsStoreItem(ybn.Bounds) { Name = ehash };
@@ -832,7 +832,7 @@ namespace CodeWalker.World
                         tverts.Add(lvert2);
 
                         // Arrow - optimized vertex creation
-                        var apos = lvert1.Position + laneDir * (yl.LinkLength * 0.5f);
+                        var apos = lvert1.Position + laneDir * (yl.Distance * 0.5f);
                         var arrowVert1 = new EditorVertex { Position = apos, Colour = laneColour };
                         var arrowVert2 = new EditorVertex { Position = apos + laneDir * negArrowSize + laneDirCross * arrowSize, Colour = laneColour };
                         var arrowVert3 = new EditorVertex { Position = apos, Colour = laneColour };
@@ -1998,6 +1998,9 @@ namespace CodeWalker.World
 
         private bool EntityCollisionsEnabled(YmapEntityDef ent)
         {
+            if (ent == null)
+            { return false; } //entity slot can be null while ymaps are being mutated (e.g. grass-batch painting)
+
             if ((ent._CEntityDef.lodLevel != rage__eLodType.LODTYPES_DEPTH_ORPHANHD) && (ent._CEntityDef.lodLevel != rage__eLodType.LODTYPES_DEPTH_HD))
             { return false; } //only test HD entities
 
@@ -2028,8 +2031,6 @@ namespace CodeWalker.World
         public SpaceMapDataStoreNode RootNode;
         public int SplitThreshold = 10;
 
-        public List<MapDataStoreNode> VisibleItems = new();
-
         public void Init(List<MapDataStoreNode> rootnodes)
         {
             RootNode = new SpaceMapDataStoreNode();
@@ -2043,36 +2044,30 @@ namespace CodeWalker.World
 
         public List<MapDataStoreNode> GetItems(ref Vector3 p) //get items at a point, using the streaming extents
         {
-            VisibleItems.Clear();
-
+            var items = new List<MapDataStoreNode>();
             if (RootNode != null)
             {
-                RootNode.GetItems(ref p, VisibleItems);
+                RootNode.GetItems(ref p, items);
             }
-
-            return VisibleItems;
+            return items;
         }
         public List<MapDataStoreNode> GetItems(ref Vector3 min, ref Vector3 max) //get items intersecting a box, using the entities extents
         {
-            VisibleItems.Clear();
-
+            var items = new List<MapDataStoreNode>();
             if (RootNode != null)
             {
-                RootNode.GetItems(ref min, ref max, VisibleItems);
+                RootNode.GetItems(ref min, ref max, items);
             }
-
-            return VisibleItems;
+            return items;
         }
         public List<MapDataStoreNode> GetItems(ref Ray ray) //get items intersecting a ray, using the entities extents
         {
-            VisibleItems.Clear();
-
+            var items = new List<MapDataStoreNode>();
             if (RootNode != null)
             {
-                RootNode.GetItems(ref ray, VisibleItems);
+                RootNode.GetItems(ref ray, items);
             }
-
-            return VisibleItems;
+            return items;
         }
     }
     public class SpaceMapDataStoreNode
@@ -2244,8 +2239,6 @@ namespace CodeWalker.World
         public SpaceBoundsStoreNode RootNode;
         public int SplitThreshold = 10;
 
-        public List<BoundsStoreItem> VisibleItems = new();
-
         public void Init(List<BoundsStoreItem> items)
         {
             RootNode = new SpaceBoundsStoreNode();
@@ -2259,25 +2252,21 @@ namespace CodeWalker.World
 
         public List<BoundsStoreItem> GetItems(ref Vector3 min, ref Vector3 max, bool[] layers = null)
         {
-            VisibleItems.Clear();
-
+            var items = new List<BoundsStoreItem>();
             if (RootNode != null)
             {
-                RootNode.GetItems(ref min, ref max, VisibleItems, layers);
+                RootNode.GetItems(ref min, ref max, items, layers);
             }
-
-            return VisibleItems;
+            return items;
         }
         public List<BoundsStoreItem> GetItems(ref Ray ray, bool[] layers = null)
         {
-            VisibleItems.Clear();
-
+            var items = new List<BoundsStoreItem>();
             if (RootNode != null)
             {
-                RootNode.GetItems(ref ray, VisibleItems, layers);
+                RootNode.GetItems(ref ray, items, layers);
             }
-
-            return VisibleItems;
+            return items;
         }
     }
     public class SpaceBoundsStoreNode

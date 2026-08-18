@@ -169,10 +169,8 @@ namespace CodeWalker.GameFiles
                         node.LinkCount = 0;
                     }
 
-                    //LinkCount = node.LinkCountFlags.Value >> 3;
-                    //LinkCountUnk = node.LinkCountFlags.Value & 7;
-                    byte lcflags = (byte)((node.LinkCount << 3) | (node.LinkCountUnk & 7));
-                    node._RawData.LinkCountFlags = lcflags;
+                    byte lcflags = (byte)((node.LinkCount << 3) | (node.LinkCountUnk & 6) | (node.QualifiesAsJunction ? 1 : 0));
+                    node._RawData.Flags1 = (node._RawData.Flags1 & 0xFFFF00FF) | ((uint)lcflags << 8);
 
                     nodes[i] = node.RawData;
 
@@ -186,7 +184,7 @@ namespace CodeWalker.GameFiles
                         jref.AreaID = node.AreaID;
                         jref.NodeID = node.NodeID;
                         jref.JunctionID = (ushort)newjuncs.Count;
-                        //jref.Unk0 = 0;//always 0?
+                        //jref.Padding0 = 0; // upper 16 bits of junction map value, always 0
                         nj.RefData = jref;//move this somewhere else..??
                         newjuncs.Add(nj.RawData);
                         newjuncrefs.Add(jref);
@@ -786,15 +784,27 @@ namespace CodeWalker.GameFiles
     public enum YndNodeSpecialType
     {
         None = 0,
-        ParkingSpace = 2,
-        PedNodeRoadCrossing = 10,
-        PedNodeAssistedMovement = 14,
-        TrafficLightJunctionStop = 15,
-        StopSign = 16,
-        Caution = 17,
-        PedRoadCrossingNoWait = 18,
-        EmergencyVehiclesOnly = 19,
-        OffRoadJunction = 20
+        ParkingParallel = 1,
+        ParkingPerpendicular = 2,
+        DropoffGoods = 3,
+        DriveThrough = 4,
+        DriveThroughWindow = 5,
+        DropoffGoodsUnload = 6,
+        HidingNode = 7,
+        SmallWorkVehicles = 8,
+        PetrolStation = 9,
+        PedCrossing = 10,
+        DropoffPassengers = 11,
+        DropoffPassengersUnload = 12,
+        OpenSpace = 13,
+        PedAssistedMovement = 14,
+        TrafficLight = 15,
+        GiveWay = 16,
+        ForceJunction = 17,
+        PedDrivewayCrossing = 18,
+        RestrictedArea = 19,
+        FalseJunction = 20,
+        DisableVehicleCreation = 21
     }
 
     [TypeConverter(typeof(ExpandableObjectConverter))] public class YndNode : BasePathNode
@@ -811,11 +821,9 @@ namespace CodeWalker.GameFiles
         public ushort AreaID { get { return _RawData.AreaID; } set { _RawData.AreaID = value; } }
         public ushort NodeID { get { return _RawData.NodeID; } set { _RawData.NodeID = value; } }
         public ushort LinkID { get { return _RawData.LinkID; } set { _RawData.LinkID = value; } }
-        public FlagsByte Flags0 { get { return _RawData.Flags0; } set { _RawData.Flags0 = value; } }
-        public FlagsByte Flags1 { get { return _RawData.Flags1; } set { _RawData.Flags1 = value; } }
-        public FlagsByte Flags2 { get { return _RawData.Flags2; } set { _RawData.Flags2 = value; } }
-        public FlagsByte Flags3 { get { return _RawData.Flags3; } set { _RawData.Flags3 = value; } }
-        public FlagsByte Flags4 { get { return _RawData.Flags4; } set { _RawData.Flags4 = value; } }
+        // m_iAsInteger1 and m_iAsInteger2 - direct u32 bitfield access matching C++ CPathNode
+        public uint Flags0 { get { return _RawData.Flags0; } set { _RawData.Flags0 = value; } }       // m_iAsInteger1
+        public uint Flags1 { get { return _RawData.Flags1; } set { _RawData.Flags1 = value; } }       // m_iAsInteger2
         public TextHash StreetName { get { return _RawData.StreetName; } set { _RawData.StreetName = value; } }
 
         public Color4 Colour { get; set; }
@@ -836,129 +844,124 @@ namespace CodeWalker.GameFiles
             }
         }
 
-        //// Flag0 Properties
-        public bool OffRoad
+        // m_iAsInteger1 (Flags0) bit properties
+        public int FloodGroup                                        // bits 0-2: m_group (3 bits, 0-7)
         {
-            get => (Flags0 & 8) > 0;
-            set => Flags0 = (byte)(value ? Flags0 | 8 : Flags0 &~ 8);
+            get => (int)(Flags0 & 0x7u);
+            set => Flags0 = (Flags0 & ~0x7u) | ((uint)(value & 0x7));
         }
-        public bool NoBigVehicles
+        public bool OffRoad                                          // bit 3: m_Offroad
         {
-            get => (Flags0.Value & 32) > 0;
-            set => Flags0 = (byte)(value ? Flags0 | 32 : Flags0 &~ 32);
+            get => (Flags0 & 0x8u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x8u) : (Flags0 & ~0x8u);
         }
-        public bool CannotGoLeft
+        public bool NoBigVehicles                                    // bit 5: m_noBigVehicles
         {
-            get => (Flags0.Value & 128) > 0;
-            set => Flags0 = (byte)(value ? Flags0 | 128 : Flags0 &~ 32);
+            get => (Flags0 & 0x20u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x20u) : (Flags0 & ~0x20u);
         }
-
-        // Flag1 Properties
-        public bool SlipRoad
+        public bool CannotGoRight                                    // bit 6: m_cannotGoRight
         {
-            get => (Flags1 & 1) > 0;
-            set => Flags1 = (byte)(value ? Flags1 | 1 : Flags1 &~ 1);
+            get => (Flags0 & 0x40u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x40u) : (Flags0 & ~0x40u);
         }
-        public bool IndicateKeepLeft
+        public bool CannotGoLeft                                     // bit 7: m_cannotGoLeft
         {
-            get => (Flags1 & 2) > 0;
-            set => Flags1 = (byte)(value ? Flags1 | 2 : Flags1 &~ 2);
+            get => (Flags0 & 0x80u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x80u) : (Flags0 & ~0x80u);
         }
-        public bool IndicateKeepRight
+        public bool SlipRoad                                         // bit 8: m_slipLane
         {
-            get => (Flags1 & 4) > 0;
-            set => Flags1 = (byte)(value ? Flags1 | 4 : Flags1 &~ 4);
+            get => (Flags0 & 0x100u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x100u) : (Flags0 & ~0x100u);
         }
-        public YndNodeSpecialType Special
+        public bool IndicateKeepLeft                                 // bit 9: m_indicateKeepLeft
         {
-            /// <summary>
-            /// Special type is the last 5 bits in Flags1. I cannot see a flag pattern here.
-            /// I suspect this to be an enum. Especially since this attribute appears as an int
-            /// in the XML file
-            /// 
-            /// Known Special Types:
-            /// Normal                      = 0,    Most nodes
-            /// ParkingSpace?               = 2,    Only 4 on the map as far as I can see. Probably useless.
-            /// PedCrossRoad                = 10,   Any pedestrian crossing where vehicles have priority. Traffic light crossings etc.
-            /// PedNode                     = 14,
-            /// TrafficLightStopNode        = 15, 
-            /// StopJunctionNode            = 16, 
-            /// Caution (Slow Down)?        = 17,   Appears before barriers, and merges
-            /// PedCrossRoadWithPriority?   = 18,   Appears in off-road crossings
-            /// EmergencyVehiclesOnly?           = 19,   Appears in the airport entrance, the airbase, and the road where the house falls down. Probably to stop all nav.
-            /// OffRoadJunctionNode?        = 20    Appears on a junction node with more than one edge where there is an off-road connection.
-            /// </summary>
-            get => (YndNodeSpecialType)(Flags1.Value >> 3);
-            set => Flags1 = (byte)((Flags1 &~0xF8) | ((byte)value << 3));
+            get => (Flags0 & 0x200u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x200u) : (Flags0 & ~0x200u);
+        }
+        public bool IndicateKeepRight                                // bit 10: m_indicateKeepRight
+        {
+            get => (Flags0 & 0x400u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x400u) : (Flags0 & ~0x400u);
+        }
+        public YndNodeSpecialType Special                            // bits 11-15: m_specialFunction (5 bits)
+        {
+            get => (YndNodeSpecialType)((Flags0 >> 11) & 0x1F);
+            set => Flags0 = (Flags0 & ~(0x1Fu << 11)) | ((uint)(byte)value << 11);
+        }
+        public bool LeftTurnsOnly                                    // bit 15: m_specialFunction MSB
+        {
+            get => (Flags0 & 0x8000u) != 0;
+            set => Flags0 = value ? (Flags0 | 0x8000u) : (Flags0 & ~0x8000u);
         }
 
-        // Flag2 Properties
-        public bool NoGps
+        // m_iAsInteger2 (Flags1) bit properties
+        public bool NoGps                                            // bit 0: m_noGps
         {
-            get => (Flags2.Value & 1) > 0;
-            set => Flags2 = (byte)(value ? Flags2 | 1 : Flags2 &~ 1);
+            get => (Flags1 & 0x1u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x1u) : (Flags1 & ~0x1u);
         }
-        public bool IsJunction
+        public bool IsJunction                                       // bit 2: m_slipJunction
         {
-            get => (Flags2.Value & 4) > 0;
-            set => Flags2 = (byte)(value ? Flags2 | 4 : Flags2 &~ 4);
+            get => (Flags1 & 0x4u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x4u) : (Flags1 & ~0x4u);
         }
-        public bool Highway
+        public bool IsDisabledUnk1                                   // bit 4: m_switchedOffOriginal
         {
-            get => (Flags2.Value & 64) > 0;
-            set => Flags2 = (byte)(value ? Flags2 | 64 : Flags2 &~ 64);
+            get => (Flags1 & 0x10u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x10u) : (Flags1 & ~0x10u);
         }
-        public bool IsDisabledUnk0 // This seems to be heuristic based. A node being "disabled" does not mean that a vehicle will not travel through it.
+        public bool WaterNode                                        // bit 5: m_waterNode
         {
-            get => (Flags2.Value & 128) > 0;
-            set => Flags2 = (byte)(value ? Flags2 | 128 : Flags2 &~ 128);
+            get => (Flags1 & 0x20u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x20u) : (Flags1 & ~0x20u);
         }
-        public bool IsDisabledUnk1
+        public bool Highway                                          // bit 6: m_highwayOrLowBridge
         {
-            get { return (Flags2.Value & 16) > 0; }
-            set => Flags2 = (byte)(value ? Flags2 | 16 : Flags2 &~ 16);
+            get => (Flags1 & 0x40u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x40u) : (Flags1 & ~0x40u);
         }
-
-        // Flag3 Properties
-        public bool Tunnel
+        public bool IsDisabledUnk0                                   // bit 7: m_switchedOff
         {
-            get { return (Flags3 & 1) > 0; }
-            set => Flags3 = (byte)(value ? Flags3 | 1 : Flags3 &~ 1);
+            get => (Flags1 & 0x80u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x80u) : (Flags1 & ~0x80u);
         }
-        public int HeuristicValue
+        public bool QualifiesAsJunction                              // bit 8: m_qualifiesAsJunction
         {
-            /// <summary>
-            /// The heuristic value takes up the rest of Flags3.
-            /// It is a 7 bit integer, ranging from 0 to 127
-            /// For each node edge, it seems to add the FLOOR(DISTANCE(vTargetPos, vSourcePos)).
-            /// This is not 100% accurate with road merges etc (as is the nature of heuristics).
-            /// You'll see perfect accuracy in single lane roads, like alleys.
-            /// </summary>
-            get => Flags3.Value >> 1;
-            set => Flags3 = (byte)((Flags3 &~0xFE) | (value << 1));
+            get => (Flags1 & 0x100u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x100u) : (Flags1 & ~0x100u);
         }
-
-        // Flag4 Properties
-        public int Density // The first 4 bits of Flag4 is the density of the node. This ranges from 0 to 15.
+        public bool Tunnel                                           // bit 16: m_inTunnel
         {
-            get => Flags4.Value & 15;
-            set => Flags4 = (byte)((Flags4 &~ 15) | (value & 15));
+            get => (Flags1 & 0x10000u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x10000u) : (Flags1 & ~0x10000u);
         }
-        public int DeadEndness
+        public int HeuristicValue                                    // bits 17-23: m_distanceHash (7 bits, 0-127)
         {
-            get => Flags4.Value & 112;
-            set => Flags4 = (byte)((Flags4 & ~ 112) | (value & 112));
+            get => (int)((Flags1 >> 17) & 0x7F);
+            set => Flags1 = (Flags1 & ~(0x7Fu << 17)) | ((uint)(value & 0x7F) << 17);
         }
-        public bool LeftTurnsOnly
+        public int Density                                           // bits 24-27: m_density (4 bits, 0-15)
         {
-            get => (Flags1 & 128) > 0;
-            set => Flags1 = (byte)(value ? Flags1 | 128 : Flags1 &~ 128);
+            get => (int)((Flags1 >> 24) & 0xF);
+            set => Flags1 = (Flags1 & ~(0xFu << 24)) | ((uint)(value & 0xF) << 24);
+        }
+        public int DeadEndness                                       // bits 28-30: m_deadEndness (3 bits)
+        {
+            get => (int)((Flags1 >> 28) & 0x7);
+            set => Flags1 = (Flags1 & ~(0x7u << 28)) | ((uint)(value & 0x7) << 28);
+        }
+        public bool LeftOnly                                         // bit 31: m_leftOnly
+        {
+            get => (Flags1 & 0x80000000u) != 0;
+            set => Flags1 = value ? (Flags1 | 0x80000000u) : (Flags1 & ~0x80000000u);
         }
 
         public static bool IsSpecialTypeAPedNode(YndNodeSpecialType specialType)
-            => specialType == YndNodeSpecialType.PedNodeRoadCrossing
-               || specialType == YndNodeSpecialType.PedNodeAssistedMovement
-               || specialType == YndNodeSpecialType.PedRoadCrossingNoWait;
+            => specialType == YndNodeSpecialType.PedCrossing
+               || specialType == YndNodeSpecialType.PedAssistedMovement
+               || specialType == YndNodeSpecialType.PedDrivewayCrossing;
         public bool IsPedNode => IsSpecialTypeAPedNode(Special);// If Special is 10, 14 or 18 this is a ped node.
 
 
@@ -969,11 +972,12 @@ namespace CodeWalker.GameFiles
             Vector3 p = new();
             p.X = node.PositionX / 4.0f;
             p.Y = node.PositionY / 4.0f;
-            p.Z = node.PositionZ / 32.0f;
+            p.Z = ((short)(node.Flags0 >> 16)) / 32.0f;
             Position = p;
 
-            LinkCount = node.LinkCountFlags.Value >> 3;
-            LinkCountUnk = node.LinkCountFlags.Value & 7;
+            byte lcflags = (byte)((node.Flags1 >> 8) & 0xFF);
+            LinkCount = lcflags >> 3;
+            LinkCountUnk = lcflags & 6; // bits 1-2 only; bit 0 is QualifiesAsJunction in Flags1
 
             Colour = GetColour();
 
@@ -996,7 +1000,7 @@ namespace CodeWalker.GameFiles
                 return new Color4(0.3f, 0.3f, 0.3f, 0.5f);
             }
 
-            return new Color4(LinkCountUnk / 7.0f, Flags0.Value / 255.0f, Flags1.Value / 255.0f, 0.5f);
+            return new Color4(LinkCountUnk / 7.0f, (Flags0 & 0xFF) / 255.0f, ((Flags0 >> 8) & 0xFF) / 255.0f, 0.5f);
         }
 
 
@@ -1004,12 +1008,10 @@ namespace CodeWalker.GameFiles
         {
             _RawData.PositionX = (short)(pos.X * 4.0f);
             _RawData.PositionY = (short)(pos.Y * 4.0f);
-            _RawData.PositionZ = (short)(pos.Z * 32.0f);
+            ushort posZ = (ushort)(short)(pos.Z * 32.0f);
+            _RawData.Flags0 = (_RawData.Flags0 & 0xFFFF) | ((uint)posZ << 16);
 
             Vector3 newpos = pos;
-            //newpos.X = _RawData.PositionX / 4.0f;
-            //newpos.Y = _RawData.PositionY / 4.0f;
-            //newpos.Z = _RawData.PositionZ / 32.0f;
             Position = newpos;
 
             UpdateLinkLengths();
@@ -1052,7 +1054,7 @@ namespace CodeWalker.GameFiles
                 ? link.Node2
                 : link.Node1;
 
-            var length = link.LinkLength;
+            var length = link.Distance;
 
             HeuristicValue = partner.HeuristicValue + length;
         }
@@ -1070,15 +1072,15 @@ namespace CodeWalker.GameFiles
                 .Where(l => !l.Shortcut)
                 .SelectMany(l => new[] { l.Node1, l.Node2 }).Distinct().Count() > 3;
 
-            if (!IsJunction && Special == YndNodeSpecialType.OffRoadJunction)
+            if (!IsJunction && Special == YndNodeSpecialType.FalseJunction)
             {
                 Special = YndNodeSpecialType.None;
             }
 
-            if (IsJunction && Special == YndNodeSpecialType.None || Special == YndNodeSpecialType.OffRoadJunction)
+            if (IsJunction && Special == YndNodeSpecialType.None || Special == YndNodeSpecialType.FalseJunction)
             {
                 var hasOffroadLink = Links.Any(l => l.Node2.OffRoad);
-                Special = hasOffroadLink ? YndNodeSpecialType.OffRoadJunction : YndNodeSpecialType.None;
+                Special = hasOffroadLink ? YndNodeSpecialType.FalseJunction : YndNodeSpecialType.None;
             }
         }
 
@@ -1201,11 +1203,9 @@ namespace CodeWalker.GameFiles
             seenNodes.Add(this);
             if (basis != this && !IsJunction)
             {
-                Flags0 = basis.Flags0;
+                // Copy flag bits from m_iAsInteger1 (bits 0-15 only, preserve coorsZ in bits 16-31)
+                Flags0 = (Flags0 & 0xFFFF0000u) | (basis.Flags0 & 0x0000FFFFu);
                 Flags1 = basis.Flags1;
-                Flags2 = basis.Flags2;
-                Flags3 = basis.Flags3;
-                Flags4 = basis.Flags4;
                 LinkCountUnk = (LinkCountUnk &~ 7) | (basis.LinkCountUnk & 7);
 
                 affectedFilesList.Add(Ynd);
@@ -1298,21 +1298,25 @@ namespace CodeWalker.GameFiles
             }
 
             var junc = Junction;
-            var maxZ = junc.MaxZ / 32f;
-            var minZ = junc.MinZ / 32f;
-            var xStart = junc.PositionX / 4f;
-            var yStart = junc.PositionY / 4f;
             var sizeX = junc._RawData.HeightmapDimX;
             var sizeY = junc._RawData.HeightmapDimY;
+
+            if (sizeX <= 0 || sizeY <= 0) return;
+
+            var maxZ = junc.MaxZ / 32f;
+            var minZ = junc.MinZ / 32f;
+            var maxDist = maxZ - minZ;
+
+            if (maxDist <= 0) return; // avoid division by zero
+
+            var xStart = junc.PositionX / 4f;
+            var yStart = junc.PositionY / 4f;
 
             var start = new Vector3(xStart, yStart, maxZ);
             var layers = new[] { true, false, false };
 
-            var maxDist = maxZ - minZ;
-
-            var t = new StringBuilder();
-
-            var sb = new StringBuilder();
+            // Build heightmap byte array directly
+            var heightmapBytes = new byte[sizeX * sizeY];
 
             for (int y = 0; y < sizeY; y++)
             {
@@ -1323,34 +1327,34 @@ namespace CodeWalker.GameFiles
                     var offx = x * 2.0f;
                     var result = space.RayIntersect(new Ray(start + new Vector3(offx, offy, 0f), new Vector3(0f, 0f, -1f)), maxDist, layers);
 
-                    var p = start + new Vector3(offx, offy, 0f);
-                    //t.AppendLine($"{p.X}, {p.Y}, {p.Z}");
-
                     if (!result.Hit)
                     {
-                        sb.Append("000 ");
+                        heightmapBytes[y * sizeX + x] = 0;
                         continue;
                     }
 
-                    t.AppendLine($"{result.Position.X}, {result.Position.Y}, {result.Position.Z}");
-
                     var height = Math.Min(Math.Max(result.Position.Z, minZ), maxZ);
-                    var actualDist = (byte)((height - minZ) / maxDist * 255);
-                    sb.Append(actualDist);
-                    sb.Append(' ');
+                    heightmapBytes[y * sizeX + x] = (byte)((height - minZ) / maxDist * 255);
                 }
-
-                // Remove trailing space
-                sb.Remove(sb.Length - 1, 1);
-                sb.AppendLine();
             }
 
-            // Remove trailing new line
-            sb.Remove(sb.Length - 1, 1);
+            // Ensure Heightmap object exists with correct dimensions
+            if (junc.Heightmap == null || junc.Heightmap.CountX != sizeX || junc.Heightmap.CountY != sizeY)
+            {
+                junc.Heightmap = new YndJunctionHeightmap(heightmapBytes, junc);
+            }
+            else
+            {
+                // Update existing heightmap rows directly
+                for (int y = 0; y < sizeY; y++)
+                {
+                    var rowBytes = new byte[sizeX];
+                    Buffer.BlockCopy(heightmapBytes, y * sizeX, rowBytes, 0, sizeX);
+                    junc.Heightmap.Rows[y].Values = rowBytes;
+                }
+            }
 
-            var tt = t.ToString();
-
-            junc.SetHeightmap(sb.ToString());
+            HasJunction = true;
         }
 
 
@@ -1425,40 +1429,43 @@ namespace CodeWalker.GameFiles
 
         public NodeLink _RawData;
         public NodeLink RawData { get { return _RawData; } set { _RawData = value; } }
-        public FlagsByte Flags0 { get { return _RawData.Flags0; } set { _RawData.Flags0 = value; } }
-        public FlagsByte Flags1 { get { return _RawData.Flags1; } set { _RawData.Flags1 = value; } }
-        public FlagsByte Flags2 { get { return _RawData.Flags2; } set { _RawData.Flags2 = value; } }
-        public FlagsByte LinkLength { get { return _RawData.LinkLength; } set { _RawData.LinkLength = value; } }
-
-        public int LaneCountForward
+        // m_iAsInteger1 - direct u32 bitfield access matching C++ CPathNodeLink
+        public uint Flags0 { get { return _RawData.Flags0; } set { _RawData.Flags0 = value; } }       // m_iAsInteger1
+        public byte Distance                                         // bits 24-31: m_Distance
         {
-            get => (Flags2.Value >> 5) & 7;
-            set => Flags2 =  (byte)((Flags2 &~0xE0) | ((value & 7) << 5));
+            get => (byte)((Flags0 >> 24) & 0xFF);
+            set => Flags0 = (Flags0 & 0x00FFFFFFu) | ((uint)value << 24);
         }
 
-        public int LaneCountBackward
+        public int LaneCountForward                                  // bits 21-23: m_LanesToOtherNode
         {
-            get => (Flags2.Value >> 2) & 7;
-            set => Flags2 = (byte)((Flags2 &~0x1C) | ((value & 7) << 2));
+            get => (int)((Flags0 >> 21) & 7);
+            set => Flags0 = (Flags0 & ~(7u << 21)) | ((uint)(value & 7) << 21);
         }
 
-        public int OffsetValue
+        public int LaneCountBackward                                 // bits 18-20: m_LanesFromOtherNode
         {
-            get => (Flags1.Value >> 4) & 7;
-            set => Flags2 = (byte)((Flags2 & ~0x70) | ((value & 7) << 4));
+            get => (int)((Flags0 >> 18) & 7);
+            set => Flags0 = (Flags0 & ~(7u << 18)) | ((uint)(value & 7) << 18);
         }
 
-        public bool NegativeOffset { get { return (Flags1.Value >> 7) > 0; } }
+        public int OffsetValue                                       // bits 12-14: m_Width (lower 3 bits)
+        {
+            get => (int)((Flags0 >> 12) & 7);
+            set => Flags0 = (Flags0 & ~(7u << 12)) | ((uint)(value & 7) << 12);
+        }
+
+        public bool NegativeOffset { get { return (Flags0 & 0x8000u) != 0; } }  // bit 15: m_Width MSB
         public float LaneOffset { get { return (OffsetValue / 7.0f) * (NegativeOffset ? -0.5f : 0.5f); } }
 
-        public bool GpsBothWays { get { return (Flags0 & 1) > 0; } }
-        public bool NarrowRoad { get { return (Flags1 & 2) > 0; } }
-        public bool DontUseForNavigation { get { return (Flags2 & 1) > 0; } }
+        public bool GpsBothWays { get { return (Flags0 & 1u) != 0; } }            // bit 0: m_bGpsCanGoBothWays
+        public bool NarrowRoad { get { return (Flags0 & 0x200u) != 0; } }         // bit 9: m_NarrowRoad
+        public bool DontUseForNavigation { get { return (Flags0 & 0x10000u) != 0; } } // bit 16: m_bDontUseForNavigation
 
-        public bool Shortcut
+        public bool Shortcut                                         // bit 17: m_bShortCut
         {
-            get { return (Flags2 & 2) > 0; }
-            set => Flags2 = value ? (byte)(Flags2 | 2) : (byte)(Flags2 &~ 2);
+            get { return (Flags0 & 0x20000u) != 0; }
+            set => Flags0 = value ? (Flags0 | 0x20000u) : (Flags0 & ~0x20000u);
         }
 
 
@@ -1476,16 +1483,15 @@ namespace CodeWalker.GameFiles
             if (Node1 == null) return;
             if (Node2 == null) return;
 
-            LinkLength = (byte)Math.Min(255, (Node2.Position - Node1.Position).Length());
+            Distance = (byte)Math.Min(255, (Node2.Position - Node1.Position).Length());
         }
 
 
         public void CopyFlags(YndLink link)
         {
             if (link == null) return;
-            Flags0 = link.Flags0;
-            Flags1 = link.Flags1;
-            Flags2 = link.Flags2;
+            // Copy flag bits (bits 0-23), preserve Distance (bits 24-31)
+            Flags0 = (Flags0 & 0xFF000000u) | (link.Flags0 & 0x00FFFFFFu);
 
             CheckIfJunction();
         }

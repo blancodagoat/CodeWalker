@@ -57,7 +57,6 @@
             this.ToolsTabControl = new System.Windows.Forms.TabControl();
             this.ToolsModelsTabPage = new System.Windows.Forms.TabPage();
             this.EnableRootMotionCheckBox = new System.Windows.Forms.CheckBox();
-            this.AnimateParticlesCheckBox = new System.Windows.Forms.CheckBox();
             this.label22 = new System.Windows.Forms.Label();
             this.ClipComboBox = new System.Windows.Forms.ComboBox();
             this.label21 = new System.Windows.Forms.Label();
@@ -419,7 +418,6 @@
             // ToolsModelsTabPage
             // 
             this.ToolsModelsTabPage.Controls.Add(this.EnableRootMotionCheckBox);
-            this.ToolsModelsTabPage.Controls.Add(this.AnimateParticlesCheckBox);
             this.ToolsModelsTabPage.Controls.Add(this.label22);
             this.ToolsModelsTabPage.Controls.Add(this.ClipComboBox);
             this.ToolsModelsTabPage.Controls.Add(this.label21);
@@ -444,18 +442,6 @@
             this.EnableRootMotionCheckBox.Text = "Enable root motion";
             this.EnableRootMotionCheckBox.UseVisualStyleBackColor = true;
             this.EnableRootMotionCheckBox.CheckedChanged += new System.EventHandler(this.EnableRootMotionCheckBox_CheckedChanged);
-            //
-            // AnimateParticlesCheckBox
-            //
-            this.AnimateParticlesCheckBox.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.AnimateParticlesCheckBox.AutoSize = true;
-            this.AnimateParticlesCheckBox.Location = new System.Drawing.Point(50, 410);
-            this.AnimateParticlesCheckBox.Name = "AnimateParticlesCheckBox";
-            this.AnimateParticlesCheckBox.Size = new System.Drawing.Size(112, 17);
-            this.AnimateParticlesCheckBox.TabIndex = 38;
-            this.AnimateParticlesCheckBox.Text = "Animate particles";
-            this.AnimateParticlesCheckBox.UseVisualStyleBackColor = true;
-            this.AnimateParticlesCheckBox.CheckedChanged += new System.EventHandler(this.AnimateParticlesCheckBox_CheckedChanged);
             //
             // label22
             // 
@@ -1211,7 +1197,6 @@
         private System.Windows.Forms.NumericUpDown SnapAngleUpDown;
         private System.Windows.Forms.Label label33;
         private System.Windows.Forms.CheckBox OptionsShowOutlinesCheckBox;
-        private System.Windows.Forms.CheckBox AnimateParticlesCheckBox;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator4;
         private System.Windows.Forms.ToolStripButton LoadYtdButton;
         private System.Windows.Forms.ToolStripLabel TextureVariantLabel;

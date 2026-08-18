@@ -884,6 +884,7 @@ namespace CodeWalker.Rendering
         public float heightBias3 { get; set; } = 0.015f;
         public Vector4 WindGlobalParams { get; set; } = Vector4.Zero;
         public Vector4 WindOverrideParams { get; set; } = Vector4.One;
+        public Vector4 UmGlobalParams { get; set; } = new Vector4(0.025f, 0.020f, 1.000f, 0.500f);
         public Vector4 globalAnimUV0 { get; set; } = new Vector4(1.0f, 0.0f, 0.0f, 0.0f);
         public Vector4 globalAnimUV1 { get; set; } = new Vector4(0.0f, 1.0f, 0.0f, 0.0f);
         public Vector4 DirtDecalMask { get; set; } = Vector4.Zero;
@@ -897,6 +898,26 @@ namespace CodeWalker.Rendering
         public ClipMapEntry ClipMapEntryUV = null;
         public bool isHair = false;
         public bool disableRendering = false;
+        public bool IsGrassFur = false;
+        public uint FurMode { get; set; } = 0;
+        public uint FurTintMode { get; set; } = 0;
+        public uint FurMaskMode { get; set; } = 0;
+        public uint FurLayerCount { get; set; } = 8;
+        public float FurLayerCountInv { get; set; } = 0.125f;
+        public float FurLength { get; set; } = 0.0f;
+        public float FurBumpScale { get; set; } = 5.0f;
+        public float FurFadeDistMin { get; set; } = 0.0f;
+        public float FurFadeDistMax { get; set; } = 0.0f;
+        public float FurFadeShadow { get; set; } = 0.0f;
+        public Vector4 FurUVScaling { get; set; } = Vector4.One;
+        public Vector4 FurThresholds1 { get; set; } = Vector4.Zero;
+        public Vector4 FurThresholds2 { get; set; } = Vector4.Zero;
+        public Vector4 FurThresholds3 { get; set; } = Vector4.Zero;
+        public Vector4 FurThresholds4 { get; set; } = Vector4.Zero;
+        public Vector4 FurShadows1 { get; set; } = Vector4.Zero;
+        public Vector4 FurShadows2 { get; set; } = Vector4.Zero;
+        public Vector4 FurShadows3 { get; set; } = Vector4.Zero;
+        public Vector4 FurShadows4 { get; set; } = Vector4.Zero;
 
         public Matrix3_s[] BoneTransforms = null;
 
@@ -1016,6 +1037,11 @@ namespace CodeWalker.Rendering
                     case 3333227093://{grass_fur.sps}
                     case 4256676773://{grass_fur_mask.sps}
                         EnableWind = false;
+                        IsGrassFur = true;
+                        FurMode = 1;
+                        FurLayerCount = 8;
+                        FurLayerCountInv = 0.125f;
+                        FurBumpScale = 5.0f;
                         break;
                 }
 
@@ -1035,6 +1061,11 @@ namespace CodeWalker.Rendering
                         {
                             texs.Add(param.Data as TextureBase);
                             phashes.Add(pName);
+                            if (IsGrassFur)
+                            {
+                                if (pName == ShaderParamNames.DiffuseHfSampler) FurTintMode = 1;
+                                if (pName == ShaderParamNames.FurMaskSampler) FurMaskMode = 1;
+                            }
                         }
 
                         switch (pName)
@@ -1050,6 +1081,7 @@ namespace CodeWalker.Rendering
                                 break;
                             case ShaderParamNames.bumpiness: //float
                                 bumpiness = ((Vector4)param.Data).X;
+                                if (IsGrassFur) FurBumpScale = ((Vector4)param.Data).X;
                                 break;
                             case ShaderParamNames.detailSettings: //float4
                                 detailSettings = (Vector4)param.Data;
@@ -1067,11 +1099,13 @@ namespace CodeWalker.Rendering
                                 specularFresnel= ((Vector4)param.Data).X;
                                 break;
                             case ShaderParamNames.WindGlobalParams:
+                                WindGlobalParams = ((Vector4)param.Data);
+                                break;
                             case ShaderParamNames.umGlobalOverrideParams:
-                                //WindOverrideParams = ((Vector4)param.Data); //todo...
+                                WindOverrideParams = ((Vector4)param.Data);
                                 break;
                             case ShaderParamNames.umGlobalParams:
-                                WindGlobalParams = ((Vector4)param.Data);
+                                UmGlobalParams = ((Vector4)param.Data);
                                 break;
                             case ShaderParamNames.RippleSpeed:
                                 RippleSpeed = ((Vector4)param.Data).X;
@@ -1134,6 +1168,29 @@ namespace CodeWalker.Rendering
                                 break;
                             case ShaderParamNames.DirtDecalMask:
                                 DirtDecalMask = ((Vector4)param.Data);
+                                break;
+                            case ShaderParamNames.furLayerParams:
+                                if (IsGrassFur)
+                                {
+                                    var flp = (Vector4)param.Data;
+                                    FurLength = flp.X;
+                                    FurFadeShadow = flp.W;
+                                }
+                                break;
+                            case ShaderParamNames.furUvScales:
+                                if (IsGrassFur) FurUVScaling = (Vector4)param.Data;
+                                break;
+                            case ShaderParamNames.furShadow03:
+                                if (IsGrassFur) FurShadows1 = (Vector4)param.Data;
+                                break;
+                            case ShaderParamNames.furShadow47:
+                                if (IsGrassFur) FurShadows2 = (Vector4)param.Data;
+                                break;
+                            case ShaderParamNames.furAlphaClip03:
+                                if (IsGrassFur) FurThresholds1 = (Vector4)param.Data;
+                                break;
+                            case ShaderParamNames.furAlphaClip47:
+                                if (IsGrassFur) FurThresholds2 = (Vector4)param.Data;
                                 break;
                             case ShaderParamNames.orderNumber:
                                 //stops drawing hair geoms that apparently shouldn't be rendered... any better way to do this?
@@ -1330,70 +1387,85 @@ namespace CodeWalker.Rendering
 
         public override void Load(Device device)
         {
-            if ((Key != null) && (Key.Data != null) && (Key.Data.FullData != null))
+            if ((Key != null) && (Key.Data != null) && (Key.Data.FullData != null) && (Key.Data.FullData.Length > 0) && (Key.Width > 0) && (Key.Height > 0) && (Key.Levels > 0))
             {
-                using (var stream = DataStream.Create(Key.Data.FullData, true, false))
+                try
                 {
-
-                    var format = TextureFormats.GetDXGIFormat(Key.Format);
-                    var width = Key.Width;
-                    var height = Key.Height;
-                    int mips = Key.Levels;
-                    int rowpitch, slicepitch;
-                    var totlength = Key.Data.FullData.Length;
-                    int pxsize = TextureFormats.ByteSize(Key.Format); // SharpDX.DXGI.FormatHelper.SizeOfInBytes(desc.Format);
-
-                    //get databoxes for mips
-                    int offset = 0;
-                    int level = 1;
-                    List<DataBox> boxes = new List<DataBox>();
-                    for (int i = 0; i < mips; i++)
+                    using (var stream = DataStream.Create(Key.Data.FullData, true, false))
                     {
-                        if (offset >= totlength) break; //only load as many mips as there are..
 
-                        var mipw = width / level;
-                        var miph = height / level;
+                        var format = TextureFormats.GetDXGIFormat(Key.Format);
+                        var width = Key.Width;
+                        var height = Key.Height;
+                        int mips = Key.Levels;
+                        int rowpitch, slicepitch;
+                        var totlength = Key.Data.FullData.Length;
+                        int pxsize = TextureFormats.ByteSize(Key.Format); // SharpDX.DXGI.FormatHelper.SizeOfInBytes(desc.Format);
 
-                        TextureFormats.ComputePitch(format, mipw, miph, out rowpitch, out slicepitch, 0);
-                        var mipbox = new DataBox(stream.DataPointer + offset, rowpitch, slicepitch);
-                        boxes.Add(mipbox);
+                        //get databoxes for mips
+                        int offset = 0;
+                        int level = 1;
+                        List<DataBox> boxes = new List<DataBox>();
+                        for (int i = 0; i < mips; i++)
+                        {
+                            if (offset >= totlength) break; //only load as many mips as there are..
 
-                        offset += slicepitch;
-                        level *= 2;
+                            var mipw = Math.Max(1, width / level);
+                            var miph = Math.Max(1, height / level);
+
+                            TextureFormats.ComputePitch(format, mipw, miph, out rowpitch, out slicepitch, 0);
+                            if (slicepitch <= 0) break;
+                            if (offset + slicepitch > totlength) break; //avoid reading past end of buffer
+                            var mipbox = new DataBox(stream.DataPointer + offset, rowpitch, slicepitch);
+                            boxes.Add(mipbox);
+
+                            offset += slicepitch;
+                            level *= 2;
+                        }
+                        mips = boxes.Count;
+
+                        if (mips <= 0)
+                        {
+                            IsLoaded = true;
+                            return;
+                        }
+
+
+                        //single mip..
+                        //TextureFormats.ComputePitch(format, width, height, out rowpitch, out slicepitch, 0);
+                        //var box = new DataBox(stream.DataPointer, rowpitch, slicepitch);
+
+
+                        var desc = new Texture2DDescription()
+                        {
+                            ArraySize = 1,
+                            BindFlags = BindFlags.ShaderResource,
+                            CpuAccessFlags = CpuAccessFlags.None,
+                            Format = format,
+                            Height = Key.Height,
+                            MipLevels = mips,//Texture.Levels,
+                            OptionFlags = ResourceOptionFlags.None,
+                            SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                            Usage = ResourceUsage.Default,
+                            Width = Key.Width
+                        };
+
+
+                        try
+                        {
+                            //Texture2D = new Texture2D(device, desc, new[] { box }); //single mip
+                            Texture2D = new Texture2D(device, desc, boxes.ToArray()); //multiple mips
+                            ShaderResourceView = new ShaderResourceView(device, Texture2D);
+                        }
+                        catch //(Exception ex)
+                        {
+                            //string str = ex.ToString(); //todo: don't fail silently..
+                        }
                     }
-                    mips = boxes.Count;
-
-
-                    //single mip..
-                    //TextureFormats.ComputePitch(format, width, height, out rowpitch, out slicepitch, 0);
-                    //var box = new DataBox(stream.DataPointer, rowpitch, slicepitch);
-
-
-                    var desc = new Texture2DDescription()
-                    {
-                        ArraySize = 1,
-                        BindFlags = BindFlags.ShaderResource,
-                        CpuAccessFlags = CpuAccessFlags.None,
-                        Format = format,
-                        Height = Key.Height,
-                        MipLevels = mips,//Texture.Levels,
-                        OptionFlags = ResourceOptionFlags.None,
-                        SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
-                        Usage = ResourceUsage.Default,
-                        Width = Key.Width
-                    };
-
-
-                    try
-                    {
-                        //Texture2D = new Texture2D(device, desc, new[] { box }); //single mip
-                        Texture2D = new Texture2D(device, desc, boxes.ToArray()); //multiple mips
-                        ShaderResourceView = new ShaderResourceView(device, Texture2D);
-                    }
-                    catch //(Exception ex)
-                    {
-                        //string str = ex.ToString(); //todo: don't fail silently..
-                    }
+                }
+                catch
+                {
+                    //swallow unsupported-format/overflow errors from texture load to prevent content-thread crash
                 }
             }
 

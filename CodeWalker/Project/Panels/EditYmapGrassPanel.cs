@@ -74,6 +74,13 @@ namespace CodeWalker.Project.Panels
             RadiusNumericUpDown.Value = (decimal)CurrentBatch.BrushRadius;
             ExtentsMinTextBox.Text = FloatUtil.GetVector3String(CurrentBatch.AABBMin);
             ExtentsMaxTextBox.Text = FloatUtil.GetVector3String(CurrentBatch.AABBMax);
+
+            var instances = CurrentBatch.Instances;
+            if (instances != null && instances.Length > 0)
+            {
+                var c = instances[0].Color;
+                GrassColorLabel.BackColor = System.Drawing.Color.FromArgb(c.b0, c.b1, c.b2);
+            }
         }
 
         private void UpdateFormTitle()

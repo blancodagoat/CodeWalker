@@ -82,13 +82,12 @@ namespace CodeWalker.Project.Panels
                 return;
             }
 
-            // Prepare generation parameters
+            // Prepare generation parameters (defaults match R* fwNavGenConfig)
             var genParams = new NavGenParams
             {
                 SamplingDensity = (float)SamplingDensityNumeric.Value,
                 TriangulationMaxHeightDiff = (float)HeightThresholdNumeric.Value,
-                MaxAngleForWalkable = (float)MaxSlopeAngleNumeric.Value,
-                MinZDistBetweenSamples = 0.5f
+                MaxAngleForWalkable = (float)MaxSlopeAngleNumeric.Value
             };
 
             // Prepare generation context
@@ -199,10 +198,30 @@ namespace CodeWalker.Project.Panels
 
             try
             {
+                // Normalize min/max so min < max on both axes
+                var cmin = context.Min;
+                var cmax = context.Max;
+                if (cmin.X > cmax.X) { float t = cmin.X; cmin.X = cmax.X; cmax.X = t; }
+                if (cmin.Y > cmax.Y) { float t = cmin.Y; cmin.Y = cmax.Y; cmax.Y = t; }
+
+                // Snap to full navmesh grid cell boundaries (R* always generates complete sectors)
+                // Each grid cell is 150m, starting at WorldMin (-6000, -6000)
+                float cellSize = context.GenParams.NavGridCellSize;
+                float worldMinX = context.GenParams.WorldMinX;
+                float worldMinY = context.GenParams.WorldMinY;
+                cmin.X = worldMinX + (float)Math.Floor((cmin.X - worldMinX) / cellSize) * cellSize;
+                cmin.Y = worldMinY + (float)Math.Floor((cmin.Y - worldMinY) / cellSize) * cellSize;
+                cmax.X = worldMinX + (float)Math.Ceiling((cmax.X - worldMinX) / cellSize) * cellSize;
+                cmax.Y = worldMinY + (float)Math.Ceiling((cmax.Y - worldMinY) / cellSize) * cellSize;
+
+                context.Min = cmin;
+                context.Max = cmax;
+                worker.ReportProgress(-1, $"Snapped to grid cells: [{cmin.X:F0}, {cmin.Y:F0}] to [{cmax.X:F0}, {cmax.Y:F0}]");
+
                 // Create YnvBuilder instance
                 var builder = new YnvBuilder();
                 builder.SetGenerationParams(context.GenParams);
-                
+
                 // Initialize log file
                 string logPath = Path.Combine(context.ProjectFolder, $"NavMeshGen_{DateTime.Now:yyyyMMdd_HHmmss}.log");
                 builder.InitializeLogFile(logPath);
@@ -259,9 +278,9 @@ namespace CodeWalker.Project.Panels
                 int sampleCount = 0;
                 try
                 {
-                    // Get Z bounds from loaded collision
-                    var bmin = new Vector3(context.Min, -1000f);
-                    var bmax = new Vector3(context.Max, 1000f);
+                    // Get Z bounds from loaded collision (R* exporter cutoffs: -500 to 1000)
+                    var bmin = new Vector3(context.Min, context.GenParams.ExporterMinZCutoff);
+                    var bmax = new Vector3(context.Max, context.GenParams.ExporterMaxZCutoff);
                     var boundslist = context.Space.BoundsStore.GetItems(ref bmin, ref bmax);
                     
                     foreach (var boundsitem in boundslist)
@@ -529,9 +548,28 @@ namespace CodeWalker.Project.Panels
                     return;
                 }
 
-                worker.ReportProgress(90, $"YNV file generation complete: {ynvFiles.Count} files");
+                worker.ReportProgress(85, $"YNV file generation complete: {ynvFiles.Count} files");
 
-                // Phase 9: Save YNV files (100%)
+                // Phase 9: Stitch to existing adjacent navmeshes (90%)
+                if (token.IsCancellationRequested) { e.Cancel = true; return; }
+                worker.ReportProgress(88, "Stitching to existing adjacent navmeshes...");
+
+                try
+                {
+                    int stitchedEdges = builder.StitchToExistingNavMeshes(
+                        context.GameFileCache,
+                        (status) => worker.ReportProgress(-1, status)
+                    );
+                    worker.ReportProgress(90, $"Stitching complete: {stitchedEdges} boundary edges connected");
+                }
+                catch (Exception ex)
+                {
+                    // Stitching is optional - log warning but continue
+                    worker.ReportProgress(-1, $"Warning: Boundary stitching failed: {ex.Message}");
+                    worker.ReportProgress(-1, "Continuing without stitching - boundary edges will be disconnected");
+                }
+
+                // Phase 10: Save YNV files (100%)
                 if (token.IsCancellationRequested) { e.Cancel = true; return; }
                 worker.ReportProgress(95, "Saving YNV files...");
                 

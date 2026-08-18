@@ -84,11 +84,11 @@ float4 main(VS_OUTPUT input) : SV_TARGET
             c.a = max(c.a, 0.85);
         }
 
-        float3 incident = normalize(input.CamRelPos);
-        float3 refl = normalize(reflect(incident, norm));
-        float specb = saturate(dot(refl, GlobalLights.LightDir));
-        float specp = max(exp(specb * 10) - 1, 0);
-        spec += GlobalLights.LightDirColour.rgb * 0.00006 * specp * SpecularIntensity;
+        float3 viewDir = normalize(-input.CamRelPos);
+        float3 halfVec = normalize(GlobalLights.LightDir + viewDir);
+        float NdotH = saturate(dot(norm, halfVec));
+        float specp = pow(NdotH + 1e-8, 128.0 + 1e-8); //water uses high specular exponent
+        spec += GlobalLights.LightDirColour.rgb * specp * SpecularIntensity;
 
         if (ShaderMode == 1) //river foam
         {

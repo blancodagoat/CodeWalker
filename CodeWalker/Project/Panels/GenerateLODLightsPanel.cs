@@ -24,8 +24,13 @@ namespace CodeWalker.Project.Panels
         const float MAX_LODLIGHT_CAPSULE_EXTENT = 140.0f;
         const float MAX_LODLIGHT_CORONA_INTENSITY = 32.0f;
         const uint LIGHTFLAG_DONT_USE_IN_CUTSCENE = (1u << 2);
+        const uint LIGHTFLAG_VEHICLE = (1u << 3);
+        const uint LIGHTFLAG_FX = (1u << 4);
+        const uint LIGHTFLAG_ENABLE_BUZZING = (1u << 10);
+        const uint LIGHTFLAG_FORCE_BUZZING = (1u << 11);
         const uint LIGHTFLAG_CORONA_ONLY = (1u << 15);
         const uint LIGHTFLAG_FAR_LOD_LIGHT = (1u << 22);
+        const uint LIGHTFLAG_MOVING_LIGHT_SOURCE = (1u << 26);
         const uint LIGHTFLAG_FORCE_MEDIUM_LOD_LIGHT = (1u << 28);
         const uint LIGHTFLAG_CORONA_ONLY_LOD_LIGHT = (1u << 29);
         const int LIGHT_CATEGORY_SMALL = 0;
@@ -281,6 +286,24 @@ namespace CodeWalker.Project.Panels
 
                         if (la.LightFadeDistance > 0) continue;
 
+                        uint flags = la.Flags;
+
+                        // skip vehicle, FX, moving, and buzzing/flashing lights - these don't belong in LOD lights
+                        if ((flags & (LIGHTFLAG_VEHICLE | LIGHTFLAG_FX | LIGHTFLAG_MOVING_LIGHT_SOURCE | LIGHTFLAG_ENABLE_BUZZING | LIGHTFLAG_FORCE_BUZZING)) != 0)
+                            continue;
+
+                        // skip flashing lights (Flashiness > 0 means the light flickers/flashes at runtime)
+                        if (la.Flashiness > 0) continue;
+
+                        bool isCoronaOnly = (flags & (LIGHTFLAG_CORONA_ONLY | LIGHTFLAG_CORONA_ONLY_LOD_LIGHT)) != 0;
+
+                        // skip lights with zero intensity unless they are corona-only
+                        if (la.Intensity <= 0 && !isCoronaOnly) continue;
+
+                        // skip lights that are too small to matter as LOD lights (tiny falloff and low intensity)
+                        if (la.Falloff < 2.0f && la.Intensity < 0.5f && !isCoronaOnly && (flags & LIGHTFLAG_FAR_LOD_LIGHT) == 0)
+                            continue;
+
                         uint type = (uint)la.Type;
                         float capsuleExtent = la.Extent.X;
 
@@ -311,22 +334,25 @@ namespace CodeWalker.Project.Panels
                         }
 
                         byte packedCorona = 0;
-                        if (la.CoronaSize >= 0.05f)
+                        if (la.CoronaSize >= 0.05f && la.CoronaIntensity > 0)
                         {
                             packedCorona = PackU8(la.CoronaIntensity, MAX_LODLIGHT_CORONA_INTENSITY);
                         }
 
-                        uint timeAndState = la.TimeFlags & 0x00FFFFFFu;
+                        // if TimeFlags is 0 the source light has no time restriction - default to always on
+                        // in the LOD system 0 means "never visible" so we must set all 24 hour bits
+                        uint rawTimeFlags = la.TimeFlags & 0x00FFFFFFu;
+                        uint timeAndState = (rawTimeFlags != 0) ? rawTimeFlags : 0x00FFFFFFu;
                         if (isStreetLight)
                         {
                             timeAndState |= (1u << 24);
                         }
-                        if ((la.Flags & (LIGHTFLAG_CORONA_ONLY | LIGHTFLAG_CORONA_ONLY_LOD_LIGHT)) != 0)
+                        if (isCoronaOnly)
                         {
                             timeAndState |= (1u << 25);
                         }
                         timeAndState |= (type << 26);
-                        if ((la.Flags & LIGHTFLAG_DONT_USE_IN_CUTSCENE) != 0)
+                        if ((flags & LIGHTFLAG_DONT_USE_IN_CUTSCENE) != 0)
                         {
                             timeAndState |= (1u << 31);
                         }

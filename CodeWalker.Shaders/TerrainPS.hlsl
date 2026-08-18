@@ -10,7 +10,7 @@ float BlendTerrainHeight(float4 layerBlends, float2 texCoord)
     result += layerBlends.y * Heightmap1.SampleLevel(TextureSS, texCoord, 0).r;
     result += layerBlends.z * Heightmap2.SampleLevel(TextureSS, texCoord, 0).r;
     result += layerBlends.w * Heightmap3.SampleLevel(TextureSS, texCoord, 0).r;
-    // Invert height: GTA V height maps use 1.0=raised, 0.0=base
+    // Invert height, GTA V height maps use 1.0=raised, 0.0=base
     // POM ray march expects 0.0=raised (hit early), 1.0=base (hit late)
     return 1.0f - result;
 }

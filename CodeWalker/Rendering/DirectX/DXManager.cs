@@ -28,6 +28,45 @@ namespace CodeWalker.Rendering
         public RenderTargetView targetview { get; private set; }
         public DepthStencilView depthview { get; private set; }
 
+        // Offscreen render target swap (used by minimap tile export)
+        private Texture2D savedBackbuffer;
+        private Texture2D savedDepthbuffer;
+        private RenderTargetView savedTargetview;
+        private DepthStencilView savedDepthview;
+        private ViewportF savedViewport;
+        private bool exportActive;
+
+        public void PushExportTargets(Texture2D tex, RenderTargetView rtv, Texture2D depth, DepthStencilView dsv, int width, int height)
+        {
+            if (exportActive) return;
+            savedBackbuffer = backbuffer;
+            savedDepthbuffer = depthbuffer;
+            savedTargetview = targetview;
+            savedDepthview = depthview;
+            savedViewport = Viewport;
+            backbuffer = tex;
+            depthbuffer = depth;
+            targetview = rtv;
+            depthview = dsv;
+            Viewport = new ViewportF(0, 0, width, height, 0.0f, 1.0f);
+            exportActive = true;
+        }
+
+        public void PopExportTargets()
+        {
+            if (!exportActive) return;
+            backbuffer = savedBackbuffer;
+            depthbuffer = savedDepthbuffer;
+            targetview = savedTargetview;
+            depthview = savedDepthview;
+            Viewport = savedViewport;
+            savedBackbuffer = null;
+            savedDepthbuffer = null;
+            savedTargetview = null;
+            savedDepthview = null;
+            exportActive = false;
+        }
+
         private volatile bool Running = false;
         private volatile bool Rendering = false;
         private volatile bool Resizing = false;
@@ -371,7 +410,10 @@ namespace CodeWalker.Rendering
                     Thread.Sleep(10); //don't hog CPU when minimised
                     if (dxform.Form.IsDisposed) return; //if closed while minimised
                 }
-                if (Form.ActiveForm == null)
+                //throttle FPS when the app isn't active - but only for top-level forms. A hosted viewport
+                //(TopLevel==false, e.g. embedded in a WPF window via WindowsFormsHost) never owns Form.ActiveForm,
+                //so this would otherwise sleep every frame and peg the preview at ~10 FPS.
+                if (dxform.Form.TopLevel && (Form.ActiveForm == null))
                 {
                     Thread.Sleep(100); //reduce the FPS when the app isn't active (maybe this should be configurable?)
                     if (context.IsDisposed) return; //if form closed while sleeping (eg from rightclick on taskbar)

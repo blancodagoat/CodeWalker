@@ -43,6 +43,16 @@ namespace CodeWalker.Rendering
         public Vector4 treeLod2Normal;
         public Vector4 treeLod2Params;
     }
+    public struct TreesLodShaderVSWindVars
+    {
+        public Vector4 WindVector;       // XY = wind amplitude, ZW = wind phase
+        public Vector4 umGlobalParams;   // material: X=scaleH, Y=scaleV, Z=stiffnessMultiplier
+        public Vector4 WindGlobalParams; // material: X=windScale (GTA5: collision radii, .x free for wind scale)
+        public float GlobalTimer;        // accumulated wind timer
+        public float WindPad0;
+        public float WindPad1;
+        public float WindPad2;
+    }
     public struct TreesLodShaderPSSceneVars
     {
         public ShaderGlobalLightParams GlobalLights;
@@ -70,6 +80,7 @@ namespace CodeWalker.Rendering
         GpuVarsBuffer<TreesLodShaderVSEntityVars> VSEntityVars;
         GpuVarsBuffer<TreesLodShaderVSModelVars> VSModelVars;
         GpuVarsBuffer<TreesLodShaderVSGeometryVars> VSGeomVars;
+        GpuVarsBuffer<TreesLodShaderVSWindVars> VSWindVars;
         GpuVarsBuffer<TreesLodShaderPSSceneVars> PSSceneVars;
         GpuVarsBuffer<TreesLodShaderPSEntityVars> PSEntityVars;
         SamplerState texsampler;
@@ -77,6 +88,8 @@ namespace CodeWalker.Rendering
         private Dictionary<VertexType, InputLayout> layouts = new Dictionary<VertexType, InputLayout>();
 
         public bool Deferred = false;
+        public Vector4 WindVector = Vector4.Zero;
+        public float WindTimer = 0.0f;
 
         public WorldRenderMode RenderMode = WorldRenderMode.Default;
         public int RenderVertexColourIndex = 1;
@@ -97,6 +110,7 @@ namespace CodeWalker.Rendering
             VSEntityVars = new GpuVarsBuffer<TreesLodShaderVSEntityVars>(device);
             VSModelVars = new GpuVarsBuffer<TreesLodShaderVSModelVars>(device);
             VSGeomVars = new GpuVarsBuffer<TreesLodShaderVSGeometryVars>(device);
+            VSWindVars = new GpuVarsBuffer<TreesLodShaderVSWindVars>(device);
             PSSceneVars = new GpuVarsBuffer<TreesLodShaderPSSceneVars>(device);
             PSEntityVars = new GpuVarsBuffer<TreesLodShaderPSEntityVars>(device);
 
@@ -171,6 +185,13 @@ namespace CodeWalker.Rendering
             PSSceneVars.Vars.RenderModeIndex = rendermodeind;
             PSSceneVars.Update(context);
             PSSceneVars.SetPSCBuffer(context, 0);
+
+            // Wind parameters - WindVector and GlobalTimer are set per-frame by ShaderManager
+            VSWindVars.Vars.WindVector = WindVector;
+            VSWindVars.Vars.GlobalTimer = WindTimer;
+            // umGlobalParams is set per-geometry in SetGeomVars
+            VSWindVars.Update(context);
+            VSWindVars.SetVSCBuffer(context, 4);
         }
 
         public override void SetEntityVars(DeviceContext context, ref RenderableInst rend)
@@ -222,6 +243,11 @@ namespace CodeWalker.Rendering
                     sparams = shader.ParametersList.Parameters;
                 }
 
+                // Start with values parsed from material during Renderable init
+                // (these are properly populated from the material's umGlobalParams/WindGlobalParams)
+                VSWindVars.Vars.umGlobalParams = geom.UmGlobalParams;
+                VSWindVars.Vars.WindGlobalParams = geom.WindGlobalParams;
+
                 for (int i = 0; i < nparams; i++)
                 {
                     var h = (ShaderParamNames)shader.ParametersList.Hashes[i];
@@ -232,6 +258,8 @@ namespace CodeWalker.Rendering
                         case ShaderParamNames.UseTreeNormals: VSGeomVars.Vars.UseTreeNormals = (Vector4)sparams[i].Data; break;
                         case ShaderParamNames.treeLod2Normal: VSGeomVars.Vars.treeLod2Normal = (Vector4)sparams[i].Data; break;
                         case ShaderParamNames.treeLod2Params: VSGeomVars.Vars.treeLod2Params = (Vector4)sparams[i].Data; break;
+                        case ShaderParamNames.umGlobalParams: VSWindVars.Vars.umGlobalParams = (Vector4)sparams[i].Data; break;
+                        case ShaderParamNames.WindGlobalParams: VSWindVars.Vars.WindGlobalParams = (Vector4)sparams[i].Data; break;
                     }
                 }
 
@@ -244,10 +272,18 @@ namespace CodeWalker.Rendering
                 VSGeomVars.Vars.UseTreeNormals = Vector4.Zero;
                 VSGeomVars.Vars.treeLod2Normal = Vector4.Zero;
                 VSGeomVars.Vars.treeLod2Params = Vector4.Zero;
+                VSWindVars.Vars.umGlobalParams = geom.UmGlobalParams;
+                VSWindVars.Vars.WindGlobalParams = geom.WindGlobalParams;
             }
 
             VSGeomVars.Update(context);
             VSGeomVars.SetVSCBuffer(context, 3);
+
+            // Update wind vars with per-geometry umGlobalParams
+            VSWindVars.Vars.WindVector = WindVector;
+            VSWindVars.Vars.GlobalTimer = WindTimer;
+            VSWindVars.Update(context);
+            VSWindVars.SetVSCBuffer(context, 4);
 
             if ((geom.RenderableTextures != null) && (geom.RenderableTextures.Length > 0))
             {
@@ -316,6 +352,7 @@ namespace CodeWalker.Rendering
             context.VertexShader.SetConstantBuffer(1, null);
             context.VertexShader.SetConstantBuffer(2, null);
             context.VertexShader.SetConstantBuffer(3, null);
+            context.VertexShader.SetConstantBuffer(4, null);
             context.PixelShader.SetConstantBuffer(1, null);
             context.PixelShader.SetSampler(0, null);
             context.PixelShader.SetShaderResource(0, null);
@@ -343,6 +380,7 @@ namespace CodeWalker.Rendering
             VSEntityVars.Dispose();
             VSModelVars.Dispose();
             VSGeomVars.Dispose();
+            VSWindVars.Dispose();
             PSSceneVars.Dispose();
             PSEntityVars.Dispose();
 
