@@ -9,10 +9,11 @@ namespace CodeWalker.Core.Utils
 {
     public class Gen9Converter
     {
-        //converts files from legacy to enhanced format.
+        //converts files between legacy and enhanced formats (both directions).
 
         public string InputFolder;//source of files to convert
         public string OutputFolder;//destination for converted files
+        public bool ToGen9 = true;//direction: true = legacy->enhanced, false = enhanced->legacy
         public bool ProcessSubfolders = true;//recurse all the subfolders?
         public bool OverwriteExisting = true;//replace existing files in the output folder? (otherwise ignore)
         public bool CopyUnconverted = true;//also copy files that don't need converting?
@@ -109,7 +110,7 @@ namespace CodeWalker.Core.Utils
                 Log($"Input folder: {inputFolder}\r\nOutput folder: {outputFolder}");
 
                 var exgen9 = RpfManager.IsGen9;
-                RpfManager.IsGen9 = true;
+                RpfManager.IsGen9 = ToGen9;
 
                 foreach (var path in allpaths)
                 {
@@ -276,8 +277,10 @@ namespace CodeWalker.Core.Utils
         }
         public static byte[] TryConvert(byte[] data, string fileType, Action<string> log, string relpath, bool copyunconverted, out bool converted)
         {
+            //direction comes from RpfManager.IsGen9 - set it (or Gen9Converter.ToGen9) before calling.
             converted = false;
-            var exmsg = " - already gen9 format";
+            var gen9 = RpfManager.IsGen9;
+            var exmsg = gen9 ? " - already gen9 format" : " - already legacy format";
             if (copyunconverted) exmsg += ", directly copying file.";
             var rfe = (RpfResourceFileEntry)null;
             switch (fileType)
@@ -286,7 +289,7 @@ namespace CodeWalker.Core.Utils
                     var ytd = new YtdFile();
                     ytd.Load(data);
                     rfe = ytd.RpfFileEntry as RpfResourceFileEntry;
-                    if (rfe?.Version == 5)
+                    if (rfe?.Version == ytd.GetVersion(gen9))
                     {
                         log($"{relpath}{exmsg}");
                         return data;
@@ -294,6 +297,7 @@ namespace CodeWalker.Core.Utils
                     else
                     {
                         log($"{relpath} - converting...");
+                        if (gen9 == false) WarnLegacyGaps(ytd.TextureDict, log, relpath);
                         converted = true;
                         return ytd.Save();
                     }
@@ -301,7 +305,7 @@ namespace CodeWalker.Core.Utils
                     var ydr = new YdrFile();
                     ydr.Load(data);
                     rfe = ydr.RpfFileEntry as RpfResourceFileEntry;
-                    if (rfe?.Version == 159)
+                    if (rfe?.Version == ydr.GetVersion(gen9))
                     {
                         log($"{relpath}{exmsg}");
                         return data;
@@ -309,6 +313,7 @@ namespace CodeWalker.Core.Utils
                     else
                     {
                         log($"{relpath} - converting...");
+                        if (gen9 == false) WarnLegacyGaps(ydr.Drawable, log, relpath);
                         converted = true;
                         return ydr.Save();
                     }
@@ -316,7 +321,7 @@ namespace CodeWalker.Core.Utils
                     var ydd = new YddFile();
                     ydd.Load(data);
                     rfe = ydd.RpfFileEntry as RpfResourceFileEntry;
-                    if (rfe?.Version == 159)
+                    if (rfe?.Version == ydd.GetVersion(gen9))
                     {
                         log($"{relpath}{exmsg}");
                         return data;
@@ -324,6 +329,14 @@ namespace CodeWalker.Core.Utils
                     else
                     {
                         log($"{relpath} - converting...");
+                        if (gen9 == false)
+                        {
+                            var ddrawables = ydd.DrawableDict?.Drawables?.data_items;
+                            if (ddrawables != null)
+                            {
+                                foreach (var drawable in ddrawables) WarnLegacyGaps(drawable, log, relpath);
+                            }
+                        }
                         converted = true;
                         return ydd.Save();
                     }
@@ -331,7 +344,7 @@ namespace CodeWalker.Core.Utils
                     var yft = new YftFile();
                     yft.Load(data);
                     rfe = yft.RpfFileEntry as RpfResourceFileEntry;
-                    if (rfe?.Version == 171)
+                    if (rfe?.Version == yft.GetVersion(gen9))
                     {
                         log($"{relpath}{exmsg}");
                         return data;
@@ -339,6 +352,11 @@ namespace CodeWalker.Core.Utils
                     else
                     {
                         log($"{relpath} - converting...");
+                        if (gen9 == false)
+                        {
+                            WarnLegacyGaps(yft.Fragment?.Drawable, log, relpath);
+                            WarnLegacyGaps(yft.Fragment?.DrawableCloth, log, relpath);
+                        }
                         converted = true;
                         return yft.Save();
                     }
@@ -346,7 +364,7 @@ namespace CodeWalker.Core.Utils
                     var ypt = new YptFile();
                     ypt.Load(data);
                     rfe = ypt.RpfFileEntry as RpfResourceFileEntry;
-                    if (rfe?.Version == 71)
+                    if (rfe?.Version == ypt.GetVersion(gen9))
                     {
                         log($"{relpath}{exmsg}");
                         return data;
@@ -354,6 +372,15 @@ namespace CodeWalker.Core.Utils
                     else
                     {
                         log($"{relpath} - converting...");
+                        if (gen9 == false)
+                        {
+                            WarnLegacyGaps(ypt.PtfxList?.TextureDictionary, log, relpath);
+                            var pdrawables = ypt.PtfxList?.DrawableDictionary?.Drawables?.data_items;
+                            if (pdrawables != null)
+                            {
+                                foreach (var drawable in pdrawables) WarnLegacyGaps(drawable, log, relpath);
+                            }
+                        }
                         converted = true;
                         return ypt.Save();
                     }
@@ -376,6 +403,39 @@ namespace CodeWalker.Core.Utils
         }
 
 
+        //warn about gen9 content that has no legacy equivalent (output will still be written, but these
+        //textures/shaders won't work in the legacy game without manual fixing)
+        private static void WarnLegacyGaps(TextureDictionary td, Action<string> log, string relpath)
+        {
+            var texs = td?.Textures?.data_items;
+            if (texs == null) return;
+            foreach (var tex in texs)
+            {
+                if (tex == null) continue;
+                if ((tex.Format == 0) && (tex.G9_Format != 0))
+                {
+                    log($"{relpath} - WARNING - texture '{tex.Name}' has gen9 format {tex.G9_Format} with no legacy equivalent!");
+                }
+            }
+        }
+        private static void WarnLegacyGaps(DrawableBase d, Action<string> log, string relpath)
+        {
+            if (d == null) return;
+            WarnLegacyGaps(d.ShaderGroup?.TextureDictionary, log, relpath);
+            var shaders = d.ShaderGroup?.Shaders?.data_items;
+            if (shaders == null) return;
+            GameFileCache.EnsureShadersGen9ConversionData();
+            foreach (var shader in shaders)
+            {
+                if (shader == null) continue;
+                if (GameFileCache.ShadersGen9ConversionData.ContainsKey(shader.Name) == false)
+                {
+                    log($"{relpath} - WARNING - shader '{shader.Name}' has no legacy mapping, parameters keep gen9 names!");
+                }
+            }
+        }
+
+
         public static bool RequiresConversion(RpfResourceFileEntry rfe)
         {
             if (rfe == null) return false;
@@ -383,13 +443,14 @@ namespace CodeWalker.Core.Utils
             var didx = rfe.NameLower.LastIndexOf('.');
             if (didx < 0) return false;
             var ext = rfe.NameLower.Substring(didx);
+            var gen9 = RpfManager.IsGen9;
             switch (ext)
             {
-                case ".ytd": return rfe.Version != 5;
-                case ".ydr": return rfe.Version != 159;
-                case ".ydd": return rfe.Version != 159;
-                case ".yft": return rfe.Version != 171;
-                case ".ypt": return rfe.Version != 71;
+                case ".ytd": return rfe.Version != (gen9 ? 5 : 13);
+                case ".ydr": return rfe.Version != (gen9 ? 159 : 165);
+                case ".ydd": return rfe.Version != (gen9 ? 159 : 165);
+                case ".yft": return rfe.Version != (gen9 ? 171 : 162);
+                case ".ypt": return rfe.Version != (gen9 ? 71 : 68);
             }
             return false;
         }

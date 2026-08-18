@@ -110,6 +110,17 @@ namespace CodeWalker.GameFiles
                     }
                 }
             }
+            else
+            {
+                PtfxList?.TextureDictionary?.EnsureLegacy();
+                if (drawables != null)
+                {
+                    foreach (var drawable in drawables)
+                    {
+                        drawable?.EnsureLegacy();
+                    }
+                }
+            }
 
             byte[] data = ResourceBuilder.Build(PtfxList, GetVersion(gen9), true, gen9);
 

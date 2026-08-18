@@ -17,6 +17,7 @@ namespace CodeWalker.Tools
         public ConvertAssetsForm()
         {
             InitializeComponent();
+            DirectionComboBox.SelectedIndex = 0;
         }
 
         private void SelectFolder(TextBox tb)
@@ -46,6 +47,7 @@ namespace CodeWalker.Tools
             var converter = new Gen9Converter();
             converter.InputFolder = InputFolderTextBox.Text?.Replace('/', '\\');
             converter.OutputFolder = OutputFolderTextBox.Text?.Replace('/', '\\');
+            converter.ToGen9 = DirectionComboBox.SelectedIndex == 0;
             converter.ProcessSubfolders = SubfoldersCheckbox.Checked;
             converter.OverwriteExisting = OverwriteCheckbox.Checked;
             converter.CopyUnconverted = true;
@@ -81,6 +83,7 @@ namespace CodeWalker.Tools
                     InputFolderBrowseButton.Enabled = enable;
                     OutputFolderTextBox.Enabled = enable;
                     OutputFolderBrowseButton.Enabled = enable;
+                    DirectionComboBox.Enabled = enable;
                     SubfoldersCheckbox.Enabled = enable;
                     OverwriteCheckbox.Enabled = enable;
                     ProcessButton.Enabled = enable;

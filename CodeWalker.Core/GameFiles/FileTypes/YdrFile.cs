@@ -41,19 +41,19 @@ namespace CodeWalker.GameFiles
 
             ResourceDataReader rd = new(resentry, data);
 
-            if (rd.IsGen9)
+            //drive the read mode from the file's own RSC7 version, both directions,
+            //so gen9 files load correctly even when the global RpfManager.IsGen9 flag doesn't match.
+            switch (resentry.Version)
             {
-                switch (resentry.Version)
-                {
-                    case 159:
-                    case 154:
-                        break;
-                    case 165:
-                        rd.IsGen9 = false;
-                        break;
-                    default:
-                        break;
-                }
+                case 159:
+                case 154:
+                    rd.IsGen9 = true;
+                    break;
+                case 165:
+                    rd.IsGen9 = false;
+                    break;
+                default:
+                    break;
             }
 
             //MemoryUsage = 0;
@@ -83,6 +83,10 @@ namespace CodeWalker.GameFiles
             if (gen9)
             {
                 Drawable?.EnsureGen9();
+            }
+            else
+            {
+                Drawable?.EnsureLegacy();
             }
 
             byte[] data = ResourceBuilder.Build(Drawable, GetVersion(gen9), true, gen9);

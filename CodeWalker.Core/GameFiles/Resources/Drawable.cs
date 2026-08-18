@@ -229,7 +229,10 @@ namespace CodeWalker.GameFiles
 
                 G9_ParamInfos = reader.ReadBlockAt<ShaderParamInfosG9>(G9_ParamInfosPointer);
                 ParametersList = reader.ReadBlockAt<ShaderParametersBlock>(ParametersPointer, 0, this);
-                FileName = JenkHash.GenHash(Name.ToCleanString() + ".sps");//TODO: get mapping from G9_Preset to legacy FileName
+
+                GameFileCache.EnsureShadersGen9ConversionData();
+                GameFileCache.ShadersGen9ConversionData.TryGetValue(Name, out var fndc);
+                FileName = ((fndc?.FileName ?? 0) != 0) ? fndc.FileName : JenkHash.GenHash(Name.ToCleanString() + ".sps");
 
                 if (G9_UnknownParamsPointer != 0)
                 { }
@@ -515,6 +518,41 @@ namespace CodeWalker.GameFiles
             }
 
 
+        }
+
+
+        public void EnsureLegacy()
+        {
+            //inverse of EnsureGen9 - drop the gen9-only blocks so the legacy writer doesn't emit them,
+            //and rebuild the legacy header fields that the gen9 reader doesn't populate.
+            G9_ParamInfos = null;
+            if (ParametersList == null) return;
+            ParametersList.G9_ParamInfos = null;
+
+            var parr = ParametersList.Parameters;
+            if (parr != null)
+            {
+                foreach (var p in parr)
+                {
+                    if ((p.DataType != 0) && (p.Data == null))
+                    {
+                        p.Data = Vector4.Zero;//zero-length gen9 cbuffer params have no data - legacy needs a value
+                    }
+                    if (p.Data is TextureBase btex)
+                    {
+                        btex.EnsureLegacy();
+                    }
+                }
+            }
+
+            if (ParameterSize == 0)//only the gen9 reader leaves this unset - don't disturb legacy-loaded files
+            {
+                ParameterCount = (byte)ParametersList.Count;
+                ParameterSize = ParametersList.ParametersSize;
+                ParameterDataSize = ParametersList.ParametersDataSize;
+                TextureParametersCount = ParametersList.TextureParamsCount;
+                Unknown_12h = 32768;
+            }
         }
 
 
@@ -4393,6 +4431,16 @@ namespace CodeWalker.GameFiles
 
         }
 
+        public void EnsureLegacy()
+        {
+            //inverse of EnsureGen9 - the gen9 loader already rebuilt Info/Data1/Data2 in legacy layout,
+            //so just drop the gen9-only blocks (GetReferences prefers G9_Info when it's set).
+            VFT = 1080153080;
+            Unknown_4h = 1;
+            G9_SRV = null;
+            G9_Info = null;
+        }
+
 
         public override IResourceBlock[] GetReferences()
         {
@@ -5672,6 +5720,17 @@ namespace CodeWalker.GameFiles
 
         }
 
+        public void EnsureLegacy()
+        {
+            //inverse of EnsureGen9 - drop the gen9-only SRV block and reset the gen9 pad fields.
+            VFT = 1080152408;
+            Unknown_4h = 1;
+            G9_SRV = null;
+            Unknown_20h = 0;
+            Unknown_28h = 0;
+            Unknown_38h = 0;
+        }
+
         public override IResourceBlock[] GetReferences()
         {
             var list = new List<IResourceBlock>();
@@ -6693,6 +6752,65 @@ namespace CodeWalker.GameFiles
                 {
                     light.Unknown_0h = 0;
                     light.Unknown_4h = 0;
+                }
+            }
+
+        }
+
+        public void EnsureLegacy()
+        {
+            //inverse of EnsureGen9 - reset VFTs to the legacy defaults (same constants; a gen9 file load
+            //leaves gen9 runtime values in them) and drop the gen9-only blocks from the whole hierarchy.
+            FileVFT = 1079456120;
+            FileUnknown = 1;
+            BoundingBoxMinW = 0x7f800001;
+            BoundingBoxMaxW = 0x7f800001;
+
+            if (Skeleton != null)
+            {
+                Skeleton.VFT = 1080114336;
+                Skeleton.Unknown_4h = 1;
+            }
+            if (Joints != null)
+            {
+                Joints.VFT = 1080130656;
+                Joints.Unknown_4h = 1;
+            }
+
+            if (ShaderGroup != null)
+            {
+                ShaderGroup.VFT = 1080113136;
+                ShaderGroup.Unknown_4h = 1;
+
+                ShaderGroup.TextureDictionary?.EnsureLegacy();
+
+                var shaders = ShaderGroup.Shaders?.data_items;
+                if (shaders != null)
+                {
+                    foreach (var shader in shaders)
+                    {
+                        shader?.EnsureLegacy();
+                    }
+                }
+            }
+
+            if (AllModels != null)
+            {
+                foreach (var model in AllModels)
+                {
+                    if (model == null) continue;
+                    model.VFT = 1080101528;
+                    model.Unknown_4h = 1;
+                    var geoms = model.Geometries;
+                    if (geoms == null) continue;
+                    foreach (var geom in geoms)
+                    {
+                        if (geom == null) continue;
+                        geom.VFT = 1080133528;
+                        geom.Unknown_4h = 1;
+                        geom.VertexBuffer?.EnsureLegacy();
+                        geom.IndexBuffer?.EnsureLegacy();
+                    }
                 }
             }
 

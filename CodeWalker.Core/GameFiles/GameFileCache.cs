@@ -6219,6 +6219,12 @@ namespace CodeWalker.GameFiles
                 var hash = new MetaHash(JenkHash.GenHash(name));
                 var dc = new ShaderGen9XmlDataCollection();
                 dc.Name = hash;
+                var fname = Xml.GetChildInnerText(shader, "FileName")?.ToLowerInvariant();
+                if (string.IsNullOrEmpty(fname) == false)
+                {
+                    JenkIndex.Ensure(fname);
+                    dc.FileName = JenkHash.GenHash(fname);
+                }
                 dc.BufferSizes = Xml.GetChildRawIntArray(shader, "BufferSizes");
                 dc.ParamsMapLegacyToGen9 = new Dictionary<MetaHash, MetaHash>();
                 dc.ParamsMapGen9ToLegacy = new Dictionary<MetaHash, MetaHash>();
@@ -6290,6 +6296,7 @@ namespace CodeWalker.GameFiles
         public class ShaderGen9XmlDataCollection
         {
             public MetaHash Name;
+            public MetaHash FileName;//legacy .sps name
             public int[] BufferSizes;
             public byte[] SamplerValues;
             public ShaderParamInfoG9[] ParamInfos;
