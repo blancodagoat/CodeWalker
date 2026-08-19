@@ -129,6 +129,42 @@ namespace CodeWalker.Utils
             }
         }
 
+        // Same pipeline, but starting from raw BGRA pixels (eg decoded from an existing texture
+        // via DDSIO.GetPixels) instead of an encoded image file.
+        public static TextureCompressionResult CompressPixels(
+            byte[] bgraPixels,
+            int width,
+            int height,
+            TextureCompressionFormat format,
+            TextureCompressionQuality quality,
+            bool generateMipmaps,
+            bool useCuda = true,
+            int minMipmapSize = 0)
+        {
+            if (bgraPixels == null || bgraPixels.Length < width * height * 4)
+            {
+                return new TextureCompressionResult
+                {
+                    Success = false,
+                    ErrorMessage = "Pixel data is missing or too short"
+                };
+            }
+
+            try
+            {
+                using var image = Image.LoadPixelData<Bgra32>(bgraPixels, width, height);
+                return CompressImageInternal(image, format, quality, generateMipmaps, useCuda, minMipmapSize);
+            }
+            catch (Exception ex)
+            {
+                return new TextureCompressionResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Failed to load pixels: {ex.Message}"
+                };
+            }
+        }
+
         private static TextureCompressionResult CompressImageInternal(
             Image<Bgra32> image,
             TextureCompressionFormat format,
@@ -149,15 +185,20 @@ namespace CodeWalker.Utils
                 // Get raw pixel data in BGRA format
                 byte[] pixelData = GetPixelData(image);
 
-                // Use NVTT for compression if available
+                if (format == TextureCompressionFormat.Uncompressed)
+                {
+                    return CreateUncompressedTexture(pixelData, image.Width, image.Height, result);
+                }
+
+                // Use NVTT for compression if available; otherwise the managed BCn encoder,
+                // so compression works in builds without the native NVTT wrapper
                 if (IsNvttAvailable)
                 {
                     return CompressWithNvtt(pixelData, image.Width, image.Height, format, quality, generateMipmaps, useCuda, minMipmapSize, result);
                 }
                 else
                 {
-                    // Fallback: Create uncompressed texture or return error
-                    return CreateUncompressedTexture(pixelData, image.Width, image.Height, result);
+                    return CompressWithBCn(pixelData, image.Width, image.Height, format, quality, generateMipmaps, minMipmapSize, result);
                 }
             }
             catch (Exception ex)
@@ -301,6 +342,75 @@ namespace CodeWalker.Utils
             {
                 result.Success = false;
                 result.ErrorMessage = $"NVTT compression failed: {ex.Message}";
+                return result;
+            }
+        }
+
+        // Managed fallback encoder (BCnEncoder.NET): same inputs, same Texture output as the
+        // NVTT path, no native dependencies. Slower than NVTT but always available.
+        private static TextureCompressionResult CompressWithBCn(
+            byte[] pixelData,
+            int width,
+            int height,
+            TextureCompressionFormat format,
+            TextureCompressionQuality quality,
+            bool generateMipmaps,
+            int minMipmapSize,
+            TextureCompressionResult result)
+        {
+            try
+            {
+                var colors = new BCnEncoder.Shared.ColorRgba32[width * height];
+                for (int p = 0, c = 0; c < colors.Length; p += 4, c++)
+                {
+                    colors[c] = new BCnEncoder.Shared.ColorRgba32(pixelData[p + 2], pixelData[p + 1], pixelData[p], pixelData[p + 3]);
+                }
+
+                var enc = new BCnEncoder.Encoder.BcEncoder();
+                enc.OutputOptions.GenerateMipMaps = generateMipmaps;
+                if (generateMipmaps && minMipmapSize > 0)
+                {
+                    enc.OutputOptions.MaxMipMapLevel = CalculateMaxMipmapLevels(width, height, minMipmapSize);
+                }
+                enc.OutputOptions.Quality = quality switch
+                {
+                    TextureCompressionQuality.Fastest => BCnEncoder.Encoder.CompressionQuality.Fast,
+                    TextureCompressionQuality.Normal => BCnEncoder.Encoder.CompressionQuality.Balanced,
+                    _ => BCnEncoder.Encoder.CompressionQuality.BestQuality,
+                };
+                enc.OutputOptions.Format = format switch
+                {
+                    TextureCompressionFormat.DXT1 => BCnEncoder.Shared.CompressionFormat.Bc1,
+                    TextureCompressionFormat.DXT1a => BCnEncoder.Shared.CompressionFormat.Bc1WithAlpha,
+                    TextureCompressionFormat.DXT3 => BCnEncoder.Shared.CompressionFormat.Bc2,
+                    TextureCompressionFormat.DXT5 => BCnEncoder.Shared.CompressionFormat.Bc3,
+                    TextureCompressionFormat.BC4 => BCnEncoder.Shared.CompressionFormat.Bc4,
+                    TextureCompressionFormat.BC5 => BCnEncoder.Shared.CompressionFormat.Bc5,
+                    TextureCompressionFormat.BC7 => BCnEncoder.Shared.CompressionFormat.Bc7,
+                    _ => BCnEncoder.Shared.CompressionFormat.Bc3,
+                };
+                enc.OutputOptions.FileFormat = BCnEncoder.Shared.OutputFileFormat.Dds;
+
+                var dds = enc.EncodeToDds(new Microsoft.Toolkit.HighPerformance.ReadOnlyMemory2D<BCnEncoder.Shared.ColorRgba32>(colors, height, width));
+                using var ms = new MemoryStream();
+                dds.Write(ms);
+
+                var texture = DDSIO.GetTexture(ms.ToArray());
+                if (texture == null)
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "Failed to parse compressed DDS data";
+                    return result;
+                }
+
+                result.Texture = texture;
+                result.Success = true;
+                return result;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.ErrorMessage = $"BCn compression failed: {ex.Message}";
                 return result;
             }
         }
