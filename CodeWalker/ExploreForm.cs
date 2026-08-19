@@ -5238,6 +5238,12 @@ namespace CodeWalker
             f.Show(this);
         }
 
+        private void ToolsShrinkTexMenu_Click(object sender, EventArgs e)
+        {
+            Tools.ShrinkTexForm f = new();
+            f.Show(this);
+        }
+
         private void OptionsStartInEditModeMenu_Click(object sender, EventArgs e)
         {
             OptionsStartInEditModeMenu.Checked = !OptionsStartInEditModeMenu.Checked;

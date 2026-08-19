@@ -77,6 +77,7 @@
             this.ToolsJenkIndMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ToolsAssetConverterMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.ToolsExtractorMenu = new System.Windows.Forms.ToolStripMenuItem();
+            this.ToolsShrinkTexMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsStartInEditModeMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.OptionsStartInFolderMenu = new System.Windows.Forms.ToolStripMenuItem();
@@ -522,7 +523,8 @@
             this.ToolsJenkGenMenu,
             this.ToolsJenkIndMenu,
             this.ToolsAssetConverterMenu,
-            this.ToolsExtractorMenu});
+            this.ToolsExtractorMenu,
+            this.ToolsShrinkTexMenu});
             this.ToolsMenu.Name = "ToolsMenu";
             this.ToolsMenu.Size = new System.Drawing.Size(46, 20);
             this.ToolsMenu.Text = "Tools";
@@ -575,7 +577,14 @@
             this.ToolsExtractorMenu.Size = new System.Drawing.Size(161, 22);
             this.ToolsExtractorMenu.Text = "Extractor";
             this.ToolsExtractorMenu.Click += new System.EventHandler(this.ToolsExtractorMenu_Click);
-            // 
+            //
+            // ToolsShrinkTexMenu
+            //
+            this.ToolsShrinkTexMenu.Name = "ToolsShrinkTexMenu";
+            this.ToolsShrinkTexMenu.Size = new System.Drawing.Size(161, 22);
+            this.ToolsShrinkTexMenu.Text = "Shrink Textures...";
+            this.ToolsShrinkTexMenu.Click += new System.EventHandler(this.ToolsShrinkTexMenu_Click);
+            //
             // OptionsMenu
             // 
             this.OptionsMenu.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -1547,6 +1556,7 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator14;
         private System.Windows.Forms.ToolStripMenuItem ToolsAssetConverterMenu;
         private System.Windows.Forms.ToolStripMenuItem ToolsExtractorMenu;
+        private System.Windows.Forms.ToolStripMenuItem ToolsShrinkTexMenu;
         private System.Windows.Forms.Button CopyToModsFolderButton;
         private System.Windows.Forms.ToolStripMenuItem WindowsMenu;
         private System.Windows.Forms.ToolStripMenuItem WindowsCloseAllMenu;
