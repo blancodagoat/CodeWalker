@@ -153,6 +153,13 @@ namespace CodeWalker.Utils
                     }
                 }
 
+                // rebuilt file must actually be smaller - resource page rounding can eat a
+                // marginal win, and then the untouched original is the better file
+                if ((shrunk != null) && (RscMem(shrunk) >= oldMem))
+                {
+                    shrunk = null;
+                }
+
                 byte[] outData = shrunk ?? Passthrough(it);
                 if (outData == null)
                 {
@@ -376,6 +383,12 @@ namespace CodeWalker.Utils
                 throw new Exception(res?.ErrorMessage ?? "compression failed");
 
             var nt = res.Texture;
+
+            // the mission is memory: when the re-encode would not actually shrink the texture
+            // (mips added to a mipless one, DXT1 promoted to DXT5 over a stray alpha bit), the
+            // original wins - it is both smaller and untouched
+            if ((nt.Data?.FullData == null) || (nt.Data.FullData.Length >= tex.Data.FullData.Length)) return null;
+
             nt.Name = tex.Name;
             nt.NameHash = tex.NameHash;
             nt.Usage = tex.Usage;
