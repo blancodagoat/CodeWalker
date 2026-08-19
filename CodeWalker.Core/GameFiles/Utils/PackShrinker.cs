@@ -35,6 +35,7 @@ namespace CodeWalker.Utils
             public int FilesSkipped;
             public int FilesFailed;
             public int TexturesChanged;
+            public int LodsGenerated;
             public long MemBefore;
             public long MemAfter;
         }
@@ -48,7 +49,7 @@ namespace CodeWalker.Utils
             public string Name => Entry?.Name ?? Path.GetFileName(FilePath);
         }
 
-        public static ShrinkStats ShrinkPack(string input, string output, int cap, bool outputRpf, Action<string> log, Func<bool> abort = null)
+        public static ShrinkStats ShrinkPack(string input, string output, int cap, bool outputRpf, Action<string> log, Func<bool> abort = null, bool genLods = false)
         {
             log?.Invoke("Encoder: " + (TextureCompressor.IsNvttAvailable ? "NVTT" : "managed (BCn)"));
 
@@ -139,11 +140,12 @@ namespace CodeWalker.Utils
                 stats.MemBefore += oldMem;
 
                 byte[] shrunk = null;
+                bool lodsAdded = false;
                 if (isTex && (oldMem > 0))
                 {
                     try
                     {
-                        shrunk = ShrinkTexFile(it, ext, cap, stats);
+                        shrunk = ShrinkTexFile(it, ext, cap, stats, genLods, log, ref lodsAdded);
                     }
                     catch (Exception ex)
                     {
@@ -154,8 +156,9 @@ namespace CodeWalker.Utils
                 }
 
                 // rebuilt file must actually be smaller - resource page rounding can eat a
-                // marginal win, and then the untouched original is the better file
-                if ((shrunk != null) && (RscMem(shrunk) >= oldMem))
+                // marginal win, and then the untouched original is the better file. Generated
+                // LODs legitimately grow the file, so they bypass this guard.
+                if ((shrunk != null) && !lodsAdded && (RscMem(shrunk) >= oldMem))
                 {
                     shrunk = null;
                 }
@@ -195,6 +198,7 @@ namespace CodeWalker.Utils
             log?.Invoke("");
             log?.Invoke($"Done: {stats.FilesChanged} file(s) shrunk, {stats.FilesCopied} carried unchanged, {stats.FilesSkipped} skipped, {stats.FilesFailed} failed.");
             log?.Invoke($"Pack cost in game memory: {stats.MemBefore / 1048576.0:F1} -> {stats.MemAfter / 1048576.0:F1} MB ({stats.TexturesChanged} texture(s) re-encoded).");
+            if (stats.LodsGenerated > 0) log?.Invoke($"Generated missing Med/Low LOD models for {stats.LodsGenerated} drawable(s).");
             return stats;
         }
 
@@ -261,7 +265,7 @@ namespace CodeWalker.Utils
 
         // Loads a ytd/ydd from either source, shrinks its textures, and returns the rebuilt
         // loose-format file - or null when nothing in it needed touching.
-        private static byte[] ShrinkTexFile(SrcItem it, string ext, int cap, ShrinkStats stats)
+        private static byte[] ShrinkTexFile(SrcItem it, string ext, int cap, ShrinkStats stats, bool genLods, Action<string> log, ref bool lodsAdded)
         {
             bool changed = false;
             if (ext == ".ytd")
@@ -283,6 +287,12 @@ namespace CodeWalker.Utils
                 {
                     var td = dr?.ShaderGroup?.TextureDictionary;
                     if (td != null) changed |= ShrinkDict(td, cap, stats);
+                    if (genLods && YddLodGen.GenerateLods(dr, log, it.Rel))
+                    {
+                        lodsAdded = true;
+                        changed = true;
+                        stats.LodsGenerated++;
+                    }
                 }
             }
             return changed ? ydd.Save() : null;

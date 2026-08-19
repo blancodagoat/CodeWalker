@@ -40,6 +40,7 @@ namespace CodeWalker.Tools
             this.OutputRpfRadio = new System.Windows.Forms.RadioButton();
             this.MaxSizeLabel = new System.Windows.Forms.Label();
             this.MaxSizeComboBox = new System.Windows.Forms.ComboBox();
+            this.GenLodsCheckBox = new System.Windows.Forms.CheckBox();
             this.ShrinkButton = new System.Windows.Forms.Button();
             this.AbortButton = new System.Windows.Forms.Button();
             this.LogTextBox = new System.Windows.Forms.TextBox();
@@ -174,6 +175,16 @@ namespace CodeWalker.Tools
             this.ShrinkButton.UseVisualStyleBackColor = true;
             this.ShrinkButton.Click += new System.EventHandler(this.ShrinkButton_Click);
             //
+            // GenLodsCheckBox
+            //
+            this.GenLodsCheckBox.AutoSize = true;
+            this.GenLodsCheckBox.Location = new System.Drawing.Point(400, 99);
+            this.GenLodsCheckBox.Name = "GenLodsCheckBox";
+            this.GenLodsCheckBox.Size = new System.Drawing.Size(190, 19);
+            this.GenLodsCheckBox.TabIndex = 15;
+            this.GenLodsCheckBox.Text = "Generate missing LODs (.ydd)";
+            this.GenLodsCheckBox.UseVisualStyleBackColor = true;
+            //
             // AbortButton
             //
             this.AbortButton.Location = new System.Drawing.Point(293, 96);
@@ -224,6 +235,7 @@ namespace CodeWalker.Tools
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(604, 461);
+            this.Controls.Add(this.GenLodsCheckBox);
             this.Controls.Add(this.LogTextBox);
             this.Controls.Add(this.InfoLabel);
             this.Controls.Add(this.AbortButton);
@@ -262,6 +274,7 @@ namespace CodeWalker.Tools
         private System.Windows.Forms.RadioButton OutputRpfRadio;
         private System.Windows.Forms.Label MaxSizeLabel;
         private System.Windows.Forms.ComboBox MaxSizeComboBox;
+        private System.Windows.Forms.CheckBox GenLodsCheckBox;
         private System.Windows.Forms.Button ShrinkButton;
         private System.Windows.Forms.Button AbortButton;
         private System.Windows.Forms.TextBox LogTextBox;

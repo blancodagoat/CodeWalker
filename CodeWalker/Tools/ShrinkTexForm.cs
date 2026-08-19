@@ -90,6 +90,7 @@ namespace CodeWalker.Tools
             var input = InputTextBox.Text.TrimEnd('\\', '/');
             var output = OutputTextBox.Text.TrimEnd('\\', '/');
             bool outputRpf = OutputRpfRadio.Checked;
+            bool genLods = GenLodsCheckBox.Checked;
             if (!Directory.Exists(input) && !File.Exists(input))
             {
                 MessageBox.Show("Input doesn't exist: " + input);
@@ -111,7 +112,7 @@ namespace CodeWalker.Tools
             {
                 try
                 {
-                    var stats = PackShrinker.ShrinkPack(input, output, cap, outputRpf, Log, () => AbortOperation);
+                    var stats = PackShrinker.ShrinkPack(input, output, cap, outputRpf, Log, () => AbortOperation, genLods);
                     if ((stats != null) && !outputRpf)
                     {
                         Log("The folder is laid out for texoverride: drop its contents into tex_overrides.");
