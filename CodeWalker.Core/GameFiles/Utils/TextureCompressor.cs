@@ -417,19 +417,18 @@ namespace CodeWalker.Utils
 
         private static int CalculateMaxMipmapLevels(int width, int height, int minSize)
         {
+            // minSize bounds the SMALLER axis: a 2048x1024 chain with minSize 4 stops at 8x4.
+            // The old version halved until BOTH axes were tiny, which gave non-square textures
+            // degenerate tail mips (4x2, 4x1) - below the 4px block floor of DXT compression.
             int levels = 1;
             int w = width;
             int h = height;
 
-            while (w > minSize || h > minSize)
+            while (Math.Min(w, h) / 2 >= minSize)
             {
                 w = Math.Max(1, w / 2);
                 h = Math.Max(1, h / 2);
                 levels++;
-
-                // Stop if we've reached the minimum size
-                if (w <= minSize && h <= minSize)
-                    break;
             }
 
             return levels;
