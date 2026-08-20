@@ -268,9 +268,11 @@ namespace CodeWalker.Utils
 
         // Loads a ytd/ydd from either source, shrinks its textures, and returns the rebuilt
         // loose-format file - or null when nothing in it needed touching.
-        // FiveM crashes streaming a file with more than ~32 MB of graphics data (confirmed by
-        // removal testing); texoverride refuses such files, so a pack keeping one is dead weight
-        private const long SafePhysical = 32L << 20;
+        // FiveM crashes streaming a file with more than ~32 MB in EITHER resource segment
+        // (confirmed twice: 64 MB graphics files by removal testing, then a crash dump from
+        // mesh files whose 77+ MB sat in the virtual segment); texoverride refuses such files,
+        // so a pack keeping one is dead weight
+        private const long SafeSegment = 32L << 20;
 
         private static byte[] ShrinkTexFile(SrcItem it, string ext, int cap, ShrinkStats stats, bool genLods, Action<string> log, ref bool lodsAdded)
         {
@@ -299,12 +301,12 @@ namespace CodeWalker.Utils
             // mesh rescue: while the file's graphics segment is still past the streaming limit,
             // halve the High meshes and re-measure. Leaves margin for generated LODs below.
             byte[] outBytes = changed ? ydd.Save() : null;
-            long phys = (outBytes != null) ? PhysMem(outBytes) : SrcPhys(it);
-            long target = genLods ? (SafePhysical - (8L << 20)) : SafePhysical;
-            if (phys > target)
+            long worst = (outBytes != null) ? MaxSeg(outBytes) : SrcMaxSeg(it);
+            long target = genLods ? (SafeSegment - (8L << 20)) : SafeSegment;
+            if (worst > target)
             {
-                long before = phys;
-                for (int round = 0; (round < 5) && (phys > target); round++)
+                long before = worst;
+                for (int round = 0; (round < 8) && (worst > target); round++)
                 {
                     bool any = false;
                     foreach (var dr in ydd.Drawables) any |= YddLodGen.DecimateHigh(dr, 0.5f, log, it.Rel);
@@ -312,13 +314,13 @@ namespace CodeWalker.Utils
                     changed = true;
                     lodsAdded = true;   // a rescue is a correctness fix; never size-guard it away
                     outBytes = ydd.Save();
-                    phys = PhysMem(outBytes);
+                    worst = MaxSeg(outBytes);
                 }
-                if (phys > target)
-                    log?.Invoke($"STILL TOO BIG  {it.Rel} - {phys / 1048576.0:F1} MB of graphics data; the game cannot stream this and texoverride will refuse it");
-                else if (phys < before)
+                if (worst > target)
+                    log?.Invoke($"STILL TOO BIG  {it.Rel} - {worst / 1048576.0:F1} MB in one segment; the game cannot stream this and texoverride will refuse it");
+                else if (worst < before)
                 {
-                    log?.Invoke($"MESH  {it.Rel} decimated: {before / 1048576.0:F1} -> {phys / 1048576.0:F1} MB graphics data, now safe to stream");
+                    log?.Invoke($"MESH  {it.Rel} decimated: {before / 1048576.0:F1} -> {worst / 1048576.0:F1} MB worst segment, now safe to stream");
                     stats.MeshesDecimated++;
                 }
             }
@@ -340,20 +342,20 @@ namespace CodeWalker.Utils
             return outBytes ?? ydd.Save();
         }
 
-        private static long PhysMem(byte[] data)
+        private static long MaxSeg(byte[] data)
         {
             if ((data == null) || (data.Length < 16) || (BitConverter.ToUInt32(data, 0) != 0x37435352)) return 0;
-            return SizeFromFlags(BitConverter.ToUInt32(data, 12));
+            return Math.Max(SizeFromFlags(BitConverter.ToUInt32(data, 8)), SizeFromFlags(BitConverter.ToUInt32(data, 12)));
         }
-        private static long SrcPhys(SrcItem it)
+        private static long SrcMaxSeg(SrcItem it)
         {
-            if (it.Entry is RpfResourceFileEntry re) return SizeFromFlags(re.GraphicsFlags);
+            if (it.Entry is RpfResourceFileEntry re) return Math.Max(SizeFromFlags(re.SystemFlags), SizeFromFlags(re.GraphicsFlags));
             if (it.FilePath != null)
             {
                 Span<byte> hdr = stackalloc byte[16];
                 using var fs = File.OpenRead(it.FilePath);
                 if (fs.Read(hdr) != 16 || BitConverter.ToUInt32(hdr.Slice(0, 4)) != 0x37435352) return 0;
-                return SizeFromFlags(BitConverter.ToUInt32(hdr.Slice(12, 4)));
+                return Math.Max(SizeFromFlags(BitConverter.ToUInt32(hdr.Slice(8, 4))), SizeFromFlags(BitConverter.ToUInt32(hdr.Slice(12, 4))));
             }
             return 0;
         }
