@@ -92,6 +92,74 @@ namespace CodeWalker.Utils
             return false;
         }
 
+        // Decimates the High models themselves to ~ratio of their triangles. Used to rescue
+        // files whose graphics segment exceeds FiveM's raw-streaming limit (files past ~32 MB
+        // of graphics data are a confirmed client crash). Same half-edge collapse as the LOD
+        // path, so surviving vertices keep their bytes and skinning exactly. A geometry the
+        // decimator cannot process is KEPT UNCHANGED - unlike LOD generation, dropping a piece
+        // of the visible model is never acceptable here. Returns true when anything shrank.
+        public static bool DecimateHigh(DrawableBase dr, float ratio, Action<string> log, string ctx)
+        {
+            var dm = dr?.DrawableModels;
+            if (dm?.High == null || dm.High.Length == 0) return false;
+            if (HasClothShader(dr))
+            {
+                log?.Invoke($"MESH: {ctx} not decimated (cloth shader)");
+                return false;
+            }
+
+            bool changed = false;
+            var newHigh = new DrawableModel[dm.High.Length];
+            for (int mi = 0; mi < dm.High.Length; mi++)
+            {
+                var src = dm.High[mi];
+                newHigh[mi] = src;
+                if (src?.Geometries == null) continue;
+
+                var geoms = new DrawableGeometry[src.Geometries.Length];
+                bool modelChanged = false;
+                for (int gi = 0; gi < src.Geometries.Length; gi++)
+                {
+                    var g = src.Geometries[gi];
+                    geoms[gi] = g;
+                    DrawableGeometry ng = null;
+                    try { ng = DecimateGeometry(g, ratio); } catch { }
+                    if ((ng != null) && ((ng.IndexBuffer?.Indices?.Length ?? int.MaxValue) < (g.IndexBuffer?.Indices?.Length ?? 0)))
+                    {
+                        geoms[gi] = ng;
+                        modelChanged = true;
+                    }
+                }
+                if (!modelChanged) continue;
+
+                var nm = new DrawableModel();
+                nm.SkeletonBinding = src.SkeletonBinding;
+                nm.RenderMaskFlags = src.RenderMaskFlags;
+                nm.Geometries = geoms;
+                nm.GeometriesCount1 = (ushort)geoms.Length;   // BlockLength reads these before Write
+                nm.GeometriesCount2 = (ushort)geoms.Length;
+                nm.GeometriesCount3 = (ushort)geoms.Length;
+                var aabbs = new List<AABB_s>();
+                var shids = new List<ushort>();
+                var min = new Vector4(float.MaxValue);
+                var max = new Vector4(float.MinValue);
+                foreach (var g in geoms)
+                {
+                    aabbs.Add(g.AABB);
+                    shids.Add(g.ShaderID);
+                    min = Vector4.Min(min, g.AABB.Min);
+                    max = Vector4.Max(max, g.AABB.Max);
+                }
+                if (aabbs.Count > 1) aabbs.Insert(0, new AABB_s() { Min = min, Max = max });
+                nm.BoundsData = aabbs.ToArray();
+                nm.ShaderMapping = shids.ToArray();
+                newHigh[mi] = nm;
+                changed = true;
+            }
+            if (changed) dm.High = newHigh;
+            return changed;
+        }
+
         private static DrawableModel[] BuildLodModels(DrawableModel[] high, float ratio)
         {
             var models = new List<DrawableModel>();
