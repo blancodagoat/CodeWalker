@@ -337,10 +337,12 @@ namespace CodeWalker.Utils
             for (int i = 0; i < texs.Length; i++)
             {
                 int ow = texs[i]?.Width ?? 0, oh = texs[i]?.Height ?? 0;
+                int olv = texs[i]?.Levels ?? 0;
                 bool oldPow2 = (ow > 0) && (oh > 0) && ((ow & (ow - 1)) == 0) && ((oh & (oh - 1)) == 0);
+                bool oldBadTail = (olv > 1) && ((Math.Min(ow, oh) >> (olv - 1)) < 4);
                 var nt = ShrinkTexture(texs[i], cap);
                 if (nt == null) continue;
-                if (!oldPow2) mustKeep = true;   // NPOT normalisation is a correctness fix; never revert it
+                if (!oldPow2 || oldBadTail) mustKeep = true;   // NPOT/bad-mip fixes are correctness; never revert
                 texs[i] = nt;
                 if ((dict.Dict != null) && (nt.NameHash != 0)) dict.Dict[nt.NameHash] = nt;
                 changed = true;
@@ -356,13 +358,17 @@ namespace CodeWalker.Utils
             if (tex?.Data?.FullData == null) return null;
             int w = tex.Width, h = tex.Height;
 
-            bool isBC = tex.Format is TextureFormat.D3DFMT_DXT1 or TextureFormat.D3DFMT_DXT3 or TextureFormat.D3DFMT_DXT5
-                                    or TextureFormat.D3DFMT_ATI1 or TextureFormat.D3DFMT_ATI2 or TextureFormat.D3DFMT_BC7;
+            // legacy-safe compressed formats only; BC7 is gen9 and gets re-encoded
+            bool okFmt = tex.Format is TextureFormat.D3DFMT_DXT1 or TextureFormat.D3DFMT_DXT3 or TextureFormat.D3DFMT_DXT5
+                                     or TextureFormat.D3DFMT_ATI1 or TextureFormat.D3DFMT_ATI2;
             bool pow2 = ((w & (w - 1)) == 0) && ((h & (h - 1)) == 0);
             bool tooBig = (w > cap) || (h > cap);
             bool noMips = (tex.Levels <= 1) && (Math.Max(w, h) >= 256);
-            if (isBC && pow2 && !tooBig && !noMips) return null;   // already sane
-            if ((w < 4) || (h < 4)) return null;                   // too tiny to bother
+            // a mip chain whose smaller axis drops below the 4px DXT block floor (4x2, 4x1
+            // tails) is exactly what vanilla never ships; re-encode those
+            bool badTail = (tex.Levels > 1) && ((Math.Min(w, h) >> (tex.Levels - 1)) < 4);
+            if (okFmt && pow2 && !tooBig && !noMips && !badTail) return null;   // already sane
+            if ((w < 4) || (h < 4)) return null;                                // too tiny to bother
 
             var px = DDSIO.GetPixels(tex, 0); // BGRA, mip 0
             if (px == null) return null;
@@ -389,15 +395,18 @@ namespace CodeWalker.Utils
                 img.CopyPixelDataTo(pixels);
             }
 
+            // legacy (gen8) targets: DXT1/DXT5 plus the ATI pair vanilla itself uses. BC7 is a
+            // gen9 format, so BC7 sources get re-encoded as DXT5 for legacy builds.
             var fmt = tex.Format switch
             {
                 TextureFormat.D3DFMT_ATI1 => TextureCompressionFormat.BC4,
                 TextureFormat.D3DFMT_ATI2 => TextureCompressionFormat.BC5,
-                TextureFormat.D3DFMT_BC7 => TextureCompressionFormat.BC7,
                 _ => alpha ? TextureCompressionFormat.DXT5 : TextureCompressionFormat.DXT1,
             };
 
-            var res = TextureCompressor.CompressPixels(pixels, nw, nh, fmt, TextureCompressionQuality.Normal, true, true, 4);
+            // mip floor 8 on the smaller axis: 2048 gets 9 levels (the legacy sweet spot),
+            // 1024 gets 8, matching what vanilla clothing ships (levels <= 8, mips >= 4px)
+            var res = TextureCompressor.CompressPixels(pixels, nw, nh, fmt, TextureCompressionQuality.Normal, true, true, 8);
             if (res?.Success != true || res.Texture == null)
                 throw new Exception(res?.ErrorMessage ?? "compression failed");
 
@@ -406,9 +415,9 @@ namespace CodeWalker.Utils
 
             // the mission is memory: when the re-encode would not actually shrink the texture
             // (mips added to a mipless one, DXT1 promoted to DXT5 over a stray alpha bit), the
-            // original wins - it is both smaller and untouched. EXCEPT for NPOT sources: the
-            // normalised replacement wins regardless of size, it is a correctness fix
-            if (pow2 && (nt.Data.FullData.Length >= tex.Data.FullData.Length)) return null;
+            // original wins - it is both smaller and untouched. EXCEPT for NPOT or bad-tail
+            // sources: the normalised replacement wins regardless of size, it is a correctness fix
+            if (pow2 && !badTail && (nt.Data.FullData.Length >= tex.Data.FullData.Length)) return null;
 
             nt.Name = tex.Name;
             nt.NameHash = tex.NameHash;
