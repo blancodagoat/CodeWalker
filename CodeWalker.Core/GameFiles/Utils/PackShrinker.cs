@@ -157,7 +157,8 @@ namespace CodeWalker.Utils
 
                 // rebuilt file must actually be smaller - resource page rounding can eat a
                 // marginal win, and then the untouched original is the better file. Generated
-                // LODs legitimately grow the file, so they bypass this guard.
+                // LODs and NPOT texture normalisations legitimately change size and bypass
+                // this guard (the lodsAdded flag covers both).
                 if ((shrunk != null) && !lodsAdded && (RscMem(shrunk) >= oldMem))
                 {
                     shrunk = null;
@@ -274,7 +275,7 @@ namespace CodeWalker.Utils
                 if (it.Entry != null) ytd = RpfFile.GetFile<YtdFile>(it.Entry);
                 else { ytd = new YtdFile(); ytd.Load(File.ReadAllBytes(it.FilePath)); }   // loose-file overload
                 if (ytd == null) throw new Exception("could not load");
-                changed = ShrinkDict(ytd.TextureDict, cap, stats);
+                changed = ShrinkDict(ytd.TextureDict, cap, stats, ref lodsAdded);
                 return changed ? ytd.Save() : null;
             }
             YddFile ydd;
@@ -286,7 +287,7 @@ namespace CodeWalker.Utils
                 foreach (var dr in ydd.Drawables)
                 {
                     var td = dr?.ShaderGroup?.TextureDictionary;
-                    if (td != null) changed |= ShrinkDict(td, cap, stats);
+                    if (td != null) changed |= ShrinkDict(td, cap, stats, ref lodsAdded);
                     if (genLods && YddLodGen.GenerateLods(dr, log, it.Rel))
                     {
                         lodsAdded = true;
@@ -328,15 +329,18 @@ namespace CodeWalker.Utils
             return 0;
         }
 
-        private static bool ShrinkDict(TextureDictionary dict, int cap, ShrinkStats stats)
+        private static bool ShrinkDict(TextureDictionary dict, int cap, ShrinkStats stats, ref bool mustKeep)
         {
             var texs = dict?.Textures?.data_items;
             if (texs == null) return false;
             bool changed = false;
             for (int i = 0; i < texs.Length; i++)
             {
+                int ow = texs[i]?.Width ?? 0, oh = texs[i]?.Height ?? 0;
+                bool oldPow2 = (ow > 0) && (oh > 0) && ((ow & (ow - 1)) == 0) && ((oh & (oh - 1)) == 0);
                 var nt = ShrinkTexture(texs[i], cap);
                 if (nt == null) continue;
+                if (!oldPow2) mustKeep = true;   // NPOT normalisation is a correctness fix; never revert it
                 texs[i] = nt;
                 if ((dict.Dict != null) && (nt.NameHash != 0)) dict.Dict[nt.NameHash] = nt;
                 changed = true;
@@ -354,15 +358,20 @@ namespace CodeWalker.Utils
 
             bool isBC = tex.Format is TextureFormat.D3DFMT_DXT1 or TextureFormat.D3DFMT_DXT3 or TextureFormat.D3DFMT_DXT5
                                     or TextureFormat.D3DFMT_ATI1 or TextureFormat.D3DFMT_ATI2 or TextureFormat.D3DFMT_BC7;
+            bool pow2 = ((w & (w - 1)) == 0) && ((h & (h - 1)) == 0);
             bool tooBig = (w > cap) || (h > cap);
             bool noMips = (tex.Levels <= 1) && (Math.Max(w, h) >= 256);
-            if (isBC && !tooBig && !noMips) return null;                                         // already sane
-            if ((w < 4) || (h < 4) || ((w & (w - 1)) != 0) || ((h & (h - 1)) != 0)) return null; // odd sizes: leave alone
+            if (isBC && pow2 && !tooBig && !noMips) return null;   // already sane
+            if ((w < 4) || (h < 4)) return null;                   // too tiny to bother
 
             var px = DDSIO.GetPixels(tex, 0); // BGRA, mip 0
             if (px == null) return null;
 
-            int nw = w, nh = h;
+            // sloppy exports ship sizes like 1028x1028 or 4096x2160; block compression plus
+            // mip chains at those sizes is a crash lottery in RAGE, so normalise to the
+            // previous power of two on each axis, then apply the cap
+            static int PrevPow2(int v) { int p = 4; while (p * 2 <= v) p *= 2; return p; }
+            int nw = PrevPow2(w), nh = PrevPow2(h);
             while ((nw > cap) || (nh > cap)) { nw /= 2; nh /= 2; }
 
             bool alpha = false;
@@ -393,11 +402,13 @@ namespace CodeWalker.Utils
                 throw new Exception(res?.ErrorMessage ?? "compression failed");
 
             var nt = res.Texture;
+            if (nt.Data?.FullData == null) return null;
 
             // the mission is memory: when the re-encode would not actually shrink the texture
             // (mips added to a mipless one, DXT1 promoted to DXT5 over a stray alpha bit), the
-            // original wins - it is both smaller and untouched
-            if ((nt.Data?.FullData == null) || (nt.Data.FullData.Length >= tex.Data.FullData.Length)) return null;
+            // original wins - it is both smaller and untouched. EXCEPT for NPOT sources: the
+            // normalised replacement wins regardless of size, it is a correctness fix
+            if (pow2 && (nt.Data.FullData.Length >= tex.Data.FullData.Length)) return null;
 
             nt.Name = tex.Name;
             nt.NameHash = tex.NameHash;
