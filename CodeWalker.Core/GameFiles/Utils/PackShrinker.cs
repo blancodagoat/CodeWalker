@@ -36,6 +36,7 @@ namespace CodeWalker.Utils
             public int FilesFailed;
             public int TexturesChanged;
             public int LodsGenerated;
+            public int MeshesDecimated;
             public long MemBefore;
             public long MemAfter;
         }
@@ -200,6 +201,7 @@ namespace CodeWalker.Utils
             log?.Invoke($"Done: {stats.FilesChanged} file(s) shrunk, {stats.FilesCopied} carried unchanged, {stats.FilesSkipped} skipped, {stats.FilesFailed} failed.");
             log?.Invoke($"Pack cost in game memory: {stats.MemBefore / 1048576.0:F1} -> {stats.MemAfter / 1048576.0:F1} MB ({stats.TexturesChanged} texture(s) re-encoded).");
             if (stats.LodsGenerated > 0) log?.Invoke($"Generated missing Med/Low LOD models for {stats.LodsGenerated} drawable(s).");
+            if (stats.MeshesDecimated > 0) log?.Invoke($"Decimated the meshes of {stats.MeshesDecimated} file(s) that were too big for FiveM to stream.");
             return stats;
         }
 
@@ -266,6 +268,10 @@ namespace CodeWalker.Utils
 
         // Loads a ytd/ydd from either source, shrinks its textures, and returns the rebuilt
         // loose-format file - or null when nothing in it needed touching.
+        // FiveM crashes streaming a file with more than ~32 MB of graphics data (confirmed by
+        // removal testing); texoverride refuses such files, so a pack keeping one is dead weight
+        private const long SafePhysical = 32L << 20;
+
         private static byte[] ShrinkTexFile(SrcItem it, string ext, int cap, ShrinkStats stats, bool genLods, Action<string> log, ref bool lodsAdded)
         {
             bool changed = false;
@@ -282,21 +288,74 @@ namespace CodeWalker.Utils
             if (it.Entry != null) ydd = RpfFile.GetFile<YddFile>(it.Entry);
             else { ydd = new YddFile(); ydd.Load(File.ReadAllBytes(it.FilePath)); }       // loose-file overload
             if (ydd == null) throw new Exception("could not load");
-            if (ydd.Drawables != null)
+            if (ydd.Drawables == null) return null;
+
+            foreach (var dr in ydd.Drawables)
+            {
+                var td = dr?.ShaderGroup?.TextureDictionary;
+                if (td != null) changed |= ShrinkDict(td, cap, stats, ref lodsAdded, dr.ShaderGroup);
+            }
+
+            // mesh rescue: while the file's graphics segment is still past the streaming limit,
+            // halve the High meshes and re-measure. Leaves margin for generated LODs below.
+            byte[] outBytes = changed ? ydd.Save() : null;
+            long phys = (outBytes != null) ? PhysMem(outBytes) : SrcPhys(it);
+            long target = genLods ? (SafePhysical - (8L << 20)) : SafePhysical;
+            if (phys > target)
+            {
+                long before = phys;
+                for (int round = 0; (round < 5) && (phys > target); round++)
+                {
+                    bool any = false;
+                    foreach (var dr in ydd.Drawables) any |= YddLodGen.DecimateHigh(dr, 0.5f, log, it.Rel);
+                    if (!any) break;
+                    changed = true;
+                    lodsAdded = true;   // a rescue is a correctness fix; never size-guard it away
+                    outBytes = ydd.Save();
+                    phys = PhysMem(outBytes);
+                }
+                if (phys > target)
+                    log?.Invoke($"STILL TOO BIG  {it.Rel} - {phys / 1048576.0:F1} MB of graphics data; the game cannot stream this and texoverride will refuse it");
+                else if (phys < before)
+                {
+                    log?.Invoke($"MESH  {it.Rel} decimated: {before / 1048576.0:F1} -> {phys / 1048576.0:F1} MB graphics data, now safe to stream");
+                    stats.MeshesDecimated++;
+                }
+            }
+
+            if (genLods)
             {
                 foreach (var dr in ydd.Drawables)
                 {
-                    var td = dr?.ShaderGroup?.TextureDictionary;
-                    if (td != null) changed |= ShrinkDict(td, cap, stats, ref lodsAdded);
-                    if (genLods && YddLodGen.GenerateLods(dr, log, it.Rel))
+                    if (YddLodGen.GenerateLods(dr, log, it.Rel))
                     {
                         lodsAdded = true;
                         changed = true;
                         stats.LodsGenerated++;
+                        outBytes = null;   // stale after LOD generation
                     }
                 }
             }
-            return changed ? ydd.Save() : null;
+            if (!changed) return null;
+            return outBytes ?? ydd.Save();
+        }
+
+        private static long PhysMem(byte[] data)
+        {
+            if ((data == null) || (data.Length < 16) || (BitConverter.ToUInt32(data, 0) != 0x37435352)) return 0;
+            return SizeFromFlags(BitConverter.ToUInt32(data, 12));
+        }
+        private static long SrcPhys(SrcItem it)
+        {
+            if (it.Entry is RpfResourceFileEntry re) return SizeFromFlags(re.GraphicsFlags);
+            if (it.FilePath != null)
+            {
+                Span<byte> hdr = stackalloc byte[16];
+                using var fs = File.OpenRead(it.FilePath);
+                if (fs.Read(hdr) != 16 || BitConverter.ToUInt32(hdr.Slice(0, 4)) != 0x37435352) return 0;
+                return SizeFromFlags(BitConverter.ToUInt32(hdr.Slice(12, 4)));
+            }
+            return 0;
         }
 
         // The file in loose (on-disk) format, unchanged: folder sources are read back as-is;
@@ -329,7 +388,7 @@ namespace CodeWalker.Utils
             return 0;
         }
 
-        private static bool ShrinkDict(TextureDictionary dict, int cap, ShrinkStats stats, ref bool mustKeep)
+        private static bool ShrinkDict(TextureDictionary dict, int cap, ShrinkStats stats, ref bool mustKeep, ShaderGroup shaders = null)
         {
             var texs = dict?.Textures?.data_items;
             if (texs == null) return false;
@@ -340,15 +399,41 @@ namespace CodeWalker.Utils
                 int olv = texs[i]?.Levels ?? 0;
                 bool oldPow2 = (ow > 0) && (oh > 0) && ((ow & (ow - 1)) == 0) && ((oh & (oh - 1)) == 0);
                 bool oldBadTail = (olv > 1) && ((Math.Min(ow, oh) >> (olv - 1)) < 4);
-                var nt = ShrinkTexture(texs[i], cap);
+                var old = texs[i];
+                var nt = ShrinkTexture(old, cap);
                 if (nt == null) continue;
                 if (!oldPow2 || oldBadTail) mustKeep = true;   // NPOT/bad-mip fixes are correctness; never revert
                 texs[i] = nt;
                 if ((dict.Dict != null) && (nt.NameHash != 0)) dict.Dict[nt.NameHash] = nt;
+                RepointShaderParams(shaders, old, nt);
                 changed = true;
                 if (stats != null) stats.TexturesChanged++;
             }
             return changed;
+        }
+
+        // Shader parameters hold direct references to embedded Texture blocks. Swapping only
+        // the dictionary entry leaves the OLD texture reachable through those parameters, so
+        // the rebuilt file silently carries both copies - the old data as dead weight that can
+        // keep a file past FiveM's streaming limit no matter how much the dictionary shrank.
+        private static void RepointShaderParams(ShaderGroup shaders, Texture oldTex, Texture newTex)
+        {
+            var items = shaders?.Shaders?.data_items;
+            if (items == null) return;
+            foreach (var s in items)
+            {
+                var pars = s?.ParametersList?.Parameters;
+                if (pars == null) continue;
+                foreach (var p in pars)
+                {
+                    if (p?.DataType != 0) continue;
+                    if (ReferenceEquals(p.Data, oldTex) ||
+                        ((p.Data is Texture pt) && (pt.NameHash != 0) && (pt.NameHash == oldTex.NameHash)))
+                    {
+                        p.Data = newTex;
+                    }
+                }
+            }
         }
 
         // Returns a re-encoded replacement, or null when the texture is already sane.
